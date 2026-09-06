@@ -144,6 +144,8 @@ different locales cannot order identifiers differently.
   is behind, recovering one that is stuck, pinning, rolling back by hand
 - `terminal-frontend/scripts/README.md` (including that both shell suites need
   GNU coreutils, so CI is their authority), `use-cases/terminal/UC-T15`
+- `adr/0054-terminal-runs-its-backends-version.md` — *The window is part of the
+  argument, not a default* (amendment, approved by the owner 2026-09-06)
 - The 04:00 window is documented as **load-bearing rather than a default**: it is
   what makes restoring the pre-update database safe, so a faster cadence is a
   development override expressed as a systemd drop-in — deliberately not a
@@ -154,12 +156,10 @@ different locales cannot order identifiers differently.
 
 ## What was deliberately left out
 
-- **ADR-0054 is untouched.** Its status line still reads *Proposed*, and the
-  paragraph the 04:00 window deserves there — that a faster cadence is a
-  development override rather than a supported setting — is written into
-  INSTALL.md §4 instead, and proposed to the user for the ADR. CLAUDE.md
-  requires *user* confirmation to edit an ADR, and a peer session's request
-  does not substitute for it.
+- **ADR-0054's status still reads *Proposed*.** The owner approved the
+  *amendment* — the section on why the 04:00 window is load-bearing, added
+  2026-09-06 — and that is what was applied. Promoting the decision to
+  *Accepted* is a separate call and was not part of it.
 - **No E2E through a real Pi.** The updater's suite drives the real script
   against a sandboxed install root and a fake GitHub; a physical arm64 kiosk is
   outside what CI has.

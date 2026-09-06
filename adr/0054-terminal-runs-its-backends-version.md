@@ -1,6 +1,7 @@
 # ADR-0054: A Terminal Runs Its Backend's Version
 
-**Status**: Proposed
+**Status**: Proposed (amended 2026-09-06 — see *The window is part of the
+argument, not a default*)
 
 **Date**: 2026-09-06
 
@@ -152,6 +153,36 @@ On failure: `current` goes back to `previous`, the sqlite backup is restored,
 the tag is written to `blocked`, and the service restarts. Restoring the
 database is safe because the run happens at night on an idle, synced terminal —
 a version that never got healthy booked nothing.
+
+### The window is part of the argument, not a default
+
+> **Amended 2026-09-06 — the 04:00 window is load-bearing.** The sentence above
+> rests on it and the original text did not say so, which left the impression
+> that the schedule was a preference somebody could tune.
+
+Restoring the pre-update database is safe *because* the run happens at night on
+an idle, synced terminal. That is a premise, not a convenience, and a faster
+cadence deletes it: an update landing at 14:00 on a Saturday restarts the till
+mid-service and can then restore a backup taken minutes earlier, discarding
+whatever was rung up in between.
+
+The unsynced-transactions refusal narrows that window without closing it. It is
+checked before the download, and a member can tap a card between the check and
+the swap — so at 04:00 the gap is theoretical and during service it is a real
+sale.
+
+So **any cadence faster than nightly is a development override**, expressed as a
+systemd drop-in, and deliberately *not* a `config.json` key. The two are not
+equivalent conveniences. A drop-in is a file somebody had to sit down and
+create, in a directory they had to know about; a configuration key sits in the
+same file as `apiUrl` and `fullscreen`, where an operator copies it out of a
+forum post without reading the paragraph that explains what it costs. The
+asymmetry is the point: this setting should be available to whoever is
+debugging the updater and awkward for everybody else.
+
+This also settles the open question #318 raised about per-terminal update
+windows: the answer is no, not because it is hard, but because the safety
+argument above is only true in one of them.
 
 ### A blocked terminal waits for the next release
 
