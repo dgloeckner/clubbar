@@ -105,26 +105,98 @@ So the updater refuses to touch such a machine rather than guess — force-
 installing the backend's version over an unknown flat install would silently
 reinstall over a terminal somebody had deliberately held back.
 
-The conversion is a one-off, by hand, and needs the tag the flat install
-actually is. If you do not know it, the terminal's status modal shows the
-compiled-in `APP_VERSION`:
+**The first slot is installed by hand, never over the air.** A terminal older
+than v1.0.8 has no `status.json`: the app that writes it shipped *in* v1.0.8,
+and step 3 of every update run refuses to continue without it —
+*"cannot tell whether sales are waiting to sync"*, which is the correct reading,
+because unknown is not none. So a pre-v1.0.8 terminal cannot make its first hop
+over the air; left to the timer it would meet that refusal every night, forever.
+Install the release the backend is already on directly into the slot layout
+instead. From then on every update is unattended, because the new app writes the
+file on its first sync.
+
+That deadlock is deliberately not solved with a flag. A switch that skips the
+unsynced-transactions check is precisely the switch somebody reaches for at
+19:00 on a Friday.
+
+**Take ownership first.** A terminal installed by the `rsync` in §1 has a
+root-owned `/opt/clubbar-terminal`, so every command below fails at the first
+`mkdir` with `Permission denied` unless this runs before them:
 
 ```bash
-VERSION=v1.0.6    # what this terminal is actually running
-cd /opt/clubbar-terminal
-systemctl --user stop clubbar-terminal.service
-
-mkdir -p releases/$VERSION
-# Everything except the new layout's own entries.
-find . -maxdepth 1 -mindepth 1 \
-     ! -name releases ! -name current ! -name previous ! -name blocked \
-     -exec mv {} releases/$VERSION/ \;
-ln -sfn releases/$VERSION current
 sudo chown -R "$USER":"$USER" /opt/clubbar-terminal
 ```
 
-Then edit the unit's `ExecStart` to gain the one path segment (§4) and start it
-again. `clubbar-update.sh --status` confirms the result.
+Download the release the backend reports, and verify it before it goes anywhere
+near the slots. The `.sha256` companion names a bare filename, so both files
+have to sit in the same directory for `sha256sum -c` to work:
+
+```bash
+V=v1.0.8          # what GET /api/health reports; `clubbar-update.sh --status` prints it too
+BASE=https://github.com/dgloeckner/clubbar/releases/download/$V
+A=clubbar-terminal-linux-arm64-$V.tar.gz
+
+cd ~
+curl -fLO "$BASE/$A"
+curl -fLO "$BASE/$A.sha256"
+sha256sum -c "$A.sha256"        # must print: ...tar.gz: OK
+```
+
+`-L` is required — the asset URL redirects to `objects.githubusercontent.com`,
+and without it you save a 302 body under the right filename. `-f` turns a 404
+into an error rather than a saved error page, which is the failure that reads as
+a corrupt archive.
+
+Only once the checksum passes, build the layout. The old build becomes a slot of
+its own rather than being deleted: it costs nothing and it is a rollback target
+that needs no network. Its tag is what the terminal is actually running — the
+status modal shows the compiled-in `APP_VERSION` if you do not know it:
+
+```bash
+OLD=v1.0.4        # what this terminal was running
+cd /opt/clubbar-terminal
+systemctl --user stop clubbar-terminal.service
+
+mkdir -p releases/$OLD releases/$V
+# Everything except the new layout's own entries.
+find . -maxdepth 1 -mindepth 1 \
+     ! -name releases ! -name current ! -name previous ! -name blocked \
+     -exec mv {} releases/$OLD/ \;
+
+tar -xzf ~/clubbar-terminal-linux-arm64-$V.tar.gz -C releases/$V
+chmod +x releases/$V/clubbar_terminal releases/$V/scripts/*.sh
+ln -sfn releases/$V current
+```
+
+Check the result before starting anything — `current` must be the only entry
+beside `releases/`, and each slot must hold a whole bundle:
+
+```bash
+ls -la /opt/clubbar-terminal      # current -> releases/v1.0.8, nothing loose
+ls releases/$V                    # clubbar_terminal  data  lib  scripts
+ls releases/$OLD                  # clubbar_terminal  data  lib  …
+```
+
+Then edit the unit's `ExecStart` to gain the one path segment (§4),
+`systemctl --user daemon-reload`, and start it again.
+
+Three things confirm the conversion, in order — do not install the update timer
+(§4) until all three hold:
+
+1. The screen shows the new version.
+2. `cat ~/.local/share/de.clubbar.clubbar_terminal/status.json` exists, within a
+   sync interval of startup, with `"unsynced_transactions": 0`. This is the file
+   the old build could not write, and the whole reason the first slot went in by
+   hand. Its `app_version` is written by the app while the slot name comes from
+   the symlink, so the two disagreeing is an early warning that something was
+   installed into the wrong slot.
+3. The admin panel's Terminals page moves this terminal from *unknown* to
+   *current* on that same sync — the first live proof that `X-Terminal-Version`
+   reaches the backend.
+
+`clubbar-update.sh --status` then reports the new version installed, nothing
+pinned and nothing blocked. `previous` reads `(none)`, which is correct: the
+updater writes it when it swaps, and the slot you kept above is not wired as one.
 
 ---
 
