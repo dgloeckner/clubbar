@@ -1251,6 +1251,45 @@ jobs:
             ${{ steps.package.outputs.artifact }}.sha256
           retention-days: 30
 
+  # The updater's own suites (ADR-0054, #318).
+  #
+  # A separate job rather than a step in `build-terminal`: this needs no Flutter
+  # SDK, no arm64 runner and no apt toolchain, so bolting it onto a five-minute
+  # job would hide a thirty-second answer behind one. It is also the only thing
+  # that runs these suites at all — `clubbar-update.sh` swaps symlinks and
+  # restores sqlite databases on an unattended kiosk, and its ~550 lines of
+  # tests were reachable only by hand before this job existed.
+  #
+  # Both suites need GNU coreutils: `mv -T`, `date -d` and `sha256sum` are not
+  # portable, which is why a contributor on macOS cannot run them locally and
+  # why this job is the authority. The target is a Raspberry Pi, so GNU is the
+  # right assumption; ubuntu-24.04 is the closest runner to it.
+  test-updater:
+    name: Terminal updater
+    needs: [changes]
+    if: needs.changes.outputs.full == 'true' || needs.changes.outputs.terminal == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The release-tag rules, asserted against the same table of cases as
+      # `backend/tests/Unit/Shared/Version/ReleaseVersionTest.php`. Two
+      # implementations of "which version is newer" that disagree is exactly how
+      # a terminal moves backwards, so both run in CI or neither is trustworthy.
+      - name: Version rules
+        run: bash scripts/test/updater-version.sh
+        working-directory: terminal-frontend
+
+      # The refusals, the happy path and the rollback, against a sandboxed
+      # install root, a `curl` serving fixtures and a `systemctl` that can
+      # pretend the app came back — or did not. Nothing here touches /opt, the
+      # network, or a real systemd.
+      - name: Update flow, rollback and recovery
+        run: bash scripts/test/updater-flow.sh
+        working-directory: terminal-frontend
+
   # A Release publishes both artifacts or neither (ADR-0054).
   #
   # `test-package` and `build-terminal` each used to upload its own artifact,

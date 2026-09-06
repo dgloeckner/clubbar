@@ -416,6 +416,20 @@ page shows *Stuck at &lt;tag&gt;*. That terminal then updates no further until a
 newer release ships — see the [runbook](../docs/runbook-terminal-pi.md) for
 clearing it.
 
+**The 04:00 window is load-bearing, not a default.** It is what makes the
+rollback safe: the run happens on an idle, synced terminal, so a version that
+never got healthy booked nothing and restoring the pre-update database loses no
+sale. A faster cadence deletes that premise — an update could land at 14:00 on a
+Saturday, restart the till mid-service, and then restore a backup taken minutes
+earlier, discarding everything rung up in between. The unsynced-transactions
+refusal narrows that window but does not close it: a member can tap a card
+between the check and the swap.
+
+So a faster cadence is a **development override**, and deliberately *not* a
+`config.json` key. A systemd drop-in is a file somebody had to sit down and
+create; a configuration key is one an operator copies out of a forum post
+without reading the paragraph above it.
+
 **Pinning and opting out** are two keys in `config.json` (§8):
 
 ```json

@@ -96,6 +96,74 @@ class ReleaseVersionTest extends TestCase
         $this->assertSame(-1, ReleaseVersion::compareTags('v1.0.8-rc.1', 'v1.0.8-rc.2'));
     }
 
+    /**
+     * The case a string comparison gets wrong, and the one that would matter: a
+     * terminal on `-rc.9` offered `-rc.10` would read it as a downgrade, log
+     * "Never downgrading" and never move again. A refusal that reports itself
+     * as prudence is the worst failure this design can have.
+     */
+    public function test_numeric_pre_release_identifiers_compare_numerically(): void
+    {
+        $this->assertSame(-1, ReleaseVersion::compareTags('v1.0.8-rc.9', 'v1.0.8-rc.10'));
+        $this->assertSame(1, ReleaseVersion::compareTags('v1.0.8-rc.10', 'v1.0.8-rc.9'));
+        // Leading zeros are still the same number.
+        $this->assertSame(0, ReleaseVersion::compareTags('v1.0.8-rc.9', 'v1.0.8-rc.09'));
+        // Wider than any integer, and still ordered exactly.
+        $this->assertSame(
+            -1,
+            ReleaseVersion::compareTags('v1.0.8-rc.99999999999999999999', 'v1.0.8-rc.100000000000000000000'),
+        );
+    }
+
+    public function test_a_numeric_identifier_ranks_below_an_alphanumeric_one(): void
+    {
+        $this->assertSame(-1, ReleaseVersion::compareTags('v1.0.8-1', 'v1.0.8-alpha'));
+        $this->assertSame(1, ReleaseVersion::compareTags('v1.0.8-alpha', 'v1.0.8-1'));
+    }
+
+    public function test_the_longer_set_of_identifiers_wins_when_the_rest_are_equal(): void
+    {
+        $this->assertSame(-1, ReleaseVersion::compareTags('v1.0.8-alpha', 'v1.0.8-alpha.1'));
+        $this->assertSame(1, ReleaseVersion::compareTags('v1.0.8-alpha.1', 'v1.0.8-alpha'));
+    }
+
+    /**
+     * The worked example from SemVer §11.4, asserted as one chain. The shell
+     * implementation asserts the same chain in `updater-version.sh`.
+     */
+    public function test_the_specifications_own_worked_example(): void
+    {
+        $ordered = [
+            'v1.0.0-alpha',
+            'v1.0.0-alpha.1',
+            'v1.0.0-alpha.beta',
+            'v1.0.0-beta',
+            'v1.0.0-beta.2',
+            'v1.0.0-beta.11',
+            'v1.0.0-rc.1',
+            'v1.0.0',
+        ];
+
+        for ($i = 0; $i < count($ordered) - 1; $i++) {
+            $this->assertSame(
+                -1,
+                ReleaseVersion::compareTags($ordered[$i], $ordered[$i + 1]),
+                "{$ordered[$i]} should sort before {$ordered[$i + 1]}",
+            );
+        }
+    }
+
+    /**
+     * This repository's own convention, which is why none of the above has ever
+     * been reached: a constant `-beta` suffix with the counter in the patch
+     * field, which orders correctly under a string comparison too.
+     */
+    public function test_this_projects_own_tags_order_correctly(): void
+    {
+        $this->assertSame(-1, ReleaseVersion::compareTags('v0.1.18-beta', 'v0.1.19-beta'));
+        $this->assertSame(1, ReleaseVersion::compareTags('v1.0.0', 'v0.1.19-beta'));
+    }
+
     public function test_comparing_against_a_non_version_is_unknown_not_equal(): void
     {
         // `dev` must never read as "same as the backend", which would be a

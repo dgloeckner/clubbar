@@ -79,6 +79,13 @@ Its two test suites are in [`test/`](test/):
 of "which version is newer" that disagree is how a terminal ends up moving
 backwards, so a case added to one belongs in the other.
 
+**Both need GNU coreutils.** `mv -T`, `date -d` and `sha256sum` are not
+portable, so on macOS `updater-flow.sh` fails from the first symlink swap
+onward — `mv: illegal option -- T` — and the failures cascade. That is not a
+defect: the target is a Raspberry Pi. CI runs both suites on `ubuntu-24.04`
+(the `test-updater` job), which is the authority; to run them on a Mac, use a
+Linux container.
+
 ### `reset-db.sh`
 
 Resets the local SQLite database by removing the app's data file. On the next app launch, the database will be recreated and seeded with fresh mock data.

@@ -106,11 +106,73 @@ compare_tags() {
     if [ "$left" -gt "$right" ]; then echo 1; return; fi
   done
 
-  # A pre-release sorts before the final release of the same numbers.
-  if [ "$a_pre" = "$b_pre" ]; then echo 0; return; fi
-  if [ -z "$a_pre" ]; then echo 1; return; fi
-  if [ -z "$b_pre" ]; then echo -1; return; fi
-  if [[ "$a_pre" < "$b_pre" ]]; then echo -1; else echo 1; fi
+  compare_pre_release "$a_pre" "$b_pre"
+}
+
+# SemVer §11.4 on two pre-release suffixes, with '' meaning "not a pre-release".
+#
+# This was a plain string comparison while the only thing it had to order was
+# `rc.1` before `rc.2`, and that was wrong in a way worth spelling out: `rc.9`
+# sorts *after* `rc.10` as a string, so a terminal on `-rc.9` offered `-rc.10`
+# would read it as a downgrade, log "Never downgrading" and never move again. A
+# refusal that reports itself as prudence is the worst failure this design can
+# have — so the rule here is the real one, even though this project's own
+# convention (a constant `-beta` suffix, the counter in the patch field) has
+# never reached it.
+compare_pre_release() {
+  local a="$1" b="$2"
+  # ASCII order, not the machine's locale: en_US.UTF-8 collates case- and
+  # punctuation-insensitively, which would order identifiers differently on two
+  # Pis with different locales. Scoped to this function by `local`.
+  local LC_ALL=C
+
+  if [ "$a" = "$b" ]; then echo 0; return; fi
+  # A final release outranks any pre-release of the same numbers.
+  if [ -z "$a" ]; then echo 1; return; fi
+  if [ -z "$b" ]; then echo -1; return; fi
+
+  local -a left right
+  IFS=. read -r -a left <<< "$a"
+  IFS=. read -r -a right <<< "$b"
+
+  local count=${#left[@]} i l r
+  [ "${#right[@]}" -gt "$count" ] && count=${#right[@]}
+
+  for ((i = 0; i < count; i++)); do
+    # All preceding identifiers equal: the longer set wins.
+    if [ "$i" -ge "${#left[@]}" ]; then echo -1; return; fi
+    if [ "$i" -ge "${#right[@]}" ]; then echo 1; return; fi
+
+    l="${left[i]}"
+    r="${right[i]}"
+
+    if [[ "$l" =~ ^[0-9]+$ ]] && [[ "$r" =~ ^[0-9]+$ ]]; then
+      # By length and then lexically, after stripping leading zeros: exact at
+      # any width, where $((...)) would overflow on a long identifier.
+      l="${l#"${l%%[!0]*}"}"; l="${l:-0}"
+      r="${r#"${r%%[!0]*}"}"; r="${r:-0}"
+      if [ "${#l}" -ne "${#r}" ]; then
+        if [ "${#l}" -lt "${#r}" ]; then echo -1; else echo 1; fi
+        return
+      fi
+      if [ "$l" != "$r" ]; then
+        if [[ "$l" < "$r" ]]; then echo -1; else echo 1; fi
+        return
+      fi
+      continue
+    fi
+
+    # A numeric identifier always ranks below an alphanumeric one.
+    if [[ "$l" =~ ^[0-9]+$ ]]; then echo -1; return; fi
+    if [[ "$r" =~ ^[0-9]+$ ]]; then echo 1; return; fi
+
+    if [ "$l" != "$r" ]; then
+      if [[ "$l" < "$r" ]]; then echo -1; else echo 1; fi
+      return
+    fi
+  done
+
+  echo 0
 }
 
 # ---------------------------------------------------------------------------

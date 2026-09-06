@@ -16,10 +16,10 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 UPDATER="$HERE/../clubbar-update.sh"
 
-# Source the script's functions without running it: --help exits 0 before any
-# work, and `set -e` is not in effect, so the definitions above it are what we
-# get. Simpler and less fragile: extract the two pure functions.
-eval "$(sed -n '/^is_release_tag()/,/^}/p;/^compare_tags()/,/^}/p' "$UPDATER")"
+# Extract the pure functions and evaluate them, rather than sourcing the script,
+# which would run a nightly update against this machine. The three are the whole
+# of the version rules; nothing else in the updater decides them.
+eval "$(sed -n '/^is_release_tag()/,/^}/p;/^compare_tags()/,/^}/p;/^compare_pre_release()/,/^}/p' "$UPDATER")"
 
 FAILURES=0
 
@@ -85,6 +85,34 @@ echo "== pre-releases sort before the release they precede =="
 assert_order v1.0.8-rc.1 -1 v1.0.8
 assert_order v1.0.8 1 v1.0.8-rc.1
 assert_order v1.0.8-rc.1 -1 v1.0.8-rc.2
+
+echo
+echo "== pre-release identifiers follow SemVer 11.4, not string order =="
+# The case a string comparison gets wrong, and the one that would matter: a
+# terminal on rc.9 offered rc.10 would read it as a downgrade, log "Never
+# downgrading" and never move again.
+assert_order v1.0.8-rc.9 -1 v1.0.8-rc.10
+assert_order v1.0.8-rc.10 1 v1.0.8-rc.9
+# Leading zeros are still the same number.
+assert_order v1.0.8-rc.9 0 v1.0.8-rc.09
+# A numeric identifier ranks below an alphanumeric one.
+assert_order v1.0.8-1 -1 v1.0.8-alpha
+assert_order v1.0.8-alpha 1 v1.0.8-1
+# All preceding identifiers equal: the longer set wins.
+assert_order v1.0.8-alpha -1 v1.0.8-alpha.1
+assert_order v1.0.8-alpha.1 1 v1.0.8-alpha
+# The worked example from the specification.
+assert_order v1.0.0-alpha -1 v1.0.0-alpha.1
+assert_order v1.0.0-alpha.1 -1 v1.0.0-alpha.beta
+assert_order v1.0.0-alpha.beta -1 v1.0.0-beta
+assert_order v1.0.0-beta -1 v1.0.0-beta.2
+assert_order v1.0.0-beta.2 -1 v1.0.0-beta.11
+assert_order v1.0.0-beta.11 -1 v1.0.0-rc.1
+assert_order v1.0.0-rc.1 -1 v1.0.0
+# This project's own convention, which never reaches any of the above: a
+# constant suffix with the counter in the patch field.
+assert_order v0.1.18-beta -1 v0.1.19-beta
+assert_order v1.0.0 1 v0.1.19-beta
 
 echo
 if [ "$FAILURES" -gt 0 ]; then
