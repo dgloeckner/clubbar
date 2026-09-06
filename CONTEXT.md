@@ -248,3 +248,33 @@ access to the backup folder and nothing else. Never the club's own account at
 that provider: the credential sits in a file on the webspace, so what it can
 reach is what a compromised webspace can reach.
 _Avoid_: service account, technical user, API user
+
+### Releases
+
+**Release**:
+One tag, one act, two artifacts — the backend package and the terminal bundle,
+built from the same commit and published together or not at all. There is no
+release of the backend alone and no release of the terminal alone.
+
+That is not a convention, it is what makes a terminal's version knowable: a
+terminal runs exactly the version its backend reports, so a tag that names a
+backend must also name a terminal. Upgrading the backend is the single act that
+moves terminals; there is no channel to pick, nothing to bless, and no version
+for anyone to choose. See [ADR-0054](./adr/0054-terminal-runs-its-backends-version.md).
+_Avoid_: latest (there is no "latest" for a terminal — only its backend's
+version), update channel, track, stable release (the pre-release flag means
+nothing to a terminal)
+
+**Blocked**:
+A version one terminal tried to run and could not — it never reached a healthy
+state after the update, so it was rolled back and written down. That terminal
+will never try that version again, on any night, for any reason.
+
+It belongs to the one terminal, not to the release: the same version runs fine
+on the terminal next to it, and usually does. A blocked terminal stays on the
+last version that worked and does nothing further until a **Release** moves its
+backend forward, which is why an admin can see every terminal's version and
+whether it is stuck.
+_Avoid_: blacklist, quarantine, bad release (the release is not what failed —
+this terminal is)
+

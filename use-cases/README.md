@@ -134,6 +134,7 @@ with a phone, a QR poster and no account ([ADR-0052](../adr/0052-member-self-reg
 | UC-T12 | Error Scenarios | Implemented | [UC-T12](./terminal/UC-T12-error-scenarios.md) |
 | UC-T13 | Fetch Recent Transactions | Implemented (diverges) | [UC-T13](./terminal/UC-T13-fetch-recent-transactions.md) |
 | UC-T14 | Update Balance on Sync | Implemented | [UC-T14](./terminal/UC-T14-update-balance-on-sync.md) |
+| UC-T15 | Unattended Update | Implemented | [UC-T15](./terminal/UC-T15-unattended-update.md) |
 
 ## GDPR (DSGVO)
 

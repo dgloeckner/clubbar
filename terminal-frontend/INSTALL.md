@@ -50,23 +50,81 @@ Development builds can be found in each CI build run.
 
 ## 1. Build and install the Flutter app
 
-Copy the app to the Pi:
+The install is laid out in **A/B slots**, because that is what makes an update
+atomic and a rollback a single rename ([ADR-0054](../adr/0054-terminal-runs-its-backends-version.md)):
 
-```bash
-rsync -av build/linux/x64/release/bundle/ pi@<PI_IP>:/opt/clubbar-terminal/
+```
+/opt/clubbar-terminal/
+  releases/v1.0.6/             # each release, fully self-contained
+  releases/v1.0.7/
+  current  -> releases/v1.0.7  # the ONLY source of truth for what is installed
+  previous -> releases/v1.0.6  # rollback target
+  blocked                      # versions that failed here, never retried
 ```
 
-On the Pi, make the binary executable:
+There is deliberately **no `VERSION` file inside a bundle**. A second copy of
+the version can contradict the directory it sits in, and the contradiction is
+silent — an updater confidently declining to update a terminal that is running
+something else. `basename $(readlink current)` is the answer, and the only one.
+
+Copy the app to the Pi, into a slot named after the release it is:
 
 ```bash
-chmod +x /opt/clubbar-terminal/clubbar_terminal
+VERSION=v1.0.7    # the tag you built or downloaded; see §0
+ssh pi@<PI_IP> "mkdir -p /opt/clubbar-terminal/releases/$VERSION"
+rsync -av build/linux/arm64/release/bundle/ \
+      pi@<PI_IP>:/opt/clubbar-terminal/releases/$VERSION/
+```
+
+On the Pi, point `current` at it and make the binary executable:
+
+```bash
+VERSION=v1.0.7
+chmod +x /opt/clubbar-terminal/releases/$VERSION/clubbar_terminal
+ln -sfn /opt/clubbar-terminal/releases/$VERSION /opt/clubbar-terminal/current
+```
+
+**The whole tree must belong to the kiosk user**, because the update timer runs
+as that user and writes every one of these paths (see §4):
+
+```bash
+sudo chown -R "$USER":"$USER" /opt/clubbar-terminal
 ```
 
 To launch manually and verify it works:
 
 ```bash
-DISPLAY=:0 /opt/clubbar-terminal/clubbar_terminal
+DISPLAY=:0 /opt/clubbar-terminal/current/clubbar_terminal
 ```
+
+### Converting a terminal that was installed flat
+
+Terminals installed before ADR-0054 have the bundle sitting *at*
+`/opt/clubbar-terminal/`, and nothing on the box records which release it is.
+So the updater refuses to touch such a machine rather than guess — force-
+installing the backend's version over an unknown flat install would silently
+reinstall over a terminal somebody had deliberately held back.
+
+The conversion is a one-off, by hand, and needs the tag the flat install
+actually is. If you do not know it, the terminal's status modal shows the
+compiled-in `APP_VERSION`:
+
+```bash
+VERSION=v1.0.6    # what this terminal is actually running
+cd /opt/clubbar-terminal
+systemctl --user stop clubbar-terminal.service
+
+mkdir -p releases/$VERSION
+# Everything except the new layout's own entries.
+find . -maxdepth 1 -mindepth 1 \
+     ! -name releases ! -name current ! -name previous ! -name blocked \
+     -exec mv {} releases/$VERSION/ \;
+ln -sfn releases/$VERSION current
+sudo chown -R "$USER":"$USER" /opt/clubbar-terminal
+```
+
+Then edit the unit's `ExecStart` to gain the one path segment (§4) and start it
+again. `clubbar-update.sh --status` confirms the result.
 
 ---
 
@@ -266,10 +324,23 @@ StartLimitIntervalSec=0          # never give up; a dead till cannot sell
 [Service]
 Type=simple
 Environment=GST_AUDIO_SINK=alsasink
-ExecStart=/opt/clubbar-terminal/clubbar_terminal
+ExecStart=/opt/clubbar-terminal/current/clubbar_terminal
 Restart=always
 RestartSec=3
 ```
+
+`current/` is the only thing ADR-0054 changed in this unit, and that is
+deliberate: the updater swaps a symlink and **never rewrites this file**. Any
+per-Pi customisation here — the `GST_DEBUG` variant in
+[audio-dropout-debugging.md](docs/audio-dropout-debugging.md), a different
+sink, an added environment variable — therefore survives every update for free,
+which it would not if the unit were templated and reinstalled.
+
+`StartLimitIntervalSec=0` stays, and the update design is built around it.
+Rate limiting is off on purpose — a till that gave up is a till that cannot
+sell — so a **restart count can never be a health signal**: a terminal
+crash-looping forever never trips a limit that is switched off. That is why the
+updater's watchdog reads the app's heartbeat instead (below).
 
 `graphical-session.target` is inactive under labwc, so the unit is *not* hung
 off it — the `.desktop` entry is the trigger, and the user manager already has
@@ -280,6 +351,92 @@ Verify by killing it:
 ```bash
 kill -9 $(systemctl --user show -p MainPID --value clubbar-terminal.service)
 sleep 8 && systemctl --user show -p NRestarts --value clubbar-terminal.service   # 1
+```
+
+### Unattended updates
+
+A terminal runs **exactly the version its backend reports** at `/api/health`
+([ADR-0054](../adr/0054-terminal-runs-its-backends-version.md), [#318](https://github.com/dgloeckner/clubbar/issues/318)).
+Upgrading the backend is the single act that moves terminals: there is no
+release to bless, no channel to pick, and nothing to decide per terminal.
+
+`clubbar-update.sh` ships *inside* the bundle, so each release brings its own
+updater — and so do `kiosk-doctor.sh` and `audio-diagnose.sh`, which is why
+their documented paths now run through `current/`. A diagnostic that has
+drifted from the build it diagnoses is worse than no diagnostic.
+
+Install the timer **as a user unit**, not a system one:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp /opt/clubbar-terminal/current/scripts/systemd/clubbar-update.* ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now clubbar-update.timer
+
+# A terminal is normally logged in, but the timer must fire at 04:00 whether or
+# not anybody is. Lingering is what keeps the user manager running.
+sudo loginctl enable-linger "$USER"
+```
+
+**Why a user timer.** The app is a `--user` service with `WAYLAND_DISPLAY` and
+`XDG_RUNTIME_DIR` imported from its login session. A root system timer has no
+session bus and cannot `systemctl --user restart` it without
+`--machine=<user>@.host` — and every other path the updater writes (the slots
+under `/opt/clubbar-terminal`, the sqlite backup under `~/.local/share`) belongs
+to the kiosk user too. Running as anyone else turns one ownership question into
+three, and getting the database's owner wrong once means the app cannot reopen
+it.
+
+Verify without waiting for 04:00:
+
+```bash
+/opt/clubbar-terminal/current/scripts/clubbar-update.sh --status   # what is installed, pinned, blocked
+/opt/clubbar-terminal/current/scripts/clubbar-update.sh --check    # what tonight would do; changes nothing
+systemctl --user list-timers clubbar-update.timer
+journalctl --user -u clubbar-update.service -n 50
+```
+
+**What a run does, and what stops it.** Five conditions mean "no update, try
+again tomorrow", and none of them is an error: the backend is unreachable; it
+reports something that is not a release tag (`dev`, `dev-<sha>` — a club
+deployed from git never auto-updates its terminals); the release has no bundle
+for this architecture or no `.sha256`; this terminal is holding sales that have
+not synced; or the tag is pinned, opted out, or already blocked. A terminal that
+skips a night has lost nothing.
+
+It also **never downgrades**. A backend rolled back to an older tag leaves the
+terminal ahead; the updater logs a warning and leaves it, because moving
+backwards means running a sqlite migration backwards.
+
+After the swap the app has five minutes to write its heartbeat — the file it
+touches once a sync round-trip succeeds. If it does not, `current` goes back,
+the pre-update database is restored, the tag is written to `blocked`, and the
+app reports it in `X-Terminal-Blocked-Version` so the admin panel's Terminals
+page shows *Stuck at &lt;tag&gt;*. That terminal then updates no further until a
+newer release ships — see the [runbook](../docs/runbook-terminal-pi.md) for
+clearing it.
+
+**The 04:00 window is load-bearing, not a default.** It is what makes the
+rollback safe: the run happens on an idle, synced terminal, so a version that
+never got healthy booked nothing and restoring the pre-update database loses no
+sale. A faster cadence deletes that premise — an update could land at 14:00 on a
+Saturday, restart the till mid-service, and then restore a backup taken minutes
+earlier, discarding everything rung up in between. The unsynced-transactions
+refusal narrows that window but does not close it: a member can tap a card
+between the check and the swap.
+
+So a faster cadence is a **development override**, and deliberately *not* a
+`config.json` key. A systemd drop-in is a file somebody had to sit down and
+create; a configuration key is one an operator copies out of a forum post
+without reading the paragraph above it.
+
+**Pinning and opting out** are two keys in `config.json` (§8):
+
+```json
+{
+  "updateEnabled": false,
+  "updatePin": "v1.0.6"
+}
 ```
 
 ### Fullscreen / kiosk mode
@@ -633,6 +790,8 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
 | `demoMode` | bool | `false` | Enable demo mode for showcasing the terminal without a backend connection. **Development only.** |
 | `displayName` | string | `"Club Bar"` | The club's name, shown in the terminal header. |
+| `updateEnabled` | bool | `true` | Whether the nightly updater may install the version the backend reports (§4, [ADR-0054](../adr/0054-terminal-runs-its-backends-version.md)). `false` opts this terminal out entirely; it then stays wherever it was put by hand. |
+| `updatePin` | string | — | Hold this terminal at one release, e.g. `v1.0.6`. The updater installs the backend's version only while it equals the pin, and refuses everything else. Remove the key to follow the backend again. |
 | `fontSizes.xs` | number | `13` | Font size in logical pixels for the `xs` scale step. |
 | `fontSizes.sm` | number | `14` | Font size for the `sm` scale step. |
 | `fontSizes.base` | number | `16` | Base body font size. Used for balance display, labels, and secondary text. |
@@ -1012,4 +1171,4 @@ safe on a till that is serving; run it before reading the table below.
 | Reader dies unnoticed — screen keeps inviting scans | Reader monitoring is off: describe the reader under `rfidReader` in `config.json`, see [Reader health monitoring](#reader-health-monitoring) |
 | A registered chip is sometimes not recognised — no sound, nothing on screen | Open the status modal and read **Letzte Chip-Erkennungen**, see [What the terminal saw](#what-the-terminal-saw-of-a-card-tap) |
 | No sound / audio not working | See [Audio setup on Raspberry Pi](docs/audio-setup-raspberry-pi.md) for GStreamer and ALSA configuration |
-| Sound worked, nothing was changed, sound is gone — a reboot brings it back | **Do not reboot yet.** Run `/opt/clubbar-terminal/scripts/audio-diagnose.sh` while it is silent, then follow [The terminal went silent by itself](docs/audio-dropout-debugging.md) |
+| Sound worked, nothing was changed, sound is gone — a reboot brings it back | **Do not reboot yet.** Run `/opt/clubbar-terminal/current/scripts/audio-diagnose.sh` while it is silent, then follow [The terminal went silent by itself](docs/audio-dropout-debugging.md) |

@@ -22,8 +22,8 @@ so the state of the machine *while it is silent* is the only witness there is.
 While the fault is live, on the Pi:
 
 ```bash
-/opt/clubbar-terminal/scripts/kiosk-doctor.sh        # seconds; names cause G outright
-/opt/clubbar-terminal/scripts/audio-diagnose.sh      # ~/audio-diagnose-<timestamp>.txt
+/opt/clubbar-terminal/current/scripts/kiosk-doctor.sh        # seconds; names cause G outright
+/opt/clubbar-terminal/current/scripts/audio-diagnose.sh      # ~/audio-diagnose-<timestamp>.txt
 ```
 
 `kiosk-doctor.sh` changes nothing at all and answers in seconds. `audio-diagnose.sh`

@@ -136,7 +136,107 @@ profiles survive removal with their PSKs, so wifi returns by itself once the
 package is back; and `/etc/xdg/labwc/autostart` is a conffile, so kiosk edits
 survive too if the reinstall passes `--force-confold`.
 
-## 6. Open gap
+## 6. Updates: a terminal that is behind, or stuck
+
+A terminal installs **exactly the version its backend reports**
+([ADR-0054](../adr/0054-terminal-runs-its-backends-version.md),
+[#318](https://github.com/dgloeckner/clubbar/issues/318)). Upgrading the backend
+is the single act that moves terminals; nothing is decided per terminal and
+there is no release to bless.
+
+The admin panel's *Settings → Terminals* page is where you look. Its **Version**
+column shows one of five states, and only one of them is a problem.
+
+| State | What it means | Do |
+|-------|---------------|-----|
+| the bare tag | Running the backend's version. The invariant holds. | Nothing |
+| **Behind** | Older than the backend, and it checks nightly at 04:00 (±1 h). | **Nothing.** This is the normal state of every terminal in the club for the hours after a backend upgrade. Only worry if it is still behind after two nights |
+| **Stuck at `<tag>`** | An update to that tag failed here, was rolled back, and will never be retried. Exact-match means it is also the only tag this terminal would consider — so it updates no further until a **newer** release ships | Read the journal, below, then either wait for the next release or clear the block deliberately |
+| **Ahead** | Newer than the backend. Hand-installed, or the backend was rolled back | Nothing is blocked and the terminal keeps selling. Bring the backend forward, or reinstall the matching bundle by hand |
+| **Not reported** | No version has arrived. A build older than the header, a proxy that strips it, or a backend on `dev` — a club deployed from git never auto-updates its terminals | Nothing, unless you expected otherwise |
+
+### Why is it behind?
+
+Every refusal is logged, and none of them is an error:
+
+```bash
+journalctl --user -u clubbar-update.service -n 100 --no-pager
+/opt/clubbar-terminal/current/scripts/clubbar-update.sh --status
+/opt/clubbar-terminal/current/scripts/clubbar-update.sh --check   # changes nothing
+```
+
+`--check` names the reason in one line. The five that come up:
+
+- **the backend was unreachable** — the club's internet was down at 04:00;
+- **the backend reports `dev` or `dev-<sha>`** — no update, ever, on that
+  backend, deliberately;
+- **the release has no arm64 bundle, or no `.sha256`** — nothing to install, or
+  nothing verifiable;
+- **sales had not synced** — an update must never lose a booking, so it waits;
+- **pinned, opted out, or blocked** — see below.
+
+### Recovering a terminal that is stuck
+
+The updater will never un-block a tag on its own. It blocked that version
+because installing it produced a till that did not come back within five
+minutes, and retrying that automatically is the one thing worse than standing
+still. Clearing it is a human act:
+
+```bash
+# What failed, and why. The rollback is in the journal in full.
+journalctl --user -u clubbar-update.service --since -7d --no-pager | grep -i 'rolling back\|blocked'
+cat /opt/clubbar-terminal/blocked
+
+# Deliberately allow that version to be tried again.
+/opt/clubbar-terminal/current/scripts/clubbar-update.sh --clear-block
+systemctl --user start clubbar-update.service   # or wait for 04:00
+```
+
+Usually the better answer is to **do nothing**: the club ships a fix, the
+backend rolls forward under the same single-release policy, and the terminal
+follows on its own. Clear the block only when you know what went wrong and have
+reason to think it will not happen again.
+
+### Pinning a terminal, or opting one out
+
+Two keys in `config.json` (see
+[INSTALL.md §8](../terminal-frontend/INSTALL.md#8-configuration-reference)):
+
+```json
+{
+  "updatePin": "v1.0.6",
+  "updateEnabled": false
+}
+```
+
+`updatePin` holds the terminal at one release; `updateEnabled: false` opts it
+out entirely. Neither is remembered anywhere but on that Pi — a terminal that
+was pinned during an investigation stays pinned until somebody removes the key,
+and the Terminals page will read *Behind* for as long as it does.
+
+### Rolling the app back by hand
+
+The updater keeps one generation and the pre-update databases:
+
+```bash
+cd /opt/clubbar-terminal
+ls -l current previous              # what is installed, and what it replaced
+ls -1t ~/.local/share/de.clubbar.clubbar_terminal/update-backup/
+
+systemctl --user stop clubbar-terminal.service
+ln -sfn "$(readlink -f previous)" .current.new && mv -Tf .current.new current
+# Restore the database only if the version you are going back to predates a
+# migration the newer one ran — a database migrated forward will not open on
+# the older build.
+cp -a ~/.local/share/de.clubbar.clubbar_terminal/update-backup/<file>.db \
+      ~/.local/share/de.clubbar.clubbar_terminal/clubbar_terminal.db
+systemctl --user start clubbar-terminal.service
+```
+
+Add the version you came from to `/opt/clubbar-terminal/blocked` if you do not
+want tonight's run to install it straight back.
+
+## 7. Open gap
 
 Almost none of the above is reachable from the touchscreen — §4's System health
 section is the first slice, and only the first. A staff-facing service screen —

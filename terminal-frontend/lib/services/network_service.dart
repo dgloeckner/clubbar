@@ -52,6 +52,17 @@ class NetworkService {
     _tokenInterceptor.token = null;
   }
 
+  /// Tell the backend which tag's update failed on this terminal (ADR-0054).
+  ///
+  /// Read from the updater's state file at startup and set once. A terminal
+  /// that has blacklisted a tag will never install it, and exact-match means it
+  /// is the only tag the terminal would consider next — so the terminal is
+  /// frozen until a newer release ships, and this header is the only way the
+  /// club finds out.
+  void setBlockedVersion(String? version) {
+    _tokenInterceptor.blockedVersion = version;
+  }
+
   // ---------------------------------------------------------------------------
   // Health
   // ---------------------------------------------------------------------------

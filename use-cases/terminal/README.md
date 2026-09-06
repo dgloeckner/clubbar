@@ -68,6 +68,9 @@ Products in inactive categories are hidden even if the product itself is active.
 | [UC-T03](./UC-T03-change-language.md) | Change Language | Change display language preference |
 | [UC-T11](./UC-T11-shopping-cart.md) | Shopping Cart | Review cart, adjust quantities, confirm purchase |
 | [UC-T12](./UC-T12-error-scenarios.md) | Error Scenarios | Unknown card, balance limit, inactive account, SEPA invalid, timeouts |
+| [UC-T13](./UC-T13-fetch-recent-transactions.md) | Fetch Recent Transactions | 90-day history for the balance detail screen |
+| [UC-T14](./UC-T14-update-balance-on-sync.md) | Update Balance on Sync | Atomic local update of synced flag and balances |
+| [UC-T15](./UC-T15-unattended-update.md) | Unattended Update | Install the version the backend reports, atomically, with rollback |
 
 ## Screen Flow
 

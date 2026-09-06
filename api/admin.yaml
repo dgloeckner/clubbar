@@ -8274,6 +8274,49 @@ components:
         has_open_anomaly:
           type: boolean
           description: Whether `open_anomaly_count` is greater than zero.
+        reported_version:
+          type: string
+          nullable: true
+          description: >
+            What the terminal last sent in `X-Terminal-Version` (ADR-0054).
+            Null while nothing parseable has arrived — a terminal older than
+            the header, a build reporting `dev`, or a proxy that strips it.
+            The header is fail-open, so a null here never means the terminal
+            was refused.
+        reported_version_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            When that version was last seen. Deliberately not the same instant
+            as `last_sync_at`: a terminal can keep syncing while reporting
+            nothing, and reading a stale version as current would be worse than
+            reading none.
+        blocked_version:
+          type: string
+          nullable: true
+          description: >
+            A tag whose update failed on this terminal. Its updater will never
+            retry that tag, and exact-match means it is also the only tag the
+            terminal would consider next — so the terminal is frozen until a
+            newer release moves the backend forward.
+        backend_version:
+          type: string
+          nullable: true
+          description: >
+            This backend's own version, which under ADR-0054 *is* the version
+            every terminal should be running. Included so the client renders
+            the comparison the server already made rather than making its own.
+        version_state:
+          type: string
+          enum: [unknown, current, behind, blocked, ahead]
+          description: >
+            Where the terminal stands against `backend_version`. `behind` is
+            the ordinary state of every terminal for the hours between a
+            backend upgrade and that night's update run and is not an alarm;
+            `blocked` is, because nothing on the terminal will clear it.
+            `unknown` covers both a terminal that has not reported and a
+            backend on `dev`, which never moves terminals at all.
         created_at:
           type: string
           format: date-time

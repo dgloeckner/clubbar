@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Terminals\DTOs;
 
+use App\Modules\Terminals\Enums\TerminalVersionState;
 use App\Shared\Security\CredentialLifecycle;
 
 final readonly class TerminalDto
@@ -27,9 +28,23 @@ final readonly class TerminalDto
          * claiming a terminal is fine when nobody asked.
          */
         public int $openAnomalyCount = 0,
+        /**
+         * What the terminal last said it was running, in `X-Terminal-Version`
+         * (ADR-0054). Null until a build carrying the header has synced.
+         */
+        public ?string $reportedVersion = null,
+        public ?string $reportedVersionAt = null,
+        /** A tag whose update failed there and which its updater will never retry. */
+        public ?string $blockedVersion = null,
+        /**
+         * This backend's own version, to measure the two above against. Null
+         * where the caller had no reason to look it up, which reads as
+         * {@see TerminalVersionState::UNKNOWN} rather than as agreement.
+         */
+        public ?string $backendVersion = null,
     ) {}
 
-    public static function fromRow(array $row): self
+    public static function fromRow(array $row, ?string $backendVersion = null): self
     {
         return new self(
             id: $row['id'],
@@ -44,6 +59,19 @@ final readonly class TerminalDto
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
             openAnomalyCount: (int) ($row['open_anomaly_count'] ?? 0),
+            reportedVersion: $row['reported_version'] ?? null,
+            reportedVersionAt: $row['reported_version_at'] ?? null,
+            blockedVersion: $row['blocked_version'] ?? null,
+            backendVersion: $backendVersion,
+        );
+    }
+
+    public function versionState(): TerminalVersionState
+    {
+        return TerminalVersionState::classify(
+            $this->reportedVersion,
+            $this->blockedVersion,
+            $this->backendVersion,
         );
     }
 
@@ -81,6 +109,15 @@ final readonly class TerminalDto
             // but "is somebody else already using it".
             'open_anomaly_count' => $this->openAnomalyCount,
             'has_open_anomaly' => $this->openAnomalyCount > 0,
+            // ADR-0054. `version_state` is the field the page renders; the raw
+            // strings sit beside it because "behind" is only actionable once
+            // you can see *what* it is behind at, and because a support
+            // conversation asks for the tag, not for the classification.
+            'reported_version' => $this->reportedVersion,
+            'reported_version_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->reportedVersionAt),
+            'blocked_version' => $this->blockedVersion,
+            'backend_version' => $this->backendVersion,
+            'version_state' => $this->versionState()->value,
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
         ];

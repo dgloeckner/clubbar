@@ -1,0 +1,33 @@
+[Unit]
+# Unattended terminal update (ADR-0054, #318). Installed as a *user* unit, into
+# ~/.config/systemd/user/, and never as a system unit.
+#
+# The reason is the restart at the end of the update. The app runs as a systemd
+# --user service owned by the kiosk user, with WAYLAND_DISPLAY and
+# XDG_RUNTIME_DIR imported from its login session. A root system timer at 04:00
+# has no session bus and cannot `systemctl --user restart` it without
+# --machine=<user>@.host — and every other thing this script writes (the slots
+# under /opt/clubbar-terminal, the sqlite backup under ~/.local/share) belongs
+# to that same user too. Running as anyone else turns one ownership question
+# into three.
+#
+# It needs the network, and it is deliberately not Wants=/After= the app: an
+# update must be possible precisely when the app is dead.
+Description=Club Bar Terminal — install the version the backend reports
+Documentation=https://github.com/dgloeckner/clubbar/blob/main/adr/0054-terminal-runs-its-backends-version.md
+
+[Service]
+Type=oneshot
+ExecStart=/opt/clubbar-terminal/current/scripts/clubbar-update.sh
+
+# The script's own watchdog waits up to CLUBBAR_HEARTBEAT_TIMEOUT (300s by
+# default) for a sync round-trip, and the download before it can be slow on a
+# club's uplink. This is generous enough to cover both and still bounded, so a
+# wedged run cannot sit in the timer's way tomorrow night.
+TimeoutStartSec=1800
+
+# Exit 1 is "an update failed and was rolled back" — a real failure, and one a
+# `systemctl --user status` should show. There is nothing to restart: the next
+# run is tomorrow's timer, and retrying a version that just failed is the one
+# thing worse than standing still.
+Restart=no

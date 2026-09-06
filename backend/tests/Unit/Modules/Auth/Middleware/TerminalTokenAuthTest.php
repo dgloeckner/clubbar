@@ -46,13 +46,23 @@ class TerminalTokenAuthTest extends TestCase
         );
     }
 
-    private function request(?string $authHeader): ServerRequestInterface
+    private function request(?string $authHeader, array $headers = []): ServerRequestInterface
     {
         $request = (new ServerRequestFactory())->createServerRequest('GET', '/api/sync/members');
         if ($authHeader !== null) {
             $request = $request->withHeader('Authorization', $authHeader);
         }
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
+        }
         return $request;
+    }
+
+    private function acceptingHandler(): RequestHandlerInterface
+    {
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturn(new Response(200));
+        return $handler;
     }
 
     private function decode(ResponseInterface $response): array
@@ -345,5 +355,80 @@ class TerminalTokenAuthTest extends TestCase
 
         $this->assertSame(401, $response->getStatusCode());
         $this->assertSame('terminal_token_expired', $this->decode($response)['error']);
+    }
+
+    /**
+     * ADR-0054 requirement 10. The version arrives as a header on the traffic
+     * the terminal already sends, so a terminal that syncs but books nothing
+     * still reports — and it is written in the same statement as
+     * `last_sync_at`, because this runs on every authenticated request.
+     */
+    public function test_process_records_the_version_the_terminal_reports(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+        $this->terminalsRepository->expects($this->once())
+            ->method('updateLastSync')
+            ->with('terminal-1', 'v1.0.7', null);
+
+        $response = $this->middleware->process(
+            $this->request('Bearer valid-token', [TerminalTokenAuth::VERSION_HEADER => 'v1.0.7']),
+            $this->acceptingHandler(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_process_records_a_blocked_tag_beside_the_version(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+        $this->terminalsRepository->expects($this->once())
+            ->method('updateLastSync')
+            ->with('terminal-1', 'v1.0.6', 'v1.0.7');
+
+        $this->middleware->process(
+            $this->request('Bearer valid-token', [
+                TerminalTokenAuth::VERSION_HEADER => 'v1.0.6',
+                TerminalTokenAuth::BLOCKED_VERSION_HEADER => 'v1.0.7',
+            ]),
+            $this->acceptingHandler(),
+        );
+    }
+
+    /**
+     * Fail-open, and this is the case that matters: an old terminal, or one
+     * behind a proxy that strips unknown headers, must keep selling drinks. It
+     * syncs exactly as before and records no version rather than a wrong one.
+     *
+     * @dataProvider unreportableVersions
+     */
+    public function test_process_syncs_normally_when_the_version_header_is_not_a_release_tag(?string $header): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+        $this->terminalsRepository->expects($this->once())
+            ->method('updateLastSync')
+            ->with('terminal-1', null, null);
+
+        $headers = $header === null ? [] : [TerminalTokenAuth::VERSION_HEADER => $header];
+        $response = $this->middleware->process(
+            $this->request('Bearer valid-token', $headers),
+            $this->acceptingHandler(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * @return array<string, array{?string}>
+     */
+    public static function unreportableVersions(): array
+    {
+        return [
+            'no header at all' => [null],
+            'empty' => [''],
+            'a git build' => ['dev'],
+            'a git build with a sha' => ['dev-4f2a9c1'],
+            'something a middlebox wrote' => ['unknown'],
+            'a path' => ['../../etc/passwd'],
+        ];
     }
 }

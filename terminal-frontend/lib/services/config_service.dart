@@ -220,6 +220,16 @@ class ConfigService {
     return file.path;
   }
 
+  /// The directory `config.json` lives in.
+  ///
+  /// Also where the app and the Pi's updater exchange their two files
+  /// (ADR-0054): `status.json` out, `update-state.json` in. They belong beside
+  /// the configuration because that is the one directory both the app and the
+  /// kiosk user's update timer already own — the bundle under
+  /// `/opt/clubbar-terminal/` is replaced wholesale by an update, so nothing
+  /// that has to survive one may live there.
+  Future<String> getDataDirectoryPath() => _getConfigDir();
+
   /// Load configuration from file, then apply env var overrides.
   Future<void> load() async {
     final configFile = await _getConfigFile();

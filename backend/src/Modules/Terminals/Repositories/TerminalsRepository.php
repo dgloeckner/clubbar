@@ -219,11 +219,38 @@ class TerminalsRepository
         return $this->findById($id);
     }
 
-    public function updateLastSync(string $id): bool
+    /**
+     * Stamp the sync, and — when the terminal said so — what it is running
+     * (ADR-0054).
+     *
+     * One UPDATE, not two: this runs on *every* authenticated terminal request,
+     * and a second write per sync to record a string that changes a few times a
+     * year would be the most-executed statement in the system paying for the
+     * rarest fact in it.
+     *
+     * Fail-open is the whole contract of the version columns. `$version` is
+     * whatever the caller could make of the header, and a null leaves both
+     * version columns exactly as they were — so an old terminal, a proxy that
+     * strips headers, or a build that predates the header keeps selling drinks
+     * and simply reports nothing. `$blockedVersion` is cleared by a null,
+     * because a terminal that stops sending it has cleared its own block, and a
+     * stale alarm nobody can dismiss is worse than none.
+     */
+    public function updateLastSync(string $id, ?string $version = null, ?string $blockedVersion = null): bool
     {
         $now = date('Y-m-d H:i:s');
-        $stmt = $this->db->prepare('UPDATE terminals SET last_sync_at = ?, updated_at = ? WHERE id = ?');
-        return $stmt->execute([$now, $now, $id]);
+
+        if ($version === null) {
+            $stmt = $this->db->prepare('UPDATE terminals SET last_sync_at = ?, updated_at = ? WHERE id = ?');
+            return $stmt->execute([$now, $now, $id]);
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE terminals
+                SET last_sync_at = ?, reported_version = ?, reported_version_at = ?, blocked_version = ?, updated_at = ?
+              WHERE id = ?'
+        );
+        return $stmt->execute([$now, $version, $now, $blockedVersion, $now, $id]);
     }
 
     public function listPaginated(int $limit, int $offset, ?bool $isActive = null): array

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
@@ -24,6 +25,7 @@ import 'package:clubbar_terminal/services/members_service.dart';
 import 'package:clubbar_terminal/services/products_service.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/services/updater_handshake.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
@@ -312,11 +314,28 @@ void main() async {
   final transactionsRepo = TransactionsRepository(database);
   final syncRepo = SyncRepository(database);
 
+  // The two files the Pi's updater and this app exchange (ADR-0054). Both sit
+  // beside config.json, which is the one directory that survives an update —
+  // the bundle under /opt/clubbar-terminal/ is replaced wholesale.
+  final dataDir = await configService.getDataDirectoryPath();
+  final statusFile = TerminalStatusFile.inDirectory(dataDir);
+  // Read once, here: the updater writes this and *then* restarts the app, so
+  // startup is the only moment at which it can have changed.
+  final updaterState = await UpdaterState.readFromDirectory(dataDir);
+  if (updaterState.blockedVersion != null) {
+    logger.w(
+      'This terminal blocked an update to ${updaterState.blockedVersion} and '
+      'will not retry it. It stays on ${AppConfig.version} until a newer '
+      'release ships.',
+    );
+  }
+
   // Create services (business logic layer)
   final networkService = NetworkService(
     baseUrl: configService.apiUrl!,
   );
   networkService.setAuthToken(configService.apiToken!);
+  networkService.setBlockedVersion(updaterState.blockedVersion);
   final membersService = MembersService(
     repository: membersRepo,
     transactionsRepository: transactionsRepo,
@@ -337,6 +356,7 @@ void main() async {
     configService: configService,
     logger: logger,
     failedTransactionsPath: failedTxnsPath,
+    statusFile: statusFile,
   );
 
   // Create providers (UI state management)
