@@ -72,8 +72,8 @@ every path the updater writes belongs to the kiosk user.
 
 - `terminal-frontend/scripts/clubbar-update.sh`
 - `terminal-frontend/scripts/systemd/clubbar-update.{service,timer}`
-- **Verified**: `scripts/test/updater-flow.sh` — 63 assertions over 13 refusals,
-  the happy path, the rollback, and recovery via `--clear-block`.
+- **Verified**: `scripts/test/updater-flow.sh` — 76 assertions over 13 refusals,
+  the happy path, both rollbacks (M10), and recovery via `--clear-block`.
 
 ### M5 — The panel names the three states `[x]`
 
@@ -151,6 +151,32 @@ different locales cannot order identifiers differently.
   development override expressed as a systemd drop-in — deliberately not a
   `config.json` key, because a drop-in is a file somebody had to create and a
   config key is one an operator copies from a forum post.
+
+### M10 — A backend outage no longer condemns a good build `[x]`
+
+Found on `ruderbar` during the first production OTA hop, v1.0.8 → v1.0.9
+([#836](https://github.com/dgloeckner/clubbar/issues/836)). Health is "the app
+completed a sync round-trip", so an unavailable **backend** during the watchdog
+window produces exactly the silence a broken build produces — and M4 blacklisted
+the tag either way. Under exact-match that is a permanent, silent freeze on the
+one version the terminal would ever consider next, recoverable only by
+`--clear-block`, which somebody has to know to run.
+
+The updater now re-probes `/api/health` before blocking. The rollback is
+unconditional; only the blacklist is conditional, which restores the property
+that makes `blocked` worth trusting — an entry means *this build failed on this
+terminal*, not *something went wrong once*.
+
+The same run hit a 504 from `api.github.com` and reported it as "no release
+v1.0.9". The four pre-swap fetches now carry `--retry 3 --retry-delay 5`, which
+covers 5xx/408/429 and transient connection failures and deliberately not a 404,
+and that refusal is split into two sentences on curl's exit status.
+
+- `terminal-frontend/scripts/clubbar-update.sh` §4 and §7
+- `adr/0054-terminal-runs-its-backends-version.md` (amendment), `use-cases/terminal/UC-T15` V3a,
+  `docs/runbook-terminal-pi.md` §6, `terminal-frontend/scripts/README.md`
+- **Verified**: `scripts/test/updater-flow.sh` 76/76, and the four new cases fail
+  against the pre-fix script (blacklist written, tag not retried, no `--retry`).
 
 ---
 
