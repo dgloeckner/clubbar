@@ -156,10 +156,9 @@ different locales cannot order identifiers differently.
 
 ## What was deliberately left out
 
-- **ADR-0054's status still reads *Proposed*.** The owner approved the
-  *amendment* — the section on why the 04:00 window is load-bearing, added
-  2026-09-06 — and that is what was applied. Promoting the decision to
-  *Accepted* is a separate call and was not part of it.
+- Nothing. ADR-0054 is **Accepted** as of 2026-09-06, carrying the amendment on
+  why the 04:00 window is load-bearing; both were the owner's call and both are
+  applied.
 - **No E2E through a real Pi.** The updater's suite drives the real script
   against a sandboxed install root and a fake GitHub; a physical arm64 kiosk is
   outside what CI has.

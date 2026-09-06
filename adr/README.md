@@ -78,7 +78,7 @@ Each ADR follows this structure:
 | [0051](./0051-member-lifecycle-mail.md) | A Member Hears From the Club When Their Card Arrives | Accepted (amends 0038) | 2026-08-29 |
 | [0052](./0052-member-self-registration-via-qr-code.md) | A Member Registers Themselves; an Admin Attests the Paper | Proposed | 2026-08-31 |
 | [0053](./0053-anmeldelink-carries-no-credential.md) | The Anmeldelink Carries No Credential | Accepted (amends 0052) | 2026-09-04 |
-| [0054](./0054-terminal-runs-its-backends-version.md) | A Terminal Runs Its Backend's Version | Proposed | 2026-09-06 |
+| [0054](./0054-terminal-runs-its-backends-version.md) | A Terminal Runs Its Backend's Version | Accepted | 2026-09-06 |
 
 ## Creating a New ADR
 

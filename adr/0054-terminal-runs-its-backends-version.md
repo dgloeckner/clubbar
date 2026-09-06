@@ -1,6 +1,6 @@
 # ADR-0054: A Terminal Runs Its Backend's Version
 
-**Status**: Proposed (amended 2026-09-06 — see *The window is part of the
+**Status**: Accepted (amended 2026-09-06 — see *The window is part of the
 argument, not a default*)
 
 **Date**: 2026-09-06
