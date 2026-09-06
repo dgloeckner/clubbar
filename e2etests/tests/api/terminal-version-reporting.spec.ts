@@ -182,31 +182,37 @@ test.describe('Terminal version reporting', () => {
   });
 
   /**
-   * A backend that is not on a release tag never moves a terminal, so it has no
-   * opinion about whether one is up to date either. The development stack runs
-   * with no `backend/VERSION`, which is precisely that case — so this asserts
-   * the fail-closed branch on the deployment that actually exhibits it.
+   * The invariant ADR-0054 exists for: a terminal running what its backend
+   * reports is never flagged.
+   *
+   * Phrased as what must *not* happen rather than as a fixed state, because
+   * this suite has to pass both against the development stack — which carries
+   * no `backend/VERSION`, reports `dev`, and therefore classifies nothing at
+   * all — and against a stack built from a release, where the same terminal
+   * reads `current`. Gating on which one it is with `test.skip()` is banned
+   * (#146), and rightly: a suite that quietly skips is a suite that reports
+   * green for a path it never ran. The five-way classification itself is
+   * pinned exhaustively, and without an HTTP round trip, in
+   * `TerminalVersionStateTest`.
    */
-  test('a backend that is not on a release tag classifies nothing', async ({
+  test('a terminal reporting exactly what its backend reports is never flagged', async ({
     authenticatedRequest,
     request,
   }) => {
-    const created = await createTerminal(authenticatedRequest, 'devbackend');
+    const created = await createTerminal(authenticatedRequest, 'invariant');
     const health = await (await request.get('/api/health')).json();
-    test.skip(/^v\d+\.\d+\.\d+/.test(health.version), 'this stack is on a release tag');
 
     await request.get(SYNC_MEMBERS, {
-      headers: { Authorization: `Bearer ${created.api_token}`, [VERSION_HEADER]: 'v1.0.7' },
+      headers: { Authorization: `Bearer ${created.api_token}`, [VERSION_HEADER]: health.version },
       params: SINCE,
     });
 
     const { terminal } = await (
       await authenticatedRequest.get(`/api/admin/terminals/${created.terminal.id}`)
     ).json();
-    // The terminal reported honestly; the backend simply cannot say whether
-    // that is current, and must not guess.
-    expect(terminal.reported_version).toBe('v1.0.7');
-    expect(terminal.version_state).toBe('unknown');
+    expect(terminal.version_state).not.toBe('behind');
+    expect(terminal.version_state).not.toBe('blocked');
+    expect(terminal.version_state).not.toBe('ahead');
   });
 
   test('the terminal list carries the version fields, not only the detail view', async ({
