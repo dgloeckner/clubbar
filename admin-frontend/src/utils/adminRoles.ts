@@ -30,7 +30,7 @@
  * tab is treasury work.
  */
 
-import { AdminRole } from '../api/generated/adminRole'
+import { AdminRole } from '../api/generated/model/adminRole'
 
 const ADMIN_ONLY: AdminRole[] = ['admin']
 const TREASURY: AdminRole[] = ['admin', 'kassenwart']

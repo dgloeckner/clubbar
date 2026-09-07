@@ -18,7 +18,7 @@ import {
   CartesianGrid,
 } from 'recharts'
 import { getReports } from '../api/generated/reports/reports'
-import type { GetReportGroupBy } from '../api/generated'
+import type { GetReportGroupBy } from '../api/generated/model'
 import { toIsoDate } from '../utils/dates'
 import { reportDimensionLabel } from '../utils/reportDimensions'
 import { useAuth } from '../context/AuthContext'

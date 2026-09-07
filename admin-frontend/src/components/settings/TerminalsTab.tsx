@@ -13,7 +13,7 @@ import { TerminalLifecycleBadge, type TokenLifecycleBadgeState } from './Termina
 import { TerminalAnomalyPanel } from './TerminalAnomalyPanel'
 import { TerminalVersionCell } from './TerminalVersionCell'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import type { Terminal as GeneratedTerminal } from '../../api/generated'
+import type { Terminal as GeneratedTerminal } from '../../api/generated/model'
 
 // Required fields that are always present in the API response
 type Terminal = GeneratedTerminal & { id: string; name: string; is_active: boolean }

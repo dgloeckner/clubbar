@@ -26,7 +26,7 @@ import { useApiError } from '../../hooks/useApiError'
 import { theme, formatDateTime } from '../../styles/design-system'
 import { useModalDialog } from '../../hooks/useModalDialog'
 import { getTerminals } from '../../api/generated/terminals/terminals'
-import type { TerminalAnomaly } from '../../api/generated'
+import type { TerminalAnomaly } from '../../api/generated/model'
 
 const KIND_LABEL_KEY: Record<string, string> = {
   concurrent_ip: 'settings.terminalAnomalyKindConcurrentIp',

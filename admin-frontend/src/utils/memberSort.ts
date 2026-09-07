@@ -1,4 +1,4 @@
-import type { ListMembersSortBy } from '../api/generated'
+import type { ListMembersSortBy } from '../api/generated/model'
 
 /** The columns the member list can be sorted by. */
 export type MemberSortKey = 'last_name' | 'card_uid' | 'balance' | 'created_at'

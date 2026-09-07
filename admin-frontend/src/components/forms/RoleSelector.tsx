@@ -15,7 +15,7 @@
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { modalLabelStyle } from '../modals/ModalError'
-import { AdminRole } from '../../api/generated/adminRole'
+import { AdminRole } from '../../api/generated/model/adminRole'
 import { toggleRole } from '../../utils/adminRoles'
 
 const ROLE_ORDER: AdminRole[] = ['admin', 'kassenwart', 'getraenkewart']

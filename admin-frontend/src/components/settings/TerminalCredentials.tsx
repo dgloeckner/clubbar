@@ -32,7 +32,7 @@ import { StepUpConfirmDialog, type StepUpCredentials } from '../modals/StepUpCon
 import { TokenDisplayModal } from '../modals/TokenDisplayModal'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getTerminals } from '../../api/generated/terminals/terminals'
-import type { Terminal } from '../../api/generated'
+import type { Terminal } from '../../api/generated/model'
 
 /** Matches the key cards above, so one page speaks with one colour language. */
 const LIFECYCLE_COLOR: Record<string, string> = {

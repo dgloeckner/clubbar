@@ -40,7 +40,7 @@ import axios from 'axios'
 import { theme } from '../../styles/design-system'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getMailSettings } from '../../api/generated/mail-settings/mail-settings'
-import type { MailConfig, MailConfigUpdateRequest, TestMailResult } from '../../api/generated'
+import type { MailConfig, MailConfigUpdateRequest, TestMailResult } from '../../api/generated/model'
 
 const HEADER_STYLES = ['red', 'petrol', 'paper'] as const
 /**

@@ -34,7 +34,7 @@
 import type { ComponentType } from 'react'
 import { NavCountBadge } from './NavCountBadge'
 import { permitsPath } from '../../utils/adminRoles'
-import type { AdminRole } from '../../api/generated/adminRole'
+import type { AdminRole } from '../../api/generated/model/adminRole'
 import type { IconProps } from '../icons/types'
 import {
   AuditLogIcon,

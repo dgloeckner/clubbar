@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getAuditLogSummary } from './auditLogSummary'
-import type { AuditLogEntry } from '../api/generated'
+import type { AuditLogEntry } from '../api/generated/model'
 
 /** Captures the translation key and interpolation options a call resolved to, instead of real copy. */
 function fakeT(key: string, options?: Record<string, unknown>): string {

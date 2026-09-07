@@ -21,7 +21,7 @@ import type {
   Category,
   CategoryCreateRequest,
   CategoryUpdateRequest,
-} from '../api/generated'
+} from '../api/generated/model'
 import { theme } from '../styles/design-system'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { EditIcon, TrashIcon, PlusIcon } from '../components/icons'

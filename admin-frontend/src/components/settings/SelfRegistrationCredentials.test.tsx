@@ -14,7 +14,7 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SelfRegistrationCredentials } from './SelfRegistrationCredentials'
-import type { SelfRegistrationSettings } from '../../api/generated'
+import type { SelfRegistrationSettings } from '../../api/generated/model'
 
 // Keys, not sentences: a test asserting German copy fails on the day somebody
 // improves the wording, which is not a regression.

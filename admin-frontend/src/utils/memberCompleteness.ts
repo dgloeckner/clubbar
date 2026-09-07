@@ -20,7 +20,7 @@
  * members teaches an admin to distrust the number.
  */
 
-import type { MemberListItem } from '../api/generated'
+import type { MemberListItem } from '../api/generated/model'
 
 export type MemberGap = 'card_uid' | 'sepa' | 'email' | 'date_of_birth'
 

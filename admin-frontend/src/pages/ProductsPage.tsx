@@ -23,7 +23,7 @@ import type {
   ListProductsParams,
   ListProductsSortBy,
   ListProductsStatus,
-} from '../api/generated'
+} from '../api/generated/model'
 import { CategorySelect } from '../components/forms/CategorySelect'
 import { FieldLabel } from '../components/forms/FieldLabel'
 import { IconSelect } from '../components/forms/IconSelect'

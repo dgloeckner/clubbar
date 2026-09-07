@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MemberListItem } from '../api/generated'
+import type { MemberListItem } from '../api/generated/model'
 import { MEMBER_GAPS, isMemberDataComplete, memberGaps } from './memberCompleteness'
 
 /** A roster row with nothing missing. */

@@ -21,7 +21,7 @@ import { theme } from '../../styles/design-system'
 import { Alert } from '../common/Alert'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
-import type { SecurityFinding, SecurityReport } from '../../api/generated'
+import type { SecurityFinding, SecurityReport } from '../../api/generated/model'
 import { orderedCategories } from './securityCategories'
 
 const STATUS_COLOR: Record<string, string> = {

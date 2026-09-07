@@ -30,7 +30,7 @@ import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { Badge, type BadgeProps } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
-import type { Terminal as GeneratedTerminal } from '../../api/generated'
+import type { Terminal as GeneratedTerminal } from '../../api/generated/model'
 
 export type TerminalVersionState = 'unknown' | 'current' | 'behind' | 'blocked' | 'ahead'
 

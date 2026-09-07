@@ -13,7 +13,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 
 import { RegistrationReviewPanel } from './RegistrationReviewPanel'
-import type { PendingRegistration } from '../../api/generated/pendingRegistration'
+import type { PendingRegistration } from '../../api/generated/model/pendingRegistration'
 
 vi.mock('react-i18next', () => ({
   // The keys, not the sentences: a test asserting German copy fails on the day

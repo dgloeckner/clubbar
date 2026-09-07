@@ -37,7 +37,7 @@ import { SelfRegistrationCredentials } from './SelfRegistrationCredentials'
 import { modalInputStyle, modalLabelStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { getSecurity } from '../../api/generated/security/security'
-import type { EncryptionKey } from '../../api/generated'
+import type { EncryptionKey } from '../../api/generated/model'
 
 export interface CredentialsTabProps {
   /**

@@ -43,6 +43,9 @@ hand after editing the spec, without a full reinstall:
 npm run generate     # api/admin.yaml -> src/api/generated/
 ```
 
+Tag factories come from `src/api/generated/{tag}/{tag}`; request and response
+types come from `src/api/generated/model`.
+
 `src/api/client.ts` is the axios instance underneath — session cookie, CSRF
 header, 401 handling — and the only place a file download may go through
 (`downloadFile` / `downloadBlob`).

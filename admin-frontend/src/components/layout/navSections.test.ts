@@ -13,7 +13,7 @@ import {
   permittedSections,
 } from './navSections'
 import { SECTION_ROLES } from '../../utils/adminRoles'
-import type { AdminRole } from '../../api/generated/adminRole'
+import type { AdminRole } from '../../api/generated/model/adminRole'
 
 const ALL_ROLES: AdminRole[][] = [['admin'], ['kassenwart'], ['getraenkewart'], ['kassenwart', 'getraenkewart']]
 

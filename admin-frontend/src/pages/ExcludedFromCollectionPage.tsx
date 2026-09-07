@@ -8,7 +8,7 @@ import { useExcludedFromCollection } from '../hooks/useExcludedFromCollection'
 import { useFormatters } from '../hooks/useFormatters'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { getMembers } from '../api/generated/members/members'
-import type { CollectionHold, CreditBalance, MandateMissing } from '../api/generated'
+import type { CollectionHold, CreditBalance, MandateMissing } from '../api/generated/model'
 import { theme } from '../styles/design-system'
 import { tableColors, tableSpacing } from '../styles/tableTokens'
 

@@ -57,7 +57,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getScheduler } from '../../api/generated/scheduler/scheduler'
-import type { SchedulerStatus } from '../../api/generated'
+import type { SchedulerStatus } from '../../api/generated/model'
 import { useAuth } from '../../context/AuthContext'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { holdsAnyRole, SCHEDULER_BANNER_ROLES } from '../../utils/adminRoles'

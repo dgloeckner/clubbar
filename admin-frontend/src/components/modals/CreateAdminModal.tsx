@@ -15,7 +15,7 @@ import { RoleSelector } from '../forms/RoleSelector'
 import { FieldError, ModalError, modalInputStyle } from './ModalError'
 import { validateCreateAdminForm } from '../../utils/settingsForms'
 import { useModalDialog } from '../../hooks/useModalDialog'
-import { AdminRole } from '../../api/generated/adminRole'
+import { AdminRole } from '../../api/generated/model/adminRole'
 import {
   StepUpCredentialFields,
   isStepUpComplete,

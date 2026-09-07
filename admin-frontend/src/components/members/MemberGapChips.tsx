@@ -19,7 +19,7 @@
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { MEMBER_GAPS, memberGaps } from '../../utils/memberCompleteness'
-import type { MemberListItem } from '../../api/generated'
+import type { MemberListItem } from '../../api/generated/model'
 
 export function MemberGapChips({ member }: { member: MemberListItem }) {
   const { t } = useTranslation()

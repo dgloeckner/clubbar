@@ -19,8 +19,8 @@ import { getProfile } from '../auth/session'
 import { useInstanceConfig } from '../context/InstanceConfigContext'
 import { useAuth } from '../context/AuthContext'
 import { settingsTabsFor, firstSettingsTab } from '../utils/adminRoles'
-import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated'
-import { AdminRole } from '../api/generated/adminRole'
+import type { SepaConfig, AdminUser as GeneratedAdminUser, Terminal as GeneratedTerminal } from '../api/generated/model'
+import { AdminRole } from '../api/generated/model/adminRole'
 
 // Required fields that are always present in the API responses
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }

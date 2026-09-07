@@ -21,7 +21,7 @@ import { getMembers as getMembersFactory } from '../api/generated/members/member
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import { getSepaConfiguration } from '../api/generated/sepa-configuration/sepa-configuration'
 import { getCreditLimits } from '../api/generated/credit-limits/credit-limits'
-import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersHasEmail, ListMembersHasDateOfBirth, ListMembersDataStatus, MemberCreateRequest, MemberUpdateRequest, MemberDataCompleteness } from '../api/generated'
+import type { Member, MemberListItem, ListMembersParams, ListMembersStatus, ListMembersSepaStatus, ListMembersHasCardUid, ListMembersHasEmail, ListMembersHasDateOfBirth, ListMembersDataStatus, MemberCreateRequest, MemberUpdateRequest, MemberDataCompleteness } from '../api/generated/model'
 // TableSearchToolbar is available but not currently used
 // import { TableSearchToolbar } from '../components/tables/TableSearchToolbar'
 import { MobileFilterRow } from '../components/tables/MobileFilterRow'

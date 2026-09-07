@@ -20,7 +20,7 @@ import type {
   SettlementAnnouncement,
   SettlementItem,
   SettlementReversal,
-} from '../api/generated'
+} from '../api/generated/model'
 
 export interface SettlementMemberLine {
   memberId: string
