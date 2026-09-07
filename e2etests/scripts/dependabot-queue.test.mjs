@@ -25,6 +25,7 @@ import {
   chooseAction,
   classify,
   planQueue,
+  resolveMergeability,
   runQueue,
   summaryMarkdown,
   updateTypesIn,
@@ -161,6 +162,58 @@ test('a blocking label holds a pull request no matter how green it is', () => {
 test('a conflicted pull request is held, and an uncomputed one waits', () => {
   assert.equal(classify(pr(), details({ mergeable: false })).state, 'held')
   assert.equal(classify(pr(), details({ mergeable: null })).state, 'waiting')
+})
+
+test('a red build is held even before GitHub has computed mergeability', () => {
+  // The first live round reported #843 as "waiting" with red checks, because
+  // the unknown mergeability was tested first. A red build is the reason it is
+  // going nowhere; the summary has to say that.
+  const row = classify(pr(), details({
+    mergeable: null,
+    checkRuns: [...GREEN_CHECKS, { name: 'lint', status: 'completed', conclusion: 'failure' }],
+  }))
+
+  assert.equal(row.state, 'held')
+  assert.match(row.reason, /lint \(failure\)/)
+})
+
+test('mergeability is read again until GitHub answers', async () => {
+  // Every merge to main invalidates it for every open pull request, and the
+  // queue wakes on exactly that push: the first read is `null` by construction.
+  const answers = [{ mergeable: null }, { mergeable: null }, { mergeable: true, mergeable_state: 'blocked' }]
+  let reads = 0
+  const slept = []
+
+  const detail = await resolveMergeability(async () => answers[reads++], {
+    delayMs: 5,
+    sleep: async (ms) => slept.push(ms),
+  })
+
+  assert.equal(detail.mergeable, true)
+  assert.equal(reads, 3)
+  assert.deepEqual(slept, [5, 5])
+})
+
+test('an answer on the first read costs no wait at all', async () => {
+  let reads = 0
+  const detail = await resolveMergeability(async () => { reads++; return { mergeable: true } }, {
+    sleep: async () => assert.fail('should not wait for an answer it already has'),
+  })
+
+  assert.equal(detail.mergeable, true)
+  assert.equal(reads, 1)
+})
+
+test('giving up returns null, which waits — it never reads as mergeable', async () => {
+  let reads = 0
+  const detail = await resolveMergeability(async () => { reads++; return { mergeable: null } }, {
+    attempts: 3,
+    sleep: async () => {},
+  })
+
+  assert.equal(detail.mergeable, null)
+  assert.equal(reads, 3)
+  assert.equal(classify(pr(), details({ mergeable: detail.mergeable })).state, 'waiting')
 })
 
 test('a draft is held', () => {

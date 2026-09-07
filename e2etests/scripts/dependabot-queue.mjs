@@ -172,9 +172,14 @@ export function classify(pr, details, options = {}) {
   if (disallowed.length > 0) return held(`${disallowed.join('/')} update — a person reviews these`)
 
   if (details.mergeable === false) return held('conflicts with the base branch')
-  if (details.mergeable !== true) return { ...row, state: 'waiting', reason: 'mergeability not computed yet' }
 
+  // Red before unknown-mergeability, deliberately. A failing build is the
+  // reason this pull request is going nowhere whether or not GitHub has
+  // finished computing whether it *could* merge, and the summary should say so
+  // — the first live round reported #843 as "waiting" when its build was red.
   if (checks.state === 'red') return held(checks.reason)
+
+  if (details.mergeable !== true) return { ...row, state: 'waiting', reason: 'mergeability not computed yet' }
   if (checks.state === 'pending') return { ...row, state: 'waiting', reason: checks.reason }
 
   if (requireUpToDate && (details.behindBy ?? 0) > 0) {
@@ -201,6 +206,37 @@ export function chooseAction(rows) {
   if (behind) return { kind: 'update', row: behind }
 
   return { kind: 'idle', row: null }
+}
+
+/**
+ * How many times to ask GitHub whether a pull request is mergeable, and how
+ * long to wait between asks.
+ *
+ * `mergeable` is computed lazily: the first read after the base branch moves
+ * returns `null` and *starts* the computation, which lands a second or two
+ * later. Every merge to main therefore invalidates all of them at once — which
+ * is exactly when the queue wakes. The first live round read `null` for nine
+ * pull requests and did nothing at all; without this it can only ever act on
+ * the round after the one it was woken for.
+ */
+export const MERGEABILITY_ATTEMPTS = 6
+export const MERGEABILITY_DELAY_MS = 2000
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Read until GitHub has an answer, then stop. Giving up returns the last
+ * `null`, which classifies as `waiting` — never as mergeable.
+ */
+export async function resolveMergeability(read, options = {}) {
+  const { attempts = MERGEABILITY_ATTEMPTS, delayMs = MERGEABILITY_DELAY_MS, sleep = wait } = options
+
+  let detail = await read()
+  for (let attempt = 1; attempt < attempts && detail?.mergeable === null; attempt++) {
+    await sleep(delayMs)
+    detail = await read()
+  }
+  return detail
 }
 
 /** Classify every candidate, oldest first, then decide. `getDetails` is async. */
@@ -374,7 +410,9 @@ export function githubApi(repo, { baseBranch = 'main', requireUpToDate = false }
       ]) ?? [],
 
     details: async (pr) => ({
-      ...gh(['api', `repos/${repo}/pulls/${pr.number}`, '--jq', '{mergeable, mergeable_state}']),
+      ...(await resolveMergeability(() =>
+        gh(['api', `repos/${repo}/pulls/${pr.number}`, '--jq', '{mergeable, mergeable_state}']),
+      )),
       commitMessages: gh([
         'api',
         `repos/${repo}/pulls/${pr.number}/commits?per_page=100`,
