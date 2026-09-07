@@ -317,10 +317,14 @@ with nothing looking broken.
   green refers to a main that no longer exists.
 - **To take one out of the queue**, label it `do-not-merge` (or
   `blocked-upstream`). To stop the queue, disable the workflow.
-- **Without a `MERGE_QUEUE_TOKEN` secret** the queue approves as
-  `github-actions[bot]` — which no code-owner rule accepts — and its merge push
-  starts no workflow, so it dispatches Build itself. The workflow header
-  documents the token that removes both.
+- **Who merges matters.** The queue uses the best identity configured: a
+  **GitHub App** (`MERGE_QUEUE_APP_ID` + `MERGE_QUEUE_PRIVATE_KEY`, minted by
+  `e2etests/scripts/app-token.mjs`), else a PAT (`MERGE_QUEUE_TOKEN`), else
+  `GITHUB_TOKEN`. Only the first two can merge at all: `github-actions[bot]`'s
+  approval satisfies no code-owner rule, which is what refused #839 with
+  `HTTP 405`. The App is the one to want — its merges stay distinguishable from
+  a person's, its pushes trigger the `main` build, and nothing expires on a
+  calendar. Setup is in the workflow header.
 
 ### Destructive Test Cleanup (CRITICAL)
 
