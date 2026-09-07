@@ -25,36 +25,64 @@ name: Dependabot merge queue
 # build rather than of the clock.
 #
 # ---------------------------------------------------------------------------
-# MERGE_QUEUE_TOKEN — read this before wondering why nothing merges
+# Who merges — read this before wondering why nothing merges
 # ---------------------------------------------------------------------------
 #
-# `GITHUB_TOKEN` is enough to *decide*, but it is a poor merger, for two reasons
-# that are properties of GitHub rather than of this workflow:
+# The queue tries three identities in order and uses the best one configured:
 #
-#   1. **It cannot satisfy a code-owner review.** `main` is protected and
-#      `.github/CODEOWNERS` claims every path, so a green Dependabot pull
-#      request sits at `mergeable_state: blocked` until somebody with review
-#      rights approves it. The queue does approve before merging, but as
-#      `github-actions[bot]` — which counts for a plain "1 approval" rule and
-#      does *not* count for "require review from Code Owners". If your merges
-#      come back refused, the comment the queue leaves on the pull request says
-#      exactly which rule refused it.
-#   2. **A push it makes starts no workflow.** GitHub suppresses that to avoid
-#      recursion, so a merge to main made with `GITHUB_TOKEN` never runs Build,
-#      and therefore never deploys to Integration. The queue works around it by
-#      dispatching Build itself (dispatch is the documented exception), which is
-#      why `build.yaml` carries a `workflow_dispatch` trigger — but a dispatched
-#      run is a second-best copy of the run the push should have produced.
+#   1. **A GitHub App** (`MERGE_QUEUE_APP_ID` + `MERGE_QUEUE_PRIVATE_KEY`) —
+#      the one to want. Merges read `<app>[bot]`, so a year from now the log
+#      still distinguishes the automation from a person; its pushes trigger
+#      workflows, so `main` builds and deploys normally; a ruleset can name it
+#      as a bypass actor without changing what a *human* pull request needs;
+#      and nothing expires on a calendar, because each run mints a token that
+#      dies in an hour. Setup is at the bottom of this block.
+#   2. **A personal access token** (`MERGE_QUEUE_TOKEN`) — works, at the price
+#      of the owner's identity: every approval and merge reads as theirs. It
+#      also expires, which is an outage with a year's notice.
+#   3. **`GITHUB_TOKEN`** — the fallback, and it cannot really do the job. Two
+#      properties of GitHub, not of this workflow:
 #
-# Both disappear with a token that belongs to a person or a GitHub App:
+#      * **It cannot satisfy a code-owner review.** `main` is protected and
+#        `.github/CODEOWNERS` claims every path, so a green Dependabot pull
+#        request sits at `mergeable_state: blocked` until somebody with review
+#        rights approves it. The queue does approve before merging, but as
+#        `github-actions[bot]` — which counts for a plain "1 approval" rule and
+#        does *not* count for "require review from Code Owners". This is not
+#        hypothetical: it is what refused #839 with `Waiting on code owner
+#        review from dgloeckner (HTTP 405)`, and the queue says as much on the
+#        pull request it tried.
+#      * **A push it makes starts no workflow.** GitHub suppresses that to avoid
+#        recursion, so a merge to main made with `GITHUB_TOKEN` never runs
+#        Build, and therefore never deploys to Integration. The queue works
+#        around it by dispatching Build itself (dispatch is the documented
+#        exception), which is why `build.yaml` carries a `workflow_dispatch`
+#        trigger — but a dispatched run is a second-best copy of the run the
+#        push should have produced.
+#
+# Setting up the App (once, and then never again):
+#
+#   1. github.com/settings/apps/new — name it, uncheck Webhook, and grant
+#      Repository permissions: Contents read/write, Pull requests read/write.
+#      Nothing else; it never needs more than merge and comment.
+#   2. Generate a private key, and install the App on this repository only.
+#   3. Settings -> Secrets and variables -> Actions:
+#        MERGE_QUEUE_APP_ID      the App's numeric id
+#        MERGE_QUEUE_PRIVATE_KEY the .pem, pasted whole, newlines and all
+#   4. Settings -> Rules -> the ruleset protecting `main`: add the App under
+#      "Bypass list". That is what lets it merge past the code-owner rule —
+#      stated where a reader can find it, rather than implied by a bot
+#      borrowing somebody's name.
+#
+# The PAT alternative, if you would rather not run an App:
 #
 #     Settings -> Secrets and variables -> Actions -> New repository secret
 #       Name:  MERGE_QUEUE_TOKEN
 #       Value: a fine-grained PAT on this repository with
 #              Contents: read and write, Pull requests: read and write
 #
-# Nothing else changes: the workflow picks the secret up when it is there and
-# falls back to `GITHUB_TOKEN` when it is not.
+# Either way nothing else changes: the workflow picks up whichever secrets
+# exist and falls back to `GITHUB_TOKEN` when there are none.
 #
 # ---------------------------------------------------------------------------
 #
@@ -140,16 +168,31 @@ jobs:
         with:
           node-version: '22'
 
+      # Skipped when no App is configured, which is why this is guarded on an
+      # env var rather than on the secret: `secrets` is not available in a step
+      # `if`, and a missing secret is an empty string, not an absent one.
+      #
+      # The exchange is two HTTPS calls and an RS256 signature, done in Node's
+      # standard library rather than by a third-party action, for the same
+      # reason there is no `npm ci` below.
+      - name: Mint a token for the merge queue App
+        if: env.MERGE_QUEUE_APP_ID != ''
+        env:
+          MERGE_QUEUE_APP_ID: ${{ secrets.MERGE_QUEUE_APP_ID }}
+          MERGE_QUEUE_PRIVATE_KEY: ${{ secrets.MERGE_QUEUE_PRIVATE_KEY }}
+        run: node e2etests/scripts/app-token.mjs
+
       # No `npm ci`: the script imports nothing outside Node's standard library
       # and talks to GitHub through `gh`, which is preinstalled on the runner.
       # That keeps a workflow with `contents: write` from executing a dependency
       # tree it has not audited.
       - name: Work the queue
         env:
-          GH_TOKEN: ${{ secrets.MERGE_QUEUE_TOKEN || github.token }}
-          # The script needs to know which of the two it got: only the fallback
-          # has to dispatch Build after a merge.
-          TOKEN_KIND: ${{ secrets.MERGE_QUEUE_TOKEN && 'merge-queue-token' || 'github-token' }}
+          GH_TOKEN: ${{ env.MERGE_QUEUE_GH_TOKEN || secrets.MERGE_QUEUE_TOKEN || github.token }}
+          # The script needs to know which of the three it got: only the
+          # fallback has to dispatch Build after a merge, because only its
+          # pushes start nothing.
+          TOKEN_KIND: ${{ env.MERGE_QUEUE_GH_TOKEN && 'app-token' || (secrets.MERGE_QUEUE_TOKEN && 'merge-queue-token' || 'github-token') }}
           DRY_RUN: ${{ inputs.dry-run || 'false' }}
           BASE_BRANCH: main
           # Strict mode: require a pull request's green build to have run on a

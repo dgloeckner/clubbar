@@ -424,3 +424,12 @@ test('the queue wakes for a Build on main as well as on a Dependabot branch', ()
 test('the cron is still there as the floor under both', () => {
   assert.match(WORKFLOW, /schedule:\s*\n\s*- cron: '[^']+'/)
 })
+
+test('the queue reaches for the App token first, the PAT second, GITHUB_TOKEN last', () => {
+  // The order is the whole point: only the App keeps the automation
+  // distinguishable from a person and its pushes able to start a build. Losing
+  // a rung would silently demote every merge to a worse identity.
+  const token = WORKFLOW.match(/GH_TOKEN: (.+)/)[1]
+
+  assert.match(token, /env\.MERGE_QUEUE_GH_TOKEN \|\| secrets\.MERGE_QUEUE_TOKEN \|\| github\.token/)
+})
