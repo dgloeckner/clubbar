@@ -238,19 +238,27 @@ export function BackupsPage() {
                   {(archive.readable === false || archive.config_included) && (
                     <div style={badgeRowStyle}>{archiveBadges(archive, false)}</div>
                   )}
+                  {/* Label and value share a line here: an archive's values
+                      are all short ("56 KB", "ja", a joined label list), so
+                      stacking them would double the card's height and put one
+                      archive on a screen. */}
                   <dl style={fieldListStyle}>
-                    <dt style={fieldLabelStyle}>{t('backups.archives.size')}</dt>
-                    <dd style={fieldValueStyle}>{humanBytes(archive.bytes ?? 0)}</dd>
-
-                    <dt style={fieldLabelStyle}>{t('backups.archives.keys')}</dt>
-                    <dd style={fieldValueStyle}>
-                      {(archive.recipients ?? []).map((r) => r.label).join(', ') || '—'}
-                    </dd>
-
-                    <dt style={fieldLabelStyle}>{t('backups.archives.offsite')}</dt>
-                    <dd style={fieldValueStyle} data-testid="backups-archive-offsite">
-                      {t(`backups.offsite.${offsite(archive.name ?? '')}`)}
-                    </dd>
+                    <div style={fieldRowStyle}>
+                      <dt style={fieldLabelStyle}>{t('backups.archives.size')}</dt>
+                      <dd style={inlineValueStyle}>{humanBytes(archive.bytes ?? 0)}</dd>
+                    </div>
+                    <div style={fieldRowStyle}>
+                      <dt style={fieldLabelStyle}>{t('backups.archives.keys')}</dt>
+                      <dd style={inlineValueStyle}>
+                        {(archive.recipients ?? []).map((r) => r.label).join(', ') || '—'}
+                      </dd>
+                    </div>
+                    <div style={fieldRowStyle}>
+                      <dt style={fieldLabelStyle}>{t('backups.archives.offsite')}</dt>
+                      <dd style={inlineValueStyle} data-testid="backups-archive-offsite">
+                        {t(`backups.offsite.${offsite(archive.name ?? '')}`)}
+                      </dd>
+                    </div>
                   </dl>
                   {downloadButton(archive, true)}
                 </div>
@@ -338,6 +346,9 @@ export function BackupsPage() {
                       </span>
                     </dd>
 
+                    {/* Stacked, unlike the archive card: a 64-character
+                        fingerprint and a two-timestamp range each need the
+                        card's full width. */}
                     <dt style={fieldLabelStyle}>{t('backups.keys.archiveRange')}</dt>
                     <dd style={fieldValueStyle} data-testid="backups-key-archive-range">
                       {archiveRange(key.first_seen, key.last_seen)}
@@ -493,6 +504,27 @@ const fieldLabelStyle: React.CSSProperties = {
 
 const fieldValueStyle: React.CSSProperties = {
   margin: `0 0 ${theme.spacing.xs} 0`,
+  fontSize: theme.typography.fontSize.sm,
+  color: theme.colors.text.primary,
+  overflowWrap: 'anywhere',
+}
+
+// Label left, value right on one line — for the fields whose value is short
+// enough to sit beside its label.
+const fieldRowStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'baseline',
+  gap: theme.spacing.md,
+  padding: '3px 0',
+}
+
+const inlineValueStyle: React.CSSProperties = {
+  // `minWidth: 0` so a long joined key list wraps inside the card rather than
+  // pushing the row wider than it.
+  minWidth: 0,
+  margin: 0,
+  textAlign: 'right',
   fontSize: theme.typography.fontSize.sm,
   color: theme.colors.text.primary,
   overflowWrap: 'anywhere',
