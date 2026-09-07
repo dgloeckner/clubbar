@@ -7,7 +7,7 @@
  * list is easier to test than a component's private one.
  */
 
-import type { SecurityFinding } from '../../api/generated'
+import type { SecurityFinding } from '../../api/generated/model'
 
 /**
  * The order categories are shown in, outward-facing concerns first.

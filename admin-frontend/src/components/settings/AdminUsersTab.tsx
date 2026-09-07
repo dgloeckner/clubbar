@@ -9,8 +9,8 @@ import { Toggle } from '../common/Toggle'
 import { Badge, type BadgeProps } from '../common/Badge'
 import { Tooltip } from '../common/Tooltip'
 import { TrashIcon } from '../icons/TrashIcon'
-import type { AdminUser as GeneratedAdminUser } from '../../api/generated'
-import type { AdminRole } from '../../api/generated/adminRole'
+import type { AdminUser as GeneratedAdminUser } from '../../api/generated/model'
+import type { AdminRole } from '../../api/generated/model/adminRole'
 
 // Required fields that are always present in the API response
 type AdminUser = GeneratedAdminUser & { id: string; email: string; display_name: string; locale: string; is_active: boolean; created_at: string }

@@ -20,7 +20,7 @@
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { MEMBER_GAPS, type MemberGapFilters } from '../../utils/memberCompleteness'
-import type { MemberDataCompleteness } from '../../api/generated'
+import type { MemberDataCompleteness } from '../../api/generated/model'
 
 export interface MemberDataQualityPanelProps {
   /** Null while loading, or after a failed load — the panel renders nothing. */

@@ -5,7 +5,7 @@ import type {
   SettlementAnnouncement,
   SettlementItem,
   SettlementReversal,
-} from '../api/generated'
+} from '../api/generated/model'
 
 const item = (memberId: string, amountCents: number, memberName: string): SettlementItem => ({
   member_id: memberId,

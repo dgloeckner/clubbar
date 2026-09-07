@@ -43,7 +43,7 @@ import { undoDisplayDate } from '../../utils/settlementUndo'
 import { allMembersReversed, type SettlementReversalTarget } from '../../utils/settlementReversal'
 import { settlementMemberLines, type SettlementMemberLine } from '../../utils/settlementMembers'
 import { getSettlements } from '../../api/generated/settlements/settlements'
-import type { ReverseSettlementBodyReason } from '../../api/generated'
+import type { ReverseSettlementBodyReason } from '../../api/generated/model'
 
 export interface ReverseSettlementDialogSettlement extends SettlementReversalTarget {
   id?: string

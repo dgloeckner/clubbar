@@ -21,7 +21,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { SecurityFindingCategory } from '../../api/generated'
+import { SecurityFindingCategory } from '../../api/generated/model'
 import de from '../../../public/locales/de.json'
 import en from '../../../public/locales/en.json'
 import { CATEGORY_ORDER, orderedCategories } from './securityCategories'

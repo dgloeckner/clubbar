@@ -42,7 +42,7 @@ import { modalInputStyle, modalLabelStyle } from '../modals/ModalError'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { downloadFile } from '../../api/client'
 import { getRegistrationReview } from '../../api/generated/registration-review/registration-review'
-import type { SelfRegistrationSettings } from '../../api/generated'
+import type { SelfRegistrationSettings } from '../../api/generated/model'
 
 export function SelfRegistrationCredentials() {
   const { t, i18n } = useTranslation()

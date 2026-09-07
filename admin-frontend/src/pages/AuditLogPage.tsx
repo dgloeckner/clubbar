@@ -9,8 +9,8 @@ import { PageHeader } from '../components/layout/PageHeader'
 import { theme } from '../styles/design-system'
 import { useBreakpoint } from '../hooks/useBreakpoint'
 import { getAuditLog } from '../api/generated/audit-log/audit-log'
-import type { AuditLogEntry, ListAuditLogParams, ListAuditLogSortBy } from '../api/generated'
-import { ListAuditLogAction, ListAuditLogEntityType } from '../api/generated'
+import type { AuditLogEntry, ListAuditLogParams, ListAuditLogSortBy } from '../api/generated/model'
+import { ListAuditLogAction, ListAuditLogEntityType } from '../api/generated/model'
 import {
   tableWrapperStyles,
   tableElementStyles,

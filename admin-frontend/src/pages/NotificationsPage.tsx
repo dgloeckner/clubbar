@@ -48,7 +48,7 @@ import {
   getRowStyle,
 } from '../styles/tableTokens'
 import { getNotifications } from '../api/generated/notifications/notifications'
-import type { QueuedMail, ListNotificationsParams, ListNotificationsSort } from '../api/generated'
+import type { QueuedMail, ListNotificationsParams, ListNotificationsSort } from '../api/generated/model'
 
 type SortKey = 'queued_at' | 'sent_at' | 'status' | 'kind' | 'recipient'
 

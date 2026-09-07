@@ -67,7 +67,7 @@ import type {
   ListSettlementsParams,
   ReversalCandidate,
   ReverseSettlementBodyReason,
-} from '../api/generated'
+} from '../api/generated/model'
 
 
 /**

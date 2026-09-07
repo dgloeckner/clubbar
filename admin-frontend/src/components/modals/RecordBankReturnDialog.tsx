@@ -41,7 +41,7 @@ import { useFormatters } from '../../hooks/useFormatters'
 import { useLatestRequest } from '../../hooks/useLatestRequest'
 import { settlementStatusColor, settlementStatus } from '../../utils/settlementStatus'
 import { getSettlements } from '../../api/generated/settlements/settlements'
-import type { ReversalCandidate } from '../../api/generated'
+import type { ReversalCandidate } from '../../api/generated/model'
 
 /** Below this the server refuses: a two-character substring is a list, not a lookup. */
 const MIN_REFERENCE_LENGTH = 3

@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 
 import { downloadFile } from '../../api/client'
 import { getRegistrationReview } from '../../api/generated/registration-review/registration-review'
-import type { PendingRegistration } from '../../api/generated/pendingRegistration'
+import type { PendingRegistration } from '../../api/generated/model/pendingRegistration'
 import { DateField } from '../forms/DateField'
 import { useApiError } from '../../hooks/useApiError'
 import { useFormatters } from '../../hooks/useFormatters'

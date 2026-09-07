@@ -3,7 +3,7 @@
  * entry — every AuditAction the backend can emit gets a specific sentence
  * here rather than falling through to a generic "no changes" message (#381).
  */
-import type { AuditLogEntry } from '../api/generated'
+import type { AuditLogEntry } from '../api/generated/model'
 import { formatPrice } from '../styles/design-system'
 import { getLocalizedName } from './i18n-helpers'
 

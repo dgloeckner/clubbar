@@ -8,7 +8,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { getDashboard } from '../api/generated/dashboard/dashboard'
 import { getTransactions as getTransactionsApi } from '../api/generated/transactions/transactions'
-import type { DashboardResponse } from '../api/generated'
+import type { DashboardResponse } from '../api/generated/model'
 
 /** One row of the unacknowledged list. Member-free by construction. */
 interface JugendschutzViolation {

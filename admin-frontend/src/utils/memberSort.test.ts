@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ListMembersSortBy } from '../api/generated'
+import { ListMembersSortBy } from '../api/generated/model'
 import { buildMemberSortBy } from './memberSort'
 
 describe('buildMemberSortBy', () => {

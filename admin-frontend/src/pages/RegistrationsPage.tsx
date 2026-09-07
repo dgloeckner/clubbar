@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { getRegistrationReview } from '../api/generated/registration-review/registration-review'
-import type { PendingRegistration } from '../api/generated/pendingRegistration'
+import type { PendingRegistration } from '../api/generated/model/pendingRegistration'
 import { PageActionButton } from '../components/common/PageActionButton'
 import { PageHeader } from '../components/layout/PageHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'

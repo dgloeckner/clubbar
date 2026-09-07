@@ -9,7 +9,7 @@ import axios from 'axios'
 import { getAuthentication } from '../api/generated/authentication/authentication'
 import { setCsrfToken } from '../api/client'
 import { changeLanguage } from '../i18n/config'
-import type { UpdateProfileRequest, AdminProfile, AdminRole } from '../api/generated'
+import type { UpdateProfileRequest, AdminProfile, AdminRole } from '../api/generated/model'
 import { parseRoles } from '../utils/adminRoles'
 
 // ─── Session check ─────────────────────────────────────────────────────────────

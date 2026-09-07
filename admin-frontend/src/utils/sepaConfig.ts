@@ -8,7 +8,7 @@
  * prefix that shows up on member bank statements — belongs in both payloads.
  */
 
-import type { SepaConfig, SepaConfigRequest, SepaConfigUpdateRequest } from '../api/generated'
+import type { SepaConfig, SepaConfigRequest, SepaConfigUpdateRequest } from '../api/generated/model'
 
 /** The editable shape of the SEPA settings form. */
 export interface SepaConfigFormData {

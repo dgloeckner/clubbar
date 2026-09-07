@@ -15,7 +15,7 @@ import {
 } from '../auth/session'
 import { authErrorKey, endsMfaStep } from '../utils/authErrors'
 import { setInsufficientRoleHandler } from '../api/client'
-import type { AdminRole } from '../api/generated'
+import type { AdminRole } from '../api/generated/model'
 
 // UI-level types — not from generated schemas
 interface LoginCredentials {

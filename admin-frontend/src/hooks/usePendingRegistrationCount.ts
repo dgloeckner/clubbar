@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
 import { getRegistrationReview } from '../api/generated/registration-review/registration-review'
-import type { AdminRole } from '../api/generated/adminRole'
+import type { AdminRole } from '../api/generated/model/adminRole'
 import { permitsPath } from '../utils/adminRoles'
 import { useLatestRequest } from './useLatestRequest'
 

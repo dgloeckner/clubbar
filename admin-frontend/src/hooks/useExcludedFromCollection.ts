@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getMembers } from '../api/generated/members/members'
-import type { CollectionHold, CreditBalance, MandateMissing } from '../api/generated'
+import type { CollectionHold, CreditBalance, MandateMissing } from '../api/generated/model'
 import { useLatestRequest } from './useLatestRequest'
 import i18n from '../i18n/config'
 

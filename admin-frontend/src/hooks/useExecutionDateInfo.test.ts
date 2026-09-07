@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useExecutionDateInfo } from './useExecutionDateInfo'
-import type { ExecutionDateInfo } from '../api/generated'
+import type { ExecutionDateInfo } from '../api/generated/model'
 import i18n from '../i18n/config'
 
 const getExecutionDateInfo = vi.hoisted(() => vi.fn())

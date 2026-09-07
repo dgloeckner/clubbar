@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getSettlements } from '../api/generated/settlements/settlements'
-import type { ExecutionDateInfo } from '../api/generated'
+import type { ExecutionDateInfo } from '../api/generated/model'
 import i18n from '../i18n/config'
 
 interface UseExecutionDateInfoResult {

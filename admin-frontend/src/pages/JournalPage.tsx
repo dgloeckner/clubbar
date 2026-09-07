@@ -40,7 +40,7 @@ import { getLocalizedName } from '../utils/i18n-helpers'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import { StornoConfirmDialog } from '../components/modals/StornoConfirmDialog'
 import { UndoIcon } from '../components/icons'
-import type { GlobalTransaction } from '../api/generated'
+import type { GlobalTransaction } from '../api/generated/model'
 import { theme } from '../styles/design-system'
 import {
   tableColors,

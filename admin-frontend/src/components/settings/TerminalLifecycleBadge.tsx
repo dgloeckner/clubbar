@@ -7,7 +7,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { Badge, type BadgeProps } from '../common/Badge'
-import type { TerminalLifecycleState } from '../../api/generated'
+import type { TerminalLifecycleState } from '../../api/generated/model'
 
 export type TokenLifecycleBadgeState = TerminalLifecycleState | 'none'
 

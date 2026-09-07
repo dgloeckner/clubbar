@@ -29,7 +29,7 @@ import { useLatestRequest } from '../hooks/useLatestRequest'
 import { getSettlements } from '../api/generated/settlements/settlements'
 import { getTransactions } from '../api/generated/transactions/transactions'
 import { tableColors, tableSpacing, headerCellBaseStyle, headerRowStyle } from '../styles/tableTokens'
-import type { SettlementPreview, SettlementPreviewMember } from '../api/generated'
+import type { SettlementPreview, SettlementPreviewMember } from '../api/generated/model'
 
 interface MemberTransaction {
   id: string
