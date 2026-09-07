@@ -20,7 +20,9 @@ name: Dependabot merge queue
 # One merge per run, by design. The moment one lands, every other pull request's
 # green refers to a main that no longer exists, so the next run re-reads the
 # world rather than trusting a batch decision. That is the difference between a
-# queue and a bulk merge.
+# queue and a bulk merge. It is not slow, because a merge wakes the next round
+# itself — see the triggers below — so the backlog drains at the pace of the
+# build rather than of the clock.
 #
 # ---------------------------------------------------------------------------
 # MERGE_QUEUE_TOKEN — read this before wondering why nothing merges
@@ -61,12 +63,37 @@ name: Dependabot merge queue
 
 on:
   # Off the hour: scheduled workflows queue behind everyone else's :00 cron.
+  #
+  # This is the queue's slowest wake-up, not its only one, and deliberately so.
+  # GitHub runs `schedule` on a best-effort queue that it drops under load: the
+  # first two rounds after this workflow landed (17:37 and 18:07) never ran at
+  # all. A queue whose only clock is that one is a queue that stops without
+  # anything looking broken — the workflow stays `active`, no run turns red, and
+  # the pull requests simply sit there. The two event triggers below are what
+  # make it self-driving; the cron is the floor under them.
   schedule:
     - cron: '7,37 * * * *'
 
-  # A build that just finished may have turned a pull request green — merge it
-  # now rather than up to half an hour later. Restricted to Dependabot's own
-  # branches so the queue does not wake for every push to every feature branch.
+  # Something landed on the base branch — take the next round now. This is the
+  # ordinary case: a person merges, and the queue reconsiders immediately
+  # instead of at the next half hour.
+  push:
+    branches:
+      - main
+
+  # Two different wake-ups share this trigger:
+  #
+  #   * a build on a `dependabot/*` branch — a pull request may have just gone
+  #     green, or come back green after Dependabot rebased it;
+  #   * a build on `main` — which is how the queue chains. Its own merge push is
+  #     made with GITHUB_TOKEN and therefore starts nothing (see the header), so
+  #     the run it dispatches instead is the only signal that the merge
+  #     happened. Without `main` here, the queue merges once per cron round and
+  #     no faster.
+  #
+  # Anything else — every feature branch in the repository — is filtered out by
+  # the job's `if` rather than here, because `workflow_run` takes no branch
+  # filter.
   workflow_run:
     workflows: [Build]
     types: [completed]
@@ -92,6 +119,7 @@ jobs:
     if: >-
       github.event_name != 'workflow_run'
       || startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+      || github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
