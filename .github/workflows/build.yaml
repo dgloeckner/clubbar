@@ -8,6 +8,14 @@ on:
       - '**'
   release:
     types: [created]
+  # A push made with GITHUB_TOKEN starts no workflow run — GitHub suppresses it
+  # to avoid recursion — so the Dependabot merge queue cannot build the main it
+  # has just merged to, and Integration would keep running the previous package.
+  # A dispatch is the documented exception, so the queue asks for the run its
+  # own push should have produced. On main `full` is true regardless of paths,
+  # so a dispatched run builds and deploys exactly what a push would have.
+  # See .github/workflows/dependabot-merge-queue.yaml.
+  workflow_dispatch:
 
 # Read-only by default. Every job here runs third-party install and build code
 # — `npm ci` resolves ~470 packages of which 26 run install lifecycle scripts,

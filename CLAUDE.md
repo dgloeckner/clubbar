@@ -294,6 +294,28 @@ Branching, pushing a feature branch and opening a PR are the expected path and
 need no separate approval once the work has been asked for. **Merging**,
 force-pushing and deleting branches are not — confirm those.
 
+### Dependabot Merge Queue
+
+**Dependency updates merge themselves.**
+`.github/workflows/dependabot-merge-queue.yaml` runs twice an hour and merges
+**one** Dependabot pull request per round: the oldest one whose build is green on
+its own head commit. The policy, and the tests that hold it, are in
+`e2etests/scripts/dependabot-queue.mjs` and its `.test.mjs`.
+
+- **Patch and minor only.** A major — including one hidden inside a group — waits
+  for a person, for the reason `.github/dependabot.yml` already gives.
+- **Green means the Build really ran.** `skipped` (build.yaml's path filters) and
+  `neutral` (CodeQL's roll-up) pass; a commit carrying no `changes`/`audit` check
+  is treated as *unbuilt*, never as green.
+- **One per round, on purpose.** The moment one lands, every other pull request's
+  green refers to a main that no longer exists.
+- **To take one out of the queue**, label it `do-not-merge` (or
+  `blocked-upstream`). To stop the queue, disable the workflow.
+- **Without a `MERGE_QUEUE_TOKEN` secret** the queue approves as
+  `github-actions[bot]` — which no code-owner rule accepts — and its merge push
+  starts no workflow, so it dispatches Build itself. The workflow header
+  documents the token that removes both.
+
 ### Destructive Test Cleanup (CRITICAL)
 
 **A `tearDown()` that deletes must never be able to point at a path the test did
