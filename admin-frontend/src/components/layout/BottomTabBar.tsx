@@ -1,25 +1,36 @@
+/**
+ * The phone's navigation: a row of tabs plus a "More" popup for the tail.
+ *
+ * The entries come from `NAV_SECTIONS` (see `navSections.tsx`) rather than from
+ * a list of its own. That is the fix for #782's blind spot — the registration
+ * inbox reached the header nav and never reached this bar, so on a phone the
+ * section existed, was permitted and was unreachable.
+ */
+
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
 import { useAuth } from '../../context/AuthContext'
-import { permitsPath } from '../../utils/adminRoles'
 import {
-  HomeIcon,
-  UsersIcon,
-  PackageIcon,
-  BookIcon,
-  ReceiptIcon,
-  ChartIcon,
-  SettingsIcon,
-  AuditLogIcon,
-  DatabaseIcon,
-  MailIcon,
-  UserIcon,
-  MoreIcon,
-} from '../icons'
+  mobileMoreSections,
+  mobilePrimarySections,
+  renderSectionIcon,
+  type NavSection,
+} from './navSections'
+import { MoreIcon } from '../icons'
 
-export function BottomTabBar() {
+interface BottomTabBarProps {
+  /**
+   * The registration inbox's badge count, passed down rather than fetched
+   * here: `MainLayout` already holds it for the header nav, and the two
+   * navigations are never on screen together, so a second `useEffect` would
+   * only mean a second identical request on every navigation a phone makes.
+   */
+  pendingRegistrations: number
+}
+
+export function BottomTabBar({ pendingRegistrations }: BottomTabBarProps) {
   const { t } = useTranslation()
   const location = useLocation()
   const { roles } = useAuth()
@@ -28,22 +39,13 @@ export function BottomTabBar() {
 
   const isActive = (path: string) => location.pathname === path
 
-  const primaryTabs = [
-    { label: t('nav.dashboard'), path: '/dashboard', icon: HomeIcon, testId: 'tab-dashboard' },
-    { label: t('nav.members'), path: '/members', icon: UsersIcon, testId: 'tab-members' },
-    { label: t('nav.products'), path: '/products', icon: PackageIcon, testId: 'tab-products' },
-    { label: t('nav.journalShort'), path: '/journal', icon: BookIcon, testId: 'tab-journal' },
-  ].filter((tab) => permitsPath(roles, tab.path))
+  const counts = { pendingRegistrations }
+  const primaryTabs = mobilePrimarySections(roles)
+  const moreItems = mobileMoreSections(roles)
 
-  const moreItems = [
-    { label: t('nav.settlements'), path: '/settlements', icon: ReceiptIcon, testId: 'tab-settlements' },
-    { label: t('nav.reports'), path: '/reports', icon: ChartIcon, testId: 'tab-reports' },
-    { label: t('nav.settings'), path: '/settings', icon: SettingsIcon, testId: 'tab-settings' },
-    { label: t('nav.notifications'), path: '/notifications', icon: MailIcon, testId: 'tab-notifications' },
-    { label: t('nav.backups'), path: '/backups', icon: DatabaseIcon, testId: 'tab-backups' },
-    { label: t('nav.auditLog'), path: '/audit-log', icon: AuditLogIcon, testId: 'tab-audit-log' },
-    { label: t('nav.profile'), path: '/profile', icon: UserIcon, testId: 'tab-profile' },
-  ].filter((item) => permitsPath(roles, item.path))
+  // The bar is narrow, so the primary row prefers an abbreviation where the
+  // section has one; the popup has room for the full label.
+  const tabLabel = (section: NavSection) => t(section.shortLabelKey ?? section.labelKey)
 
   const isMoreActive = moreItems.some((item) => isActive(item.path))
 
@@ -100,9 +102,9 @@ export function BottomTabBar() {
       }}
     >
       {primaryTabs.map((tab) => (
-        <Link key={tab.path} to={tab.path} data-testid={tab.testId} style={tabStyle(isActive(tab.path))}>
-          <tab.icon size={22} />
-          <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{tab.label}</span>
+        <Link key={tab.path} to={tab.path} data-testid={`tab-${tab.id}`} style={tabStyle(isActive(tab.path))}>
+          {renderSectionIcon(tab, 22, counts)}
+          <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{tabLabel(tab)}</span>
         </Link>
       ))}
 
@@ -137,7 +139,7 @@ export function BottomTabBar() {
               <Link
                 key={item.path}
                 to={item.path}
-                data-testid={item.testId}
+                data-testid={`tab-${item.id}`}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -152,8 +154,8 @@ export function BottomTabBar() {
                   transition: `all ${theme.transitions.default}`,
                 }}
               >
-                <item.icon size={20} />
-                <span>{item.label}</span>
+                {renderSectionIcon(item, 20, counts)}
+                <span>{t(item.labelKey)}</span>
               </Link>
             ))}
           </div>

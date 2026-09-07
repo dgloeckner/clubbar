@@ -16,7 +16,8 @@
     "settlementsShort": "Abrechn.",
     "notifications": "Benachrichtigungen",
     "backups": "Datensicherungen",
-    "registrations": "Anmeldungen"
+    "registrations": "Anmeldungen",
+    "registrationsShort": "Anmeld."
   },
   "common": {
     "save": "Speichern",
