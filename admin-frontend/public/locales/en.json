@@ -1647,6 +1647,12 @@
       "bank": "Bank",
       "flags": "Flags"
     },
+    "sort": {
+      "newest": "Newest first",
+      "oldest": "Oldest first",
+      "name": "Name (A–Z)",
+      "email": "Email (A–Z)"
+    },
     "flags": {
       "email": "Email known",
       "iban": "Account known"
