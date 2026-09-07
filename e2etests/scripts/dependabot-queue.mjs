@@ -314,9 +314,9 @@ export async function runQueue(api, options = {}) {
   if (action.kind === 'idle') return done('idle')
   if (dryRun) return done('dry-run')
 
-  const pr = open.find((candidate) => candidate.number === action.row.number)
-
   if (action.kind === 'update') {
+    const pr = open.find((candidate) => candidate.number === action.row.number)
+
     // Green, but its build predates the base tip. Bring the branch forward; the
     // push is what re-runs the build, and the next round judges the result.
     await api.updateBranch(pr.number)
@@ -324,29 +324,54 @@ export async function runQueue(api, options = {}) {
     return done('updated')
   }
 
-  // A required review is the usual reason `mergeable_state` is "blocked" here,
-  // and approving is the queue repeating what the build already said. It can
-  // only happen to a pull request that has passed every gate above.
-  if (seen.get(pr.number)?.mergeable_state === 'blocked') {
+  // Try each ready pull request in turn, stopping at the first that merges.
+  //
+  // A refusal must never block the ones behind it. #845 bumps the versions in
+  // `.github/workflows/**`, which a GitHub App may not write without the
+  // Workflows permission, so GitHub answers `Repository rule violations found`
+  // — every round, forever. Returning there left #846, #847 and #848 queued
+  // behind a pull request that could never merge, which is the same mistake as
+  // letting a red one block the queue, arriving by a different door.
+  const refusals = []
+  let merged = null
+
+  for (const row of rows.filter((candidate) => candidate.state === 'ready')) {
+    const pr = open.find((candidate) => candidate.number === row.number)
+
+    // A required review is the usual reason `mergeable_state` is "blocked"
+    // here, and approving is the queue repeating what the build already said.
+    // It can only happen to a pull request that has passed every gate above.
+    if (seen.get(pr.number)?.mergeable_state === 'blocked') {
+      try {
+        await api.approve(pr.number)
+      } catch (error) {
+        log(`Could not approve #${pr.number}: ${messageOf(error)}`)
+      }
+    }
+
     try {
-      await api.approve(pr.number)
+      // The merge is conditional on the commit this round actually read: if
+      // Dependabot rebased while the queue was thinking, GitHub refuses rather
+      // than merging a commit nothing verified.
+      await api.merge(pr.number, pr.head)
+      merged = pr
+      break
     } catch (error) {
-      log(`Could not approve #${pr.number}: ${messageOf(error)}`)
+      const detail = messageOf(error)
+      log(`Merge of #${pr.number} was refused: ${detail}`)
+      await api.commentOnce(pr.number, marker('refused', pr.head), refusalComment(detail, pr.head))
+      refusals.push(`> Merge of #${pr.number} was refused by GitHub: \`${detail.split('\n')[0]}\``)
     }
   }
 
-  try {
-    // The merge is conditional on the commit this round actually read: if
-    // Dependabot rebased while the queue was thinking, GitHub refuses rather
-    // than merging a commit nothing verified.
-    await api.merge(pr.number, pr.head)
-  } catch (error) {
-    const detail = messageOf(error)
-    log(`Merge of #${pr.number} was refused: ${detail}`)
-    await api.commentOnce(pr.number, marker('refused', pr.head), refusalComment(detail, pr.head))
-    return { ...done('refused'), summary: `${summary}\n\n> Merge of #${pr.number} was refused by GitHub: \`${detail.split('\n')[0]}\`` }
-  }
+  const withRefusals = (outcome) => ({
+    ...done(outcome),
+    summary: refusals.length > 0 ? `${summary}\n\n${refusals.join('\n')}` : summary,
+  })
 
+  if (!merged) return withRefusals('refused')
+
+  const pr = merged
   log(`Merged #${pr.number}.`)
 
   // A push made with GITHUB_TOKEN starts no workflow run, so the merge that
@@ -363,7 +388,7 @@ export async function runQueue(api, options = {}) {
     }
   }
 
-  return done('merged')
+  return withRefusals('merged')
 }
 
 /** `gh` puts the useful half of a failure on stderr, where an Error hides it. */
