@@ -297,10 +297,16 @@ force-pushing and deleting branches are not — confirm those.
 ### Dependabot Merge Queue
 
 **Dependency updates merge themselves.**
-`.github/workflows/dependabot-merge-queue.yaml` runs twice an hour and merges
-**one** Dependabot pull request per round: the oldest one whose build is green on
-its own head commit. The policy, and the tests that hold it, are in
+`.github/workflows/dependabot-merge-queue.yaml` merges **one** Dependabot pull
+request per round: the oldest one whose build is green on its own head commit.
+The policy, and the tests that hold it, are in
 `e2etests/scripts/dependabot-queue.mjs` and its `.test.mjs`.
+
+A round is woken by a merge to `main`, by a Build finishing on `main` or on a
+`dependabot/*` branch, and by a half-hourly cron. The events are what make it
+self-driving; the cron is only a floor under them, because GitHub drops
+`schedule` runs under load — the queue's first two scheduled rounds never ran,
+with nothing looking broken.
 
 - **Patch and minor only.** A major — including one hidden inside a group — waits
   for a person, for the reason `.github/dependabot.yml` already gives.

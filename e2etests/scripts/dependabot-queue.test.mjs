@@ -15,6 +15,9 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   ALLOWED_UPDATE_TYPES,
@@ -335,4 +338,36 @@ test('strict mode updates the branch instead of merging a build that predates th
   assert.equal(result.outcome, 'updated')
   assert.deepEqual(api.calls.updated, [844])
   assert.deepEqual(api.calls.merged, [])
+})
+
+// ---------------------------------------------------------------------------
+// The workflow's wake-ups. This is a transcription test in the spirit of
+// check-ci-lanes.mjs, and it exists because the failure it catches is silent:
+// the queue's first two scheduled rounds (17:37 and 18:07) never ran, the
+// workflow stayed `active`, no run went red, and eleven green pull requests
+// simply sat there. Nothing about a queue that has stopped looks broken, so the
+// property worth pinning is that the cron is not its only clock.
+// ---------------------------------------------------------------------------
+
+const WORKFLOW = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '.github', 'workflows', 'dependabot-merge-queue.yaml'),
+  'utf8',
+)
+
+test('a merge to the base branch wakes the queue, so it never waits only on cron', () => {
+  assert.match(WORKFLOW, /push:\s*\n\s*branches:\s*\n\s*- main/)
+})
+
+test('the queue wakes for a Build on main as well as on a Dependabot branch', () => {
+  // main is how it chains: its own merge push is made with GITHUB_TOKEN and
+  // starts nothing, so the Build it dispatches is the only signal that a merge
+  // happened. Drop this and the queue merges once per cron round and no faster.
+  const condition = WORKFLOW.match(/if: >-\n([\s\S]*?)\n {4}runs-on:/)[1]
+
+  assert.match(condition, /startsWith\(github\.event\.workflow_run\.head_branch, 'dependabot\/'\)/)
+  assert.match(condition, /github\.event\.workflow_run\.head_branch == 'main'/)
+})
+
+test('the cron is still there as the floor under both', () => {
+  assert.match(WORKFLOW, /schedule:\s*\n\s*- cron: '[^']+'/)
 })
