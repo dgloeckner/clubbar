@@ -76,12 +76,22 @@ test.describe('Mobile Responsive Layout', () => {
       await expect(page.getByTestId('bottom-tab-bar')).toBeVisible()
     })
 
-    test('should display all 5 tabs', async ({ page }) => {
+    test('should display all 6 tabs', async ({ page }) => {
       await expect(page.getByTestId('tab-dashboard')).toBeVisible()
       await expect(page.getByTestId('tab-members')).toBeVisible()
+      await expect(page.getByTestId('tab-registrations')).toBeVisible()
       await expect(page.getByTestId('tab-products')).toBeVisible()
       await expect(page.getByTestId('tab-journal')).toBeVisible()
       await expect(page.getByTestId('tab-more')).toBeVisible()
+    })
+
+    // The registration inbox reached the header nav and not this bar, so on a
+    // phone the section was classified, routed, permitted — and unreachable.
+    // Both navigations render one table now; this is the half a phone sees.
+    test('should navigate to Registrations when clicking the Registrations tab', async ({ page }) => {
+      await page.getByTestId('tab-registrations').click()
+      await expect(page).toHaveURL(/\/registrations/)
+      await expect(page.getByTestId('registrations-page')).toBeVisible()
     })
 
     test('should navigate to Products when clicking Products tab', async ({ page }) => {

@@ -10,28 +10,13 @@ import { useAuth } from '../../context/AuthContext'
 import { useLoading } from '../../context/LoadingContext'
 import { useInstanceConfig } from '../../context/InstanceConfigContext'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
-import { permitsPath } from '../../utils/adminRoles'
 import { LoadingIndicator } from '../common/LoadingIndicator'
-import { NavCountBadge } from './NavCountBadge'
 import { usePendingRegistrationCount } from '../../hooks/usePendingRegistrationCount'
 import { BottomTabBar } from './BottomTabBar'
 import { DesktopNav } from './DesktopNav'
+import { desktopSections, renderSectionIcon } from './navSections'
 import { SchedulerBanner } from './SchedulerBanner'
-import {
-  AuditLogIcon,
-  DatabaseIcon,
-  MailIcon,
-  HomeIcon,
-  UsersIcon,
-  UserPlusIcon,
-  PackageIcon,
-  BookIcon,
-  ReceiptIcon,
-  ChartIcon,
-  SettingsIcon,
-  UserIcon,
-  LogoutIcon,
-} from '../icons'
+import { UserIcon, LogoutIcon } from '../icons'
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -60,32 +45,15 @@ export function MainLayout({ children }: MainLayoutProps) {
   // Sections the caller's roles cannot open are removed, not disabled
   // (ADR-0044, #516). A disabled entry advertises the section and invites the
   // 403 anyway; a Getränkewart has no business knowing the settlement screen is
-  // there. This is presentation only — the server refuses independently.
-  const navItems = [
-    { label: t('nav.dashboard'), path: '/dashboard', icon: <HomeIcon size={20} />, testId: 'nav-dashboard' },
-    { label: t('nav.members'), path: '/members', icon: <UsersIcon size={20} />, testId: 'nav-members' },
-    {
-      label: t('nav.registrations'),
-      path: '/registrations',
-      // The badge's test id deliberately does not start with `nav-`: the E2E
-      // suite enumerates sections with `[data-testid^="nav-"]`, and a badge
-      // nested inside an entry would be counted as a section of its own.
-      icon: (
-        <NavCountBadge count={pendingRegistrations} testId="registrations-count-badge">
-          <UserPlusIcon size={20} />
-        </NavCountBadge>
-      ),
-      testId: 'nav-registrations',
-    },
-    { label: t('nav.products'), path: '/products', icon: <PackageIcon size={20} />, testId: 'nav-products' },
-    { label: t('nav.journal'), path: '/journal', icon: <BookIcon size={20} />, testId: 'nav-journal' },
-    { label: t('nav.settlements'), path: '/settlements', icon: <ReceiptIcon size={20} />, testId: 'nav-settlements' },
-    { label: t('nav.reports'), path: '/reports', icon: <ChartIcon size={20} />, testId: 'nav-reports' },
-    { label: t('nav.settings'), path: '/settings', icon: <SettingsIcon size={20} />, testId: 'nav-settings' },
-    { label: t('nav.notifications'), path: '/notifications', icon: <MailIcon size={20} />, testId: 'nav-notifications' },
-    { label: t('nav.backups'), path: '/backups', icon: <DatabaseIcon size={20} />, testId: 'nav-backups' },
-    { label: t('nav.auditLog'), path: '/audit-log', icon: <AuditLogIcon size={20} />, testId: 'nav-audit-log' },
-  ].filter((item) => permitsPath(roles, item.path))
+  // there. The filtering lives in `desktopSections`, over the one nav table
+  // both navigations render — this list used to be a literal here, and a
+  // section added to it alone was a section a phone could not reach.
+  const navItems = desktopSections(roles).map((section) => ({
+    label: t(section.labelKey),
+    path: section.path,
+    icon: renderSectionIcon(section, 20, { pendingRegistrations }),
+    testId: `nav-${section.id}`,
+  }))
 
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const isTablet = breakpoint === 'tablet'
@@ -364,7 +332,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         </footer>
       )}
 
-      {isMobile && <BottomTabBar />}
+      {isMobile && <BottomTabBar pendingRegistrations={pendingRegistrations} />}
     </div>
   )
 }

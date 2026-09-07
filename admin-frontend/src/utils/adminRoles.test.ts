@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest'
 // Imported as text (Vite's `?raw`) rather than through Node's fs, so the test
 // needs no filesystem types and breaks loudly if a file is ever renamed.
-import mainLayoutSource from '../components/layout/MainLayout.tsx?raw'
-import bottomTabBarSource from '../components/layout/BottomTabBar.tsx?raw'
+import { NAV_SECTIONS } from '../components/layout/navSections'
 import settingsPageSource from '../pages/SettingsPage.tsx?raw'
 import reportsPageSource from '../pages/ReportsPage.tsx?raw'
 import {
@@ -303,25 +302,32 @@ describe('every Settings tab is classified', () => {
 /**
  * The completeness property, borrowed from `RouteRoleMapCompletenessTest`:
  * adding a navigation entry is what makes this fail, so a new section cannot
- * ship unclassified. Reading the source is deliberate — the alternative is
- * duplicating the nav lists here, which would then be the thing that drifts.
+ * ship unclassified.
+ *
+ * It reads `NAV_SECTIONS` — the one table both navigations render — rather than
+ * the components' source, which is what it had to do while each surface carried
+ * its own literal list.
  */
 describe('every navigable section is classified', () => {
-  const navSources = {
-    'MainLayout.tsx': mainLayoutSource,
-    'BottomTabBar.tsx': bottomTabBarSource,
-  }
+  it('covers every path in the nav table', () => {
+    expect(NAV_SECTIONS.length).toBeGreaterThan(0)
+    for (const section of NAV_SECTIONS) {
+      expect(Object.keys(SECTION_ROLES), `${section.path} is not classified`).toContain(section.path)
+    }
+  })
 
-  for (const [name, text] of Object.entries(navSources)) {
-    it(`covers every path named in ${name}`, () => {
-      const paths = [...text.matchAll(/path: '(\/[^']*)'/g)].map((m) => m[1])
-
-      expect(paths.length).toBeGreaterThan(0)
-      for (const path of paths) {
-        expect(Object.keys(SECTION_ROLES), `${path} is not classified`).toContain(path)
-      }
-    })
-  }
+  // The other direction, and the one that was missing when `/registrations`
+  // shipped: a section can be classified, routed and permitted and still be in
+  // no navigation at all. On a phone that is the difference between a section
+  // and no section.
+  it('navigates to every classified section', () => {
+    for (const path of Object.keys(SECTION_ROLES)) {
+      expect(
+        NAV_SECTIONS.map((section) => section.path),
+        `${path} is classified but no navigation reaches it`
+      ).toContain(path)
+    }
+  })
 })
 
 /**

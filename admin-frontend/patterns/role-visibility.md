@@ -52,12 +52,26 @@ Sub-routes inherit their section: `/members/excluded` is covered by
 
 1. Add the route in `App.tsx` inside a `ProtectedRoute` — that is what renders
    the refusal screen for a caller whose roles do not cover it.
-2. Add the nav entry to `MainLayout` (and `BottomTabBar` if it belongs on
-   mobile).
-3. **Add the path to `SECTION_ROLES`.** `adminRoles.test.ts` reads both nav
-   components' source and fails on any `path:` it cannot find in the table, so
-   step 2 without step 3 is a red build rather than a silently `admin`-only
-   entry.
+2. **Add one entry to `NAV_SECTIONS`** in
+   `src/components/layout/navSections.tsx`. Both navigations render that table
+   — `DesktopNav` in the header, `BottomTabBar` on a phone — so a section
+   cannot arrive on one surface and be missing from the other. It used to be
+   two literal lists, and `/registrations` reached the header alone: classified,
+   routed, permitted, and on a phone reachable by nothing but typing the URL.
+   Neither component may name a `path:` of its own; `navSections.test.ts` fails
+   if one does.
+   - `mobile: 'primary'` is a tab in the bar, `'more'` is its popup. The bar
+     holds a handful of icons; everything else is one tap further in.
+   - `shortLabelKey` is for the bar's 9px labels — an abbreviation beats an
+     ellipsis in the middle of a German compound.
+   - `desktop: false` is for `/profile` only: the header reaches it through the
+     user badge, and a nav entry would be a second door to the same page.
+3. **Add the path to `SECTION_ROLES`.** `navSections.test.ts` and
+   `adminRoles.test.ts` check the table both ways — a section in `NAV_SECTIONS`
+   that nothing classifies, and a classified section no navigation reaches —
+   so step 2 without step 3 is a red build rather than a silently `admin`-only
+   entry, and step 3 without step 2 is a red build rather than a section only a
+   URL can open.
 4. Pick the roles from what the *page's endpoints* are granted in
    `backend/src/Modules/Auth/Domain/RouteRoleMap.php`. A page that fans out to
    several endpoints takes the intersection: showing a page whose sidebar panel

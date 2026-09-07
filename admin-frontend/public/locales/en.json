@@ -16,7 +16,8 @@
     "settlementsShort": "Settlem.",
     "notifications": "Notifications",
     "backups": "Backups",
-    "registrations": "Registrations"
+    "registrations": "Registrations",
+    "registrationsShort": "Registr."
   },
   "common": {
     "save": "Save",
