@@ -1,6 +1,7 @@
 # ADR-0014: Robust RFID Scanning Integration
 
-**Status**: Accepted (Revised)
+**Status**: Accepted (Revised; **Card UID Handling amended by
+[ADR-0055](./0055-canonical-card-uid.md)**)
 
 **Date**: 2025-01-23 (Revised: 2026-03-07)
 
@@ -60,7 +61,7 @@ sequenceDiagram
     Reader->>OS: Keyboard HID events (UID chars + Enter)
     OS->>TextField: Keystrokes arrive in hidden TextField
     TextField->>Service: onSubmitted(cardUid)
-    Service->>Service: Trim and uppercase UID
+    Service->>Service: Trim only — the reader's characters pass through
     Service->>Provider: cardScans stream emission
 
     alt Already scanning (debounce)
@@ -90,7 +91,7 @@ sequenceDiagram
 |----------------|-----------|------------|
 | Keyboard input capture | Hidden `TextField` widget | Flutter `onSubmitted` callback |
 | UID stream management | `RealRfidService` | Dart `StreamController<String>.broadcast()` |
-| Card UID normalization | `RealRfidService.emitScan()` | `trim().toUpperCase()` |
+| Card UID normalization | `RfidProvider.handleCardScan()` | `normalizeCardUid()` — the single conversion point (ADR-0055) |
 | Member lookup | `MembersRepository` | Drift ORM (SQLite) |
 | Scan state and navigation | `RfidProvider` | `ChangeNotifier` (Provider pattern) |
 | Audio feedback | `SoundService` | `audioplayers` package |
@@ -98,13 +99,24 @@ sequenceDiagram
 
 ### Card UID Handling
 
+**Amended by [ADR-0055](./0055-canonical-card-uid.md).** This table said "case-insensitive"
+and left everything else about the spelling unstated. Case turned out to be one
+dialect out of seven: the same chip is typed as `001EB4CB`, `001eb4cb`,
+`00:1E:B4:CB`, `0x001EB4CB`, `1EB4CB`, `0002012363` (decimal) or `CBB41E00`
+(bytes reversed), depending only on how the reader is configured. Since the
+lookup is an exact string match, a club replacing a broken reader with a
+differently configured one would find that no member card is recognised any
+more. ADR-0055 is the full rule; the table below is its summary.
+
 | Aspect | Specification |
 |--------|---------------|
-| Format | Hexadecimal string, uppercase (e.g., `A1B2C3D4`) |
-| Length | 4-10 bytes depending on card type (8-20 hex chars) |
+| Format | Hexadecimal string, uppercase, no separators (e.g., `001EB4CB`) |
+| Length | 4-10 bytes depending on card type — **whole bytes**, so 8-20 hex chars |
 | Storage | VARCHAR(20) in database; indexed for fast lookup |
-| Comparison | Case-insensitive (normalize to uppercase) |
-| Uniqueness | Enforced at database level (UNIQUE constraint) |
+| Comparison | Exact match against the canonical form, which every input is reduced to before it is stored or compared |
+| Leading zeros | Significant and always written — `001EB4CB`, never `1EB4CB` |
+| Reader dialect | Case, separators, `0x` and dropped leading zeros are parsed away — the terminal restores whole zero bytes too, since a short *scan* is a reader suppressing them rather than a typo. Decimal and byte order are *not* decidable from the string and come from the terminal's `rfidReader.uidFormat` profile |
+| Uniqueness | Enforced at database level (UNIQUE constraint), on the canonical form |
 
 ### Reader Input Flow
 
@@ -119,7 +131,7 @@ flowchart TD
     Enter --> Submit[onSubmitted fires with UID string]
 
     Submit --> Emit[RealRfidService.emitScan]
-    Emit --> Normalize[Trim and uppercase UID]
+    Emit --> Normalize["Reduce to the canonical UID (ADR-0055)"]
     Normalize --> Stream[Emit to cardScans stream]
 
     Stream --> Scanning{isScanning?}
@@ -142,7 +154,7 @@ flowchart TD
 | Unknown card UID | Log scan attempt; do not create member | "Unknown card" message; error sound |
 | Inactive member | Reject transaction | "Card blocked" message; error sound |
 | SEPA data invalid | Reject transaction | SEPA error message; error sound |
-| Malformed input | Empty/whitespace UIDs discarded by `emitScan()` | None (silent discard) |
+| Malformed input | Empty/whitespace UIDs discarded by `emitScan()`; anything unreadable as a UID reaches the lookup verbatim and matches nothing | None (silent discard); recorded in the scan log |
 | Rapid duplicate scans | Blocked by `_isScanning` flag | None (ignore while processing) |
 | Database error | Catch exception; set error state | Database error message; error sound |
 
@@ -157,7 +169,12 @@ The system is designed to work with standard USB HID RFID/NFC readers in keyboar
 | NFC (ISO 14443) | 13.56 MHz | 4, 7, or 10 bytes |
 | EM4100 | 125 kHz | 5 bytes |
 
-**Note**: Any USB reader that supports keyboard emulation mode will work without additional configuration. The reader must be configured to output the card UID as hexadecimal characters followed by Enter.
+**Note**: Any USB reader that supports keyboard emulation mode will work. A
+reader emitting hexadecimal needs no configuration at all — case, byte
+separators, an `0x` prefix and a dropped leading zero are all parsed away. One
+emitting decimal, or the bytes in reverse order, is named in the terminal's
+`rfidReader.uidFormat` setting; see [ADR-0055](./0055-canonical-card-uid.md).
+Only the Enter terminator is required of the reader itself.
 
 ### Security Considerations
 

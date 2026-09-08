@@ -113,6 +113,7 @@ that still looks plausible.
 | Task | Status |
 |------|--------|
 | ADR-0055 + index row | `[x]` |
+| ADR-0014 and ADR-0021 amended (with the user's confirmation) — their Card UID tables point here, and the lines this ADR contradicts are corrected | `[x]` |
 | Pattern 014 gains "The UID Has One Spelling" | `[x]` |
 | `terminal-frontend/INSTALL.md`: config key, "Card UID format" section, env row, troubleshooting row | `[x]` |
 

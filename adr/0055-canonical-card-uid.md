@@ -4,8 +4,10 @@
 
 **Date**: 2026-09-08
 
-**Amends**: [ADR-0014](./0014-rfid-scanning-integration.md) (Card UID Handling),
-[ADR-0021](./0021-rfid-card-assignment-workflow.md) (Card UID Validation)
+**Amends**: [ADR-0014](./0014-rfid-scanning-integration.md) — *Card UID Handling*,
+and [ADR-0021](./0021-rfid-card-assignment-workflow.md) — *Card UID Validation*.
+Both tables now point here and have been corrected where they said something
+this ADR contradicts; neither decision itself is changed.
 
 ---
 

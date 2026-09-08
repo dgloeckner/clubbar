@@ -38,14 +38,14 @@ Each ADR follows this structure:
 | [0011](./0011-sepa-configuration-management-admin-frontend.md) | SEPA Configuration Management in Admin Frontend | Accepted | 2025-01-23 |
 | [0012](./0012-eventual-consistency-frontend-caching.md) | Eventual Consistency and Frontend Caching | Accepted | 2025-01-23 |
 | [0013](./0013-audit-logging.md) | Audit Logging | Accepted | 2025-01-23 |
-| [0014](./0014-rfid-scanning-integration.md) | RFID Scanning Integration | Accepted | 2025-01-23 |
+| [0014](./0014-rfid-scanning-integration.md) | RFID Scanning Integration | Accepted (amended by 0055) | 2025-01-23 |
 | [0015](./0015-authentication-and-authorization-strategy.md) | Authentication and Authorization Strategy | Accepted (amended 2026-08-09) | 2025-01-23 |
 | [0016](./0016-transport-security.md) | Transport Security (HTTPS and TLS) | Accepted | 2025-01-23 |
 | [0017](./0017-input-validation-injection-prevention.md) | Input Validation and Injection Prevention | Accepted | 2025-01-23 |
 | [0018](./0018-modular-admin-interface-architecture.md) | Modular Admin Interface Architecture | Accepted | 2025-01-23 |
 | [0019](./0019-frontend-access-token-configuration.md) | Frontend Access Token Configuration | Accepted | 2025-01-23 |
 | [0020](./0020-sepa-mandate-requirement-terminal-access.md) | SEPA Mandate Requirement for Terminal Access | Accepted | 2025-01-23 |
-| [0021](./0021-rfid-card-assignment-workflow.md) | RFID Card Assignment Workflow | Accepted | 2025-01-23 |
+| [0021](./0021-rfid-card-assignment-workflow.md) | RFID Card Assignment Workflow | Accepted (amended by 0055) | 2025-01-23 |
 | [0022](./0022-test-strategy-and-automation.md) | Test Strategy and Automation | Accepted | 2025-01-23 |
 | [0023](./0023-terminal-balance-state-management.md) | Terminal Balance State Management | Accepted | 2025-01-25 |
 | [0024](./0024-transaction-history-retrieval-terminal.md) | Transaction History Retrieval in Terminal | Accepted | 2025-01-25 |

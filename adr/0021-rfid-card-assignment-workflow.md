@@ -1,6 +1,7 @@
 # ADR-0021: RFID Card Assignment Workflow
 
-**Status**: Accepted
+**Status**: Accepted (**Card UID Validation amended by
+[ADR-0055](./0055-canonical-card-uid.md)**)
 
 **Date**: 2025-01-23 (revised 2026-03-07)
 
@@ -23,15 +24,25 @@ Current situation:
 
 ## Decision
 
-**RFID card assignment uses manual UID entry in the admin panel. The admin types or pastes the card UID into the member edit form. The card_uid field is validated for format (8-20 hex characters, uppercase) and uniqueness.**
+**RFID card assignment uses manual UID entry in the admin panel. The admin types or pastes the card UID into the member edit form. The card_uid field is reduced to its canonical spelling, then validated for format and uniqueness.**
 
 ### Card UID Validation
 
+**Amended by [ADR-0055](./0055-canonical-card-uid.md).** "Normalized to uppercase"
+was not enough. The sources this ADR names — a card label, a reader's diagnostic
+window, a copy-paste — print the same chip as `001EB4CB`, `001eb4cb`,
+`00:1E:B4:CB` or `0x001EB4CB`, and `card_uid` is matched by exact string
+comparison. Two consequences the table below now covers: the card works only
+until somebody swaps the reader, and the uniqueness rule does not notice that
+`001EB4CB` and `00:1E:B4:CB` are one card being handed to two members.
+
 | Rule | Description |
 |------|-------------|
-| Format | 8-20 hexadecimal characters (0-9, A-F) |
-| Case | Uppercase (input normalized to uppercase before storage) |
-| Uniqueness | Each card_uid must be unique across all members |
+| Canonical form | Uppercase hex, no separators, whole bytes, four to ten of them — `001EB4CB`. The only spelling stored |
+| Accepted input | Any hex spelling a reader or diagnostic tool prints: case, byte separators (`:`, `-`, `.`, space), an `0x` prefix, and a leading zero dropped mid-byte are all reduced to the canonical form before validation |
+| Refused input | Anything not readable as a hex UID, including a decimal reader's output — `0002012363` is also a well-formed 5-byte hex UID, so the backend never guesses. The member form offers that conversion explicitly instead |
+| Length | 8-20 characters, i.e. 4-10 whole bytes, checked on the canonical form |
+| Uniqueness | Each card_uid must be unique across all members, checked on the canonical form |
 
 ### Card Assignment Flow
 
@@ -100,7 +111,11 @@ Steps for registering a new member with a card:
 - UIDs are typically printed on RFID cards, making them easy to read
 - Copy-paste from reader diagnostic tools eliminates manual typing entirely
 - Format validation (hex-only, length check) catches most typos before save
-- Uniqueness constraint prevents accidental duplicate assignments
+- The form shows the canonical value that will be stored before the admin saves
+  it, which is the only moment a mistyped UID is catchable at all — nobody reads
+  twenty characters of hex back afterwards (ADR-0055)
+- Uniqueness constraint prevents accidental duplicate assignments, and sees one
+  spelling per chip rather than one per tool the UID was copied from
 
 ---
 
