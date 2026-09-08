@@ -1,5 +1,9 @@
 import { test } from '../../fixtures/auth.fixture';
 import { expect } from '@playwright/test';
+// `Math.random()` here made CodeQL read a card UID as a value generated in a
+// security context. It is only test-data uniqueness, but the repo already uses
+// node:crypto for exactly this, so there is no reason to argue with the scanner.
+import { randomUUID } from 'node:crypto';
 
 /**
  * E2E: a chip has one spelling in the database, whatever it was typed as.
@@ -28,9 +32,7 @@ test.describe('Members API - card UID canonicalization', () => {
    */
   /** `n` hex digits of randomness, so parallel workers cannot collide. */
   function rand(n: number): string {
-    return Array.from({ length: n }, () =>
-      Math.floor(Math.random() * 16).toString(16).toUpperCase(),
-    ).join('');
+    return randomUUID().replace(/-/g, '').slice(0, n).toUpperCase();
   }
 
   function chip(): { canonical: string; grouped: string; lower: string; prefixed: string } {
@@ -71,7 +73,7 @@ test.describe('Members API - card UID canonicalization', () => {
     // and the column is UNIQUE — which is itself the point of the next test.
     for (const spell of ['lower', 'grouped', 'prefixed'] as const) {
       const card = chip();
-      const token = `${spell}${Date.now()}${Math.floor(Math.random() * 1000)}`;
+      const token = `${spell}${Date.now()}${rand(4)}`;
 
       const created = await createMember(authenticatedRequest, card[spell], token);
       expect(created.ok(), `POST with ${spell} spelling ${card[spell]}`).toBeTruthy();
