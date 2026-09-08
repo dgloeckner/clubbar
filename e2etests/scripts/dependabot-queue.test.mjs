@@ -373,6 +373,48 @@ test('a refused merge is explained on the pull request, once per commit', async 
   assert.match(first.summary, /refused/)
 })
 
+test('a refusal moves on to the next ready pull request instead of stopping', async () => {
+  // #845 bumps `.github/workflows/**`, which a GitHub App may not write without
+  // the Workflows permission: GitHub answers `Repository rule violations found`
+  // every round, forever. Stopping there queued #846, #847 and #848 behind a
+  // pull request that could never merge.
+  const open = [pr({ number: 845, head: 'aaa' }), pr({ number: 846, head: 'bbb' })]
+  const api = fakeApi({
+    open,
+    detailsFor: () => details(),
+    mergeFails: 'gh: Repository rule violations found',
+  })
+
+  // Only #845 is refused; #846 merges.
+  const realMerge = api.merge
+  api.merge = async (number, sha) => {
+    if (number === 845) return realMerge(number, sha)
+    api.calls.merged.push({ number, sha })
+  }
+
+  const result = await runQueue(api, { log: silent })
+
+  assert.equal(result.outcome, 'merged')
+  assert.deepEqual(api.calls.merged, [{ number: 845, sha: 'aaa' }, { number: 846, sha: 'bbb' }])
+  assert.equal(api.calls.comments.length, 1, 'the one that was refused is explained')
+  assert.equal(api.calls.comments[0].number, 845)
+  assert.match(result.summary, /#845 was refused/)
+})
+
+test('when every ready pull request is refused, each is explained exactly once', async () => {
+  const api = fakeApi({
+    open: [pr({ number: 845, head: 'aaa' }), pr({ number: 846, head: 'bbb' })],
+    detailsFor: () => details(),
+    mergeFails: 'gh: Repository rule violations found',
+  })
+
+  const result = await runQueue(api, { log: silent })
+
+  assert.equal(result.outcome, 'refused')
+  assert.deepEqual(api.calls.merged.map((m) => m.number), [845, 846])
+  assert.deepEqual(api.calls.comments.map((c) => c.number), [845, 846])
+})
+
 test('a GITHUB_TOKEN merge asks for the build its own push cannot start; a real token does not', async () => {
   const withFallback = fakeApi({ open: [pr()], detailsFor: () => details() })
   await runQueue(withFallback, { tokenKind: 'github-token', log: silent })
