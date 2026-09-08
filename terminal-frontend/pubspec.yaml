@@ -61,7 +61,7 @@ dev_dependencies:
 
   # Code Generation
   drift_dev: ^2.34.6
-  build_runner: ^2.13.1
+  build_runner: ^2.16.1
   swagger_dart_code_generator: 4.1.1
   json_serializable: ^6.13.1
   chopper_generator: ^8.0.0
