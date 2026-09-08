@@ -32,7 +32,10 @@ test.describe('Admin Members Page', () => {
       mandateDate: '2025-02-01',
       accountHolder: `Holder${ts}`,
       mandateRef: `REF${ts}`,
-      cardUid: `000${ts.toString().slice(-8)}`,
+      // Whole bytes: a card UID is stored canonically (ADR-0055), so an
+      // odd-length fixture would come back one zero longer than it went in and
+      // the round-trip assertion below would be asserting the wrong thing.
+      cardUid: `0000${ts.toString().slice(-8)}`,
       dateOfBirth: '1979-11-23',
       language: 'de' as const,
     }
@@ -372,10 +375,27 @@ test.describe('Admin Members Page', () => {
     await authenticatedMembersPage.blurCardUid()
     await authenticatedMembersPage.expectCardUidFormatErrorHidden()
 
-    // Auto-uppercase + strip non-hex
+    // Typing keeps anything that could be part of a UID in some spelling, and
+    // drops what could not. `x` survives because `0x001EB4CB` is how a
+    // diagnostic tool prints one; `y` and `z` cannot occur in any spelling.
     await authenticatedMembersPage.fillCardUid('abc123xyz')
-    const formatted = await authenticatedMembersPage.getFormCardUidValue()
-    expect(formatted).toBe('ABC123') // xyz stripped (not hex)
+    expect(await authenticatedMembersPage.getFormCardUidValue()).toBe('ABC123X')
+    await authenticatedMembersPage.blurCardUid()
+    await authenticatedMembersPage.expectCardUidFormatErrorVisible()
+
+    // The spelling a reader or a tool prints is reduced to the one that gets
+    // stored, on leaving the field, so the volunteer sees it before saving
+    // (ADR-0055).
+    await authenticatedMembersPage.fillCardUid('00:1e:b4:cb')
+    await authenticatedMembersPage.blurCardUid()
+    expect(await authenticatedMembersPage.getFormCardUidValue()).toBe('001EB4CB')
+    await authenticatedMembersPage.expectCardUidFormatErrorHidden()
+
+    // Including the `0x` a diagnostic tool prints — stripping it per keystroke
+    // used to leave the `0` behind and shift the UID by a nibble.
+    await authenticatedMembersPage.fillCardUid('0x001eb4cb')
+    await authenticatedMembersPage.blurCardUid()
+    expect(await authenticatedMembersPage.getFormCardUidValue()).toBe('001EB4CB')
 
     await authenticatedMembersPage.cancelForm()
 

@@ -79,6 +79,7 @@ Each ADR follows this structure:
 | [0052](./0052-member-self-registration-via-qr-code.md) | A Member Registers Themselves; an Admin Attests the Paper | Proposed | 2026-08-31 |
 | [0053](./0053-anmeldelink-carries-no-credential.md) | The Anmeldelink Carries No Credential | Accepted (amends 0052) | 2026-09-04 |
 | [0054](./0054-terminal-runs-its-backends-version.md) | A Terminal Runs Its Backend's Version | Accepted | 2026-09-06 |
+| [0055](./0055-canonical-card-uid.md) | One Canonical Spelling for a Card UID | Accepted (amends 0014, 0021) | 2026-09-08 |
 
 ## Creating a New ADR
 

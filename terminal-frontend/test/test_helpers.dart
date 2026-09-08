@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/card_uid.dart';
 
 class MockConfigService extends Mock implements ConfigService {}
 
@@ -50,6 +51,10 @@ MockConfigService createMockConfigService() {
   // what a terminal enforces before its first `/sync/config` poll — and what
   // every screen resolves a member's ceiling against.
   when(() => mock.creditLimitPolicy).thenReturn(CreditLimitPolicy.shipped);
+  // How this terminal's reader spells a card UID. Hex is the stock profile and
+  // what every reader shipped with a Club Bar terminal so far emits; a test
+  // that cares about a decimal or byte-reversed reader overrides it.
+  when(() => mock.rfidCardUidFormat).thenReturn(CardUidFormat.hex);
   return mock;
 }
 

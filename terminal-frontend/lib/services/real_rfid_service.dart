@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'package:clubbar_terminal/utils/card_uid.dart';
-
 /// Real RFID service for USB keyboard emulation readers.
 ///
 /// Most USB RFID/NFC readers act as a keyboard (HID device) that types the
@@ -21,10 +19,17 @@ class RealRfidService {
 
   /// Emit a card UID to the stream (called by UI when TextField receives input).
   /// This should be called from TextField's onSubmitted callback.
+  ///
+  /// The characters are passed on as the reader typed them, trimmed only of the
+  /// whitespace a wedge appends. Canonicalization belongs to
+  /// [RfidProvider.handleCardScan] and happens there exactly once: under a
+  /// decimal reader profile it is not idempotent — a decimal UID whose hex form
+  /// is itself all digits would be converted twice and land on a different card
+  /// — so this stage must not do it a first time.
   void emitScan(String cardUid) {
-    final normalizedUid = normalizeCardUid(cardUid);
-    if (normalizedUid.isNotEmpty) {
-      _scanController.add(normalizedUid);
+    final scan = cardUid.trim();
+    if (scan.isNotEmpty) {
+      _scanController.add(scan);
     }
   }
 

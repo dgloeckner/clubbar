@@ -483,7 +483,18 @@ class ClubBarTerminalApp extends StatelessWidget {
         ChangeNotifierProvider<SessionController>.value(value: sessionController),
         ChangeNotifierProvider<SyncProvider>(create: (_) => syncProvider),
         ChangeNotifierProvider<QuarantineProvider>.value(value: quarantineProvider),
-        ChangeNotifierProvider(create: (_) => RfidProvider(membersProvider, membersRepository, soundService, sessionController)),
+        ChangeNotifierProvider(
+            create: (_) => RfidProvider(
+              membersProvider,
+              membersRepository,
+              soundService,
+              sessionController,
+              // How this clubhouse's reader spells a UID. Wired from config so
+              // that replacing the reader with a differently configured one is
+              // a one-line change rather than the re-registration of every
+              // member card.
+              cardUidFormat: configService.rfidCardUidFormat,
+            )),
       ],
       child: TerminalMaterialApp(
         configService: configService,

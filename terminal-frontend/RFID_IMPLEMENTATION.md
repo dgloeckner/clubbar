@@ -10,12 +10,15 @@ The terminal frontend now supports **real RFID/NFC card scanning** for member id
 
 1. **RealRfidService** (`lib/services/real_rfid_service.dart`)
    - Stream-based API for card scan events
-   - Normalizes card UIDs (trim, uppercase)
+   - Trims the whitespace a wedge appends and drops empty scans; the reader's
+     characters are otherwise passed through untouched
    - Broadcast stream supports multiple listeners
 
 2. **RfidProvider** (`lib/providers/rfid_provider.dart`)
    - State management for scanning flow
    - Listens to card scan stream
+   - Reduces the scan to the canonical card UID — the single conversion point
+     ([ADR-0055](../adr/0055-canonical-card-uid.md))
    - Looks up members by card UID
    - Validates member status (active, SEPA valid)
    - Navigates to product selection on success
@@ -92,15 +95,29 @@ Most USB RFID readers can be configured to:
 
 1. **Output format**: Card UID only (no prefix/suffix)
 2. **Terminator**: Send Enter key after UID
-3. **Case**: Uppercase or lowercase (service normalizes to uppercase)
-4. **Separator**: None (just the raw UID)
+3. **Case**: either — reduced to the canonical uppercase form
+4. **Separator**: either — byte separators are removed
 
-Example UID formats:
-- `0003195661` (10 digits, decimal)
-- `AB12CD34` (8 characters, hex)
-- `04:1A:2B:3C:4D` (colon-separated hex)
+The same 4-byte chip is typed by different readers as any of:
 
-The service accepts any format and normalizes it (trim, uppercase).
+| Reader output | What it is |
+|---|---|
+| `001EB4CB`    | uppercase hex — the canonical form |
+| `001eb4cb`    | lowercase hex |
+| `00:1E:B4:CB` | grouped by byte (also `-`, `.`, spaces) |
+| `0x001EB4CB`  | prefixed, as a diagnostic tool prints it |
+| `1EB4CB`      | leading zero byte dropped |
+| `0002012363`  | the same value in decimal |
+| `CBB41E00`    | least-significant byte first |
+
+`RfidProvider.handleCardScan` reduces all of them to `001EB4CB`
+([ADR-0055](../adr/0055-canonical-card-uid.md)). The first five need no
+configuration. The last two are **not decidable from the string** — `0002012363`
+is a valid 5-byte hex UID as well, and a reversed UID is a valid UID — so they
+are read from this terminal's `rfidReader.uidFormat` profile rather than
+guessed. See [INSTALL.md → Card UID format](./INSTALL.md#card-uid-format);
+getting it wrong after a reader swap is why every card would otherwise stop
+being recognised.
 
 ### Testing Without Hardware
 
@@ -283,8 +300,13 @@ Potential improvements:
 
 ### Card not recognized
 
-- Verify card UID in admin UI matches reader output
-- Check case sensitivity (service uppercases, but DB may be case-sensitive)
+- Verify the card UID in the admin UI matches the reader output
+- If **every** card stopped working after a reader was replaced, the new reader
+  spells UIDs differently — set `rfidReader.uidFormat`
+  ([INSTALL.md](./INSTALL.md#card-uid-format)). The cards are fine and nothing
+  needs re-registering
+- Read the scan log: it records the reader's raw characters, which is what an
+  unfamiliar dialect has to be diagnosed from
 - Verify member is synced to terminal (check local DB)
 
 ### Focus keeps getting stolen

@@ -845,7 +845,8 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
     "vendorId":            "ffff",
     "productId":           "0035",
     "namePattern":         "USB Reader",
-    "pollIntervalSeconds": 5
+    "pollIntervalSeconds": 5,
+    "uidFormat":           "hex"
   }
 }
 ```
@@ -882,6 +883,37 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `rfidReader.productId` | string | — | USB product id of the reader, e.g. `0035`. |
 | `rfidReader.namePattern` | string | — | Case-insensitive substring of the reader's device name, e.g. `USB Reader`. |
 | `rfidReader.pollIntervalSeconds` | integer | `5` | How often the reader's presence is checked. This interval *is* the detection delay — keep it well under a minute. |
+| `rfidReader.uidFormat` | string | `hex` | How **this** reader spells a card UID: `hex`, `hex-reversed`, `decimal` or `decimal-reversed`. See [Card UID format](#card-uid-format) — get this wrong and no member card is recognised. |
+
+### Card UID format
+
+**Set this when you replace the reader, before anything else.** The same chip
+produces a different string depending on how the reader is configured, and a
+member is looked up by exact match — so a replacement reader with different
+factory settings means *no card in the club is recognised any more*, and each
+one simply reads as unknown. The terminal is told which dialect its reader
+speaks and converts to the one canonical spelling ([ADR-0055](../adr/0055-canonical-card-uid.md)).
+
+The chip stored as `001EB4CB` is typed by a reader set to:
+
+| `uidFormat` | The reader types | Typical hardware |
+|-------------|------------------|------------------|
+| `hex` (default) | `001EB4CB` | almost every 13.56 MHz reader |
+| `hex-reversed` | `CBB41E00` | readers reporting bytes in air order |
+| `decimal` | `0002012363` | 125 kHz / EM4100 keyboard wedges |
+| `decimal-reversed` | `3417579008` | the same, byte-reversed |
+
+Case, byte separators (`00:1E:B4:CB`), an `0x` prefix and a dropped leading zero
+are handled in **every** profile and need no configuration.
+
+To find out which one a new reader needs: open a text editor on the kiosk, tap a
+card whose UID you know from the admin panel, and compare. If what appears is
+the same digits in a different case or with colons, keep `hex`. If it is a long
+decimal number, use `decimal`. If it is the same hex bytes back to front, use
+`hex-reversed`.
+
+A misspelled value **refuses to start** with a message naming it, rather than
+falling back to `hex` — a silent fallback looks exactly like broken hardware.
 
 ### Reader health monitoring
 
@@ -970,6 +1002,7 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 | `RFID_READER_PRODUCT_ID` | `rfidReader.productId` |
 | `RFID_READER_NAME_PATTERN` | `rfidReader.namePattern` |
 | `RFID_READER_POLL_INTERVAL_SECONDS` | `rfidReader.pollIntervalSeconds` |
+| `RFID_READER_UID_FORMAT` | `rfidReader.uidFormat` |
 
 > **Note:** `fontSizes` cannot be set via environment variables — use the
 > config file.
@@ -1240,6 +1273,7 @@ safe on a till that is serving; run it before reading the table below.
 | App doesn't fill the screen | Set `"fullscreen": true` in `config.json` or `TERMINAL_FULLSCREEN=true` env var |
 | RFID scanner not detected | Ensure reader is in keyboard-emulation mode (sends UID + Enter); test with `evtest` |
 | Idle screen says "Scanner nicht verbunden" with the reader plugged in | The configured `rfidReader` ids/name no longer match the device — re-read them from `cat /proc/bus/input/devices` (a replacement reader often has different ids) |
+| Every card reads as "Unbekannter Chip" after a reader was replaced | The new reader spells UIDs differently. Set `rfidReader.uidFormat`, see [Card UID format](#card-uid-format) — the cards are fine and nothing needs re-registering |
 | Reader dies unnoticed — screen keeps inviting scans | Reader monitoring is off: describe the reader under `rfidReader` in `config.json`, see [Reader health monitoring](#reader-health-monitoring) |
 | A registered chip is sometimes not recognised — no sound, nothing on screen | Open the status modal and read **Letzte Chip-Erkennungen**, see [What the terminal saw](#what-the-terminal-saw-of-a-card-tap) |
 | No sound / audio not working | See [Audio setup on Raspberry Pi](docs/audio-setup-raspberry-pi.md) for GStreamer and ALSA configuration |

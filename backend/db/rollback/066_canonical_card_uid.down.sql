@@ -1,0 +1,13 @@
+-- Rollback for migration 066: nothing to undo.
+--
+-- 066 rewrote card UIDs into their canonical spelling — upper case, whole
+-- bytes. It changed no schema, and the spellings it replaced carried no
+-- information that the canonical form does not: `001eb4cb`, `01EB4CB` and
+-- `001EB4CB` are one chip, and it is the chip the column is for.
+--
+-- Restoring the old spellings would be actively harmful. Code from before 066
+-- reads these rows exactly as well, and a card whose stored UID was put back to
+-- half a byte stops working at the terminal again.
+--
+-- Restore from a dump if the previous bytes are genuinely needed.
+SELECT 1;

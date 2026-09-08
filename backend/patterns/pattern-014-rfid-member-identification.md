@@ -2,7 +2,7 @@
 
 **Status**: Active
 
-**Related ADR**: ADR-0015 (Authentication and Authorization Strategy)
+**Related ADR**: ADR-0015 (Authentication and Authorization Strategy), ADR-0055 (One Canonical Spelling for a Card UID)
 
 **Purpose**: Implement RFID member identification for transaction purposes. **CRITICAL**: This is identification only, NOT authentication. Members do not log in or gain system access.
 
@@ -41,6 +41,57 @@ RFID identification does NOT:
 - Require secrets (card UID is visible on card)
 - Prevent fraud (stolen card = anyone can spend that member's balance)
 - Replace audit trails (transaction shows which card was scanned)
+
+---
+
+## The UID Has One Spelling (ADR-0055)
+
+Identification is an **exact string match**, so the spelling a UID is stored in
+decides whether the card works. A chip does not have one spelling: what a USB
+keyboard-wedge reader types depends on how the reader is configured, not on the
+card. The same 4-byte chip arrives as `001EB4CB`, `001eb4cb`, `00:1E:B4:CB`,
+`0x001EB4CB`, `1EB4CB`, `0002012363` (decimal) or `CBB41E00` (bytes reversed).
+
+Two things break if whatever arrived is stored:
+
+1. **A replacement reader invalidates every card in the club.** No member is
+   recognised, every UID has to be re-entered by hand, and each card simply
+   reads as unknown — nothing in the failure says why.
+2. **The uniqueness check stops working.** `001EB4CB` and `00:1E:B4:CB` are one
+   card, and `UNIQUE` sees two values, so one chip reaches two members.
+
+**Rule: parse the input, reduce it to the canonical form, store only that.**
+Canonical is uppercase hex, no separators, whole bytes, four to ten of them.
+
+```php
+use App\Shared\Utils\CardUid;
+
+// In the controller, ahead of validation, so the uniqueness check and the
+// format rule both see the canonical value:
+$body['card_uid'] = CardUid::canonicalize($body['card_uid']) ?? $body['card_uid'];
+
+// The rule may then insist on exactly one spelling:
+'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:' . CardUid::PATTERN],
+```
+
+`canonicalize()` returns **null** for what it cannot read as a hex UID. Null is
+not an error: the caller leaves the value alone and lets validation produce the
+message. This is what keeps the `ANON-…` placeholder an anonymized member
+carries from being rewritten into something card-shaped.
+
+### Two things are never guessed
+
+`0002012363` is the decimal spelling of `001EB4CB` **and** a well-formed 5-byte
+hex UID; a byte-reversed UID is a valid UID. Neither is decidable from the
+string, and a wrong guess in the store of record is silent — the card is filed
+under a UID no reader will ever produce. So:
+
+- **decimal** is resolved by the terminal's configured reader profile
+  (`rfidReader.uidFormat`) or by an admin converting the value explicitly in the
+  member form;
+- **byte order** by the same profile.
+
+Both reach the backend already as hex. Do not add a heuristic here.
 
 ---
 
@@ -259,8 +310,10 @@ final class MembersService
      */
     public function validateCardUid(string $cardUid, ?string $excludeMemberId = null): void
     {
-        // Check format (typically 8-12 hex chars, varies by reader)
-        if (!preg_match('/^[A-F0-9]{8,12}$/i', $cardUid)) {
+        // Whole uppercase hex bytes — the canonical form, and the only one that
+        // may be stored. Reduce the reader dialects to it first, with
+        // CardUid::canonicalize(); see "The UID Has One Spelling" above.
+        if (!\App\Shared\Utils\CardUid::isCanonical($cardUid)) {
             throw new ValidationException([
                 'card_uid' => 'Invalid card UID format',
             ]);
@@ -391,7 +444,7 @@ $valid = $validator->validate($body, [
     'first_name' => ['required', 'string', 'max:100'],
     'last_name'  => ['required', 'string', 'max:100'],
     'email'      => ['required', 'email', 'max:255'],
-    'card_uid'   => ['required', 'string', 'regex:/^[A-F0-9]{8,12}$/i', 'unique:members,card_uid'],
+    'card_uid'   => ['required', 'string', 'regex:' . CardUid::PATTERN, 'unique:members,card_uid'],
     'preferred_language' => ['nullable', 'in:de,en,fr,it'],
 ]);
 
@@ -400,8 +453,9 @@ if (!$valid) {
     return $response->withStatus(422)->withHeader('Content-Type', 'application/json');
 }
 
-// Normalize card_uid to uppercase
-$cardUid = strtoupper($body['card_uid']);
+// Already canonical: withCanonicalCardUid() ran ahead of validation, which is
+// what lets the rule above insist on one spelling.
+$cardUid = $body['card_uid'];
 ```
 
 ---
@@ -569,6 +623,7 @@ Complements:
 - **Pattern 015**: Authorization & Access Control
 - **ADR-0015**: Full authentication strategy
 - **ADR-0014**: RFID Scanning Integration
+- **ADR-0055**: One Canonical Spelling for a Card UID
 
 ---
 

@@ -10,7 +10,6 @@ import 'package:clubbar_terminal/models/scan_hint.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/services/scan_log.dart';
-import 'package:clubbar_terminal/utils/card_uid.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/login_success_overlay.dart';
 
@@ -145,9 +144,12 @@ class _ScanCaptureState extends State<ScanCapture> {
 
     if (_isTerminator(event)) {
       _bufferResetTimer?.cancel();
-      // A reader that types lower-case hex must reach the same member as one
-      // that types upper-case (issue #18) — see [normalizeCardUid].
-      final uid = normalizeCardUid(_rfidBuffer.toString());
+      // Passed on exactly as the reader typed it. Reducing the many spellings
+      // of one chip to the canonical form is [RfidProvider.handleCardScan]'s
+      // job and must happen there once only; what the scan log wants at this
+      // stage is the raw characters anyway, since a reader dialect nobody has
+      // seen yet can only be diagnosed from those.
+      final uid = _rfidBuffer.toString().trim();
       final startedAt = _burstStartedAt;
       _rfidBuffer.clear();
       _burstStartedAt = null;
