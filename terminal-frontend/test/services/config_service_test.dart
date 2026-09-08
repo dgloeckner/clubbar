@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/card_uid.dart';
 
 void main() {
   group('ConfigService', () {
@@ -550,6 +551,52 @@ void main() {
         expect(configService.rfidReaderIdentity.vendorId, 'ffff');
       });
 
+      /// How this clubhouse's reader spells a UID.
+      ///
+      /// It is a property of the hardware, not of the card: the same chip is
+      /// typed as `001EB4CB`, `0002012363` or `CBB41E00` depending only on how
+      /// the reader is configured, and the lookup is an exact string match. A
+      /// club that replaces a broken reader with a differently configured one
+      /// sets this rather than re-registering every member card.
+      group('card UID format', () {
+        test('an undescribed reader is assumed to type hex', () async {
+          await loadWith({});
+
+          expect(configService.rfidCardUidFormat, CardUidFormat.hex);
+        });
+
+        test('reads each profile a reader can be set to', () async {
+          for (final name in CardUidFormat.names) {
+            await loadWith({
+              'rfidReader': {'uidFormat': name},
+            });
+
+            expect(configService.rfidCardUidFormat, CardUidFormat.tryParse(name));
+          }
+        });
+
+        test('an empty value means the default rather than an error', () async {
+          await loadWith({
+            'rfidReader': {'uidFormat': ''},
+          });
+
+          expect(configService.rfidCardUidFormat, CardUidFormat.hex);
+        });
+
+        test('a misspelled profile refuses to load rather than falling back',
+            () async {
+          // Falling back to hex would be silent, and its symptom is that every
+          // card in the club stops being recognised — a failure that reads as
+          // broken hardware and says nothing about the typo that caused it.
+          await expectLater(
+            loadWith({
+              'rfidReader': {'uidFormat': 'hexadecimal'},
+            }),
+            throwsA(isA<ConfigParseException>()),
+          );
+        });
+      });
+
       test('clear resets reader config to defaults', () async {
         await loadWith({
           'rfidReader': {'vendorId': 'ffff', 'pollIntervalSeconds': 30},
@@ -561,6 +608,7 @@ void main() {
         expect(configService.rfidReaderMonitoringEnabled, isFalse);
         expect(configService.rfidReaderIdentity.isSpecified, isFalse);
         expect(configService.rfidReaderPollIntervalSeconds, 5);
+        expect(configService.rfidCardUidFormat, CardUidFormat.hex);
       });
     });
 

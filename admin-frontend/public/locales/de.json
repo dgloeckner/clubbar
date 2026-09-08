@@ -266,7 +266,9 @@
     "missing": "Fehlt",
     "form": {
       "cardUid": "Karten-UID",
-      "cardUidPlaceholder": "z.B. 0003195661"
+      "cardUidPlaceholder": "z.B. 001EB4CB",
+      "cardUidStoredAs": "Wird gespeichert als {{uid}}",
+      "cardUidDecimalHint": "Sieht nach einer Dezimalausgabe aus — als {{uid}} übernehmen"
     },
     "table": {
       "balance": "Deckel",
@@ -298,7 +300,7 @@
       "resetFilters": "Filter zurücksetzen"
     },
     "validation": {
-      "invalidCardUid": "Ungültiges Karten-UID-Format (8-20 Hex-Zeichen erforderlich)",
+      "invalidCardUid": "Ungültiges Karten-UID-Format (4–10 Hex-Bytes, z.B. 001EB4CB)",
       "invalidIban": "Ungültige IBAN (Ländercode und Ziffern prüfen)",
       "invalidCreditLimit": "Bitte einen Betrag zwischen 0 und {{max}} € eingeben"
     },

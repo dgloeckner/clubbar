@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/services/scan_log.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/utils/card_uid.dart';
 
 class MockMembersProvider extends Mock implements MembersProvider {}
 class MockMembersRepository extends Mock implements MembersRepository {}
@@ -166,25 +167,69 @@ void main() {
   });
 
   // Issue #18: the provider is where every input path converges, so it is the
-  // one place that has to guarantee a canonical UID reaches the lookup.
+  // one place that has to guarantee a canonical UID reaches the lookup — and
+  // the one place the terminal's reader profile is applied.
   group('RfidProvider card UID normalization', () {
-    test('a lower-case scan is looked up canonically', () async {
+    setUp(() {
       when(() => membersRepository.findByCardUid(any()))
           .thenAnswer((_) async => (member('member-a'), null));
+    });
 
-      await provider.handleCardScan('abcd1234');
+    test('a lower-case scan is looked up canonically', () async {
+      await provider.handleCardScan('001eb4cb');
 
-      verify(() => membersRepository.findByCardUid('ABCD1234')).called(1);
+      verify(() => membersRepository.findByCardUid('001EB4CB')).called(1);
     });
 
     test('the reader\'s surrounding whitespace never reaches the lookup',
         () async {
-      when(() => membersRepository.findByCardUid(any()))
-          .thenAnswer((_) async => (member('member-a'), null));
+      await provider.handleCardScan('  001Eb4Cb\t');
 
-      await provider.handleCardScan('  AbCd1234\t');
+      verify(() => membersRepository.findByCardUid('001EB4CB')).called(1);
+    });
 
-      verify(() => membersRepository.findByCardUid('ABCD1234')).called(1);
+    test('a reader that groups bytes reaches the same member', () async {
+      await provider.handleCardScan('00:1E:B4:CB');
+
+      verify(() => membersRepository.findByCardUid('001EB4CB')).called(1);
+    });
+
+    test('a reader that drops the leading zero byte reaches the same member',
+        () async {
+      await provider.handleCardScan('1EB4CB');
+
+      verify(() => membersRepository.findByCardUid('001EB4CB')).called(1);
+    });
+
+    test('a decimal reader reaches the same member as a hex one', () async {
+      // The whole point of the configured profile: a replacement reader set to
+      // decimal must not invalidate every card in the club.
+      final decimalTerminal = RfidProvider(
+        membersProvider,
+        membersRepository,
+        soundService,
+        sessionController,
+        cardUidFormat: CardUidFormat.decimal,
+      );
+
+      await decimalTerminal.handleCardScan('0002012363');
+
+      verify(() => membersRepository.findByCardUid('001EB4CB')).called(1);
+    });
+
+    test('a byte-reversing reader reaches the same member as a hex one',
+        () async {
+      final reversedTerminal = RfidProvider(
+        membersProvider,
+        membersRepository,
+        soundService,
+        sessionController,
+        cardUidFormat: CardUidFormat.hexReversed,
+      );
+
+      await reversedTerminal.handleCardScan('CBB41E00');
+
+      verify(() => membersRepository.findByCardUid('001EB4CB')).called(1);
     });
   });
 
@@ -308,10 +353,12 @@ void main() {
       when(() => membersRepository.findByCardUid(any()))
           .thenAnswer((_) async => (member('member-a'), null));
 
-      await provider.handleCardScan('card-member-a');
+      await provider.handleCardScan('aabbccdd01');
 
       expect(ScanLog.instance.latest!.kind, ScanEventKind.accepted);
-      expect(ScanLog.instance.latest!.uid, 'CARD-MEMBER-A');
+      // The canonical UID, not what the reader typed: the log is read to work
+      // out which member a tap resolved to.
+      expect(ScanLog.instance.latest!.uid, 'AABBCCDD01');
     });
 
     test('a rejected card is recorded with the reason', () async {
@@ -334,11 +381,11 @@ void main() {
       when(() => membersRepository.findByCardUid(any()))
           .thenAnswer((_) => gate.future);
 
-      final first = provider.handleCardScan('card-member-a');
-      await provider.handleCardScan('card-member-b');
+      final first = provider.handleCardScan('aabbccdd01');
+      await provider.handleCardScan('aabbccdd02');
 
       expect(ScanLog.instance.latest!.kind, ScanEventKind.droppedBusy);
-      expect(ScanLog.instance.latest!.uid, 'CARD-MEMBER-B');
+      expect(ScanLog.instance.latest!.uid, 'AABBCCDD02');
 
       gate.complete((member('member-a'), null));
       await first;

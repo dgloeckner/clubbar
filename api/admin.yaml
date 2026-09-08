@@ -7122,8 +7122,19 @@ components:
           description: Optional; defaults to UUID without hyphens
         card_uid:
           type: string
-          pattern: '^[0-9A-F]{8,20}$'
-          description: Optional RFID card UID
+          pattern: '^[0-9A-Fa-f](?:[0-9A-Fa-fXx:. _-])*$'
+          description: >-
+            Optional RFID card UID, stored in one canonical spelling: uppercase
+            hex, no separators, whole bytes, four to ten of them — `001EB4CB`.
+
+
+            The same chip is printed as `001EB4CB`, `001eb4cb`, `00:1E:B4:CB`,
+            `0x001EB4CB` or `1EB4CBA` depending on the reader or diagnostic tool
+            it was copied from, and all of those are accepted and reduced to the
+            canonical form before storage and before the uniqueness check. A
+            value that is not readable as a hex UID — including a decimal
+            reader's output, which cannot be told from hex by the string alone —
+            is refused with 422 rather than guessed at. See ADR-0055.
 
     MemberUpdateRequest:
       type: object
@@ -7215,9 +7226,12 @@ components:
           type: boolean
         card_uid:
           type: string
-          pattern: '^[0-9A-F]{8,20}$'
+          pattern: '^[0-9A-Fa-f](?:[0-9A-Fa-fXx:. _-])*$'
           nullable: true
-          description: RFID card UID (null to remove)
+          description: >-
+            RFID card UID (null to remove). Accepted in any of the spellings a
+            reader or diagnostic tool prints and stored canonically — see
+            `MemberCreateRequest.card_uid` and ADR-0055.
 
     MemberImportPreview:
       type: object

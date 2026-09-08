@@ -44,7 +44,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-1'),
-          cardUid: const Value('CARD-UID-123'),
+          cardUid: const Value('AABBCCDD01'),
           firstName: const Value('John'),
           lastName: const Value('Doe'),
           preferredLanguage: const Value('de'),
@@ -54,7 +54,7 @@ void main() {
         ),
       );
 
-      final (member, error) = await repo.findByCardUid('CARD-UID-123');
+      final (member, error) = await repo.findByCardUid('AABBCCDD01');
 
       expect(member, isNotNull);
       expect(member!.id, equals('member-1'));
@@ -67,7 +67,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-inactive'),
-          cardUid: const Value('CARD-INACTIVE'),
+          cardUid: const Value('AABBCCDD02'),
           firstName: const Value('Jane'),
           lastName: const Value('Doe'),
           preferredLanguage: const Value('de'),
@@ -77,7 +77,7 @@ void main() {
         ),
       );
 
-      final (member, error) = await repo.findByCardUid('CARD-INACTIVE');
+      final (member, error) = await repo.findByCardUid('AABBCCDD02');
 
       expect(member, isNull);
       expect(error, equals(TerminalErrorKey.accountInactive));
@@ -88,7 +88,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-no-sepa'),
-          cardUid: const Value('CARD-NO-SEPA'),
+          cardUid: const Value('AABBCCDD03'),
           firstName: const Value('Bob'),
           lastName: const Value('Smith'),
           preferredLanguage: const Value('de'),
@@ -98,7 +98,7 @@ void main() {
         ),
       );
 
-      final (member, error) = await repo.findByCardUid('CARD-NO-SEPA');
+      final (member, error) = await repo.findByCardUid('AABBCCDD03');
 
       expect(member, isNull);
       expect(error, equals(TerminalErrorKey.sepaMissing));
@@ -371,7 +371,7 @@ void main() {
       await db.into(db.membersCache).insert(
         MembersCacheCompanion(
           id: const Value('member-inactive'),
-          cardUid: const Value('CARD-INACTIVE'),
+          cardUid: const Value('AABBCCDD02'),
           firstName: const Value('Inactive'),
           lastName: const Value('Member'),
           preferredLanguage: const Value('de'),

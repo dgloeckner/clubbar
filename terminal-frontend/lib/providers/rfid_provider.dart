@@ -24,6 +24,13 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   final SoundService _soundService;
   final SessionController _sessionController;
 
+  /// How this terminal's reader spells a UID (`ConfigService.rfidCardUidFormat`).
+  ///
+  /// Held here because [handleCardScan] is where every input path converges and
+  /// is therefore the one place a scan may be canonicalized — see
+  /// [normalizeCardUid].
+  final CardUidFormat cardUidFormat;
+
   MembersCacheData? _detectedMember;
   bool _isScanning = false;
   StreamSubscription<String>? _scanSubscription;
@@ -41,8 +48,13 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   /// shell mounts.
   String Function()? locationResolver;
 
-  RfidProvider(this._membersProvider, this._membersRepository,
-      this._soundService, this._sessionController);
+  RfidProvider(
+    this._membersProvider,
+    this._membersRepository,
+    this._soundService,
+    this._sessionController, {
+    this.cardUidFormat = CardUidFormat.hex,
+  });
 
   MembersCacheData? get detectedMember => _detectedMember;
   bool get isScanning => _isScanning;
@@ -109,9 +121,16 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
   ///
   /// [rawCardUid] is normalized here rather than at each input path: this is where
   /// every scan converges, so no future caller can reintroduce the case
-  /// mismatch that rejected valid cards as "Unknown token" (issue #18).
+  /// mismatch that rejected valid cards as "Unknown token" (issue #18) — nor
+  /// apply the conversion twice, which under a decimal [cardUidFormat] would
+  /// land on a different card entirely.
+  ///
+  /// [cardUidFormat] is what makes a replacement reader a config change rather
+  /// than a re-registration of every member card: the same chip is typed as
+  /// `001EB4CB`, `0002012363` or `CBB41E00` depending only on how the reader is
+  /// set up, and all three have to reach the same member.
   Future<void> handleCardScan(String rawCardUid) async {
-    final cardUid = normalizeCardUid(rawCardUid);
+    final cardUid = normalizeCardUid(rawCardUid, format: cardUidFormat);
 
     // A tap dropped here is the one refusal that says nothing at all — no
     // sound, no banner — so it is at least written down (issue #370). The

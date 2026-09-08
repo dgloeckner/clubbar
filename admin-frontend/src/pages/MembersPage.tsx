@@ -42,6 +42,16 @@ import {
 import { toIsoDate } from '../utils/dates'
 import { buildMemberSortBy, type MemberSortKey } from '../utils/memberSort'
 import { getBalanceColor } from '../utils/transactions'
+// The card UID a chip is filed under has one canonical spelling; the module
+// says which, and why the field is more forgiving about what may be typed into
+// it than about what may be stored (ADR-0055).
+import {
+  CARD_UID_PATTERN,
+  canonicalizeCardUid,
+  cardUidFromDecimal,
+  looksLikeDecimalCardUid,
+  sanitizeCardUidInput,
+} from '../utils/cardUid'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { useListQuery } from '../hooks/useListQuery'
 import { MemberIbanField } from '../components/members/MemberIbanField'
@@ -79,14 +89,6 @@ import {
 } from '../styles/tableTokens'
 
 const PER_PAGE = 20
-
-/**
- * A card UID is 8–20 hex digits, the same bounds the backend enforces
- * (`min:8`, `max:20`, `regex:/^[0-9A-F]+$/`). The field rendered the complaint
- * long before `handleSubmit` checked for it, so a four-character UID went to
- * the API anyway (#131).
- */
-const CARD_UID_PATTERN = /^[0-9A-F]{8,20}$/
 
 /**
  * The member form's input styling, in one place because ten copies of it is
@@ -139,6 +141,29 @@ const formFieldErrorStyle: React.CSSProperties = {
   fontSize: theme.typography.fontSize.sm,
   marginTop: theme.spacing.xs,
   marginBottom: 0,
+}
+
+/** A quiet note under a field — what a value will become, not what is wrong. */
+const formFieldHintStyle: React.CSSProperties = {
+  color: theme.colors.text.secondary,
+  fontSize: theme.typography.fontSize.sm,
+  fontFamily: 'monospace',
+  marginTop: theme.spacing.xs,
+  marginBottom: 0,
+}
+
+/** A hint the volunteer can act on, rather than only read. */
+const formFieldActionStyle: React.CSSProperties = {
+  ...formFieldHintStyle,
+  // Prose, not a UID: the monospace of the hint above would make the sentence
+  // around the value harder to read, not easier.
+  fontFamily: 'inherit',
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  cursor: 'pointer',
+  textAlign: 'left',
+  textDecoration: 'underline',
 }
 
 /**
@@ -667,7 +692,10 @@ export function MembersPage() {
       if (formData.iban && !validateIban(formData.iban)) {
         validationErrors.iban = t('members.validation.invalidIban')
       }
-      if (formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid)) {
+      // Against the canonical spelling, not against what is in the box: the
+      // volunteer may still be looking at `00:1e:b4:cb`, which is the same card
+      // and is what gets sent.
+      if (formData.card_uid && !CARD_UID_PATTERN.test(canonicalizeCardUid(formData.card_uid) ?? '')) {
         validationErrors.card_uid = t('members.validation.invalidCardUid')
       }
       // Checked here rather than left to the 422: the volunteer finds out
@@ -713,7 +741,10 @@ export function MembersPage() {
           mandate_reference: formData.mandate_reference || undefined,
           mandate_signed_at: formData.mandate_signed_at || null,
           preferred_language: formData.preferred_language,
-          card_uid: formData.card_uid || null,
+          // The canonical spelling and nothing else — the backend applies the
+          // same rules and is the authority, but a card filed under two
+          // spellings is a card assigned to two members (ADR-0055).
+          card_uid: canonicalizeCardUid(formData.card_uid) || null,
           // Explicit null clears the override back to the club default; 0 is a
           // deliberate "no ceiling for this member" and is sent as 0. The one
           // thing this must never do is send 0 for an emptied field.
@@ -735,7 +766,7 @@ export function MembersPage() {
           mandate_reference: formData.mandate_reference || undefined,
           mandate_signed_at: formData.mandate_signed_at || undefined,
           preferred_language: formData.preferred_language,
-          card_uid: formData.card_uid || undefined,
+          card_uid: canonicalizeCardUid(formData.card_uid) || undefined,
           // Omitted rather than nulled on create: a member who follows the club
           // default is the ordinary case, and the column's default is NULL.
           credit_limit_cents: creditLimitFromInput(formData.credit_limit) ?? undefined,
@@ -2182,20 +2213,70 @@ export function MembersPage() {
                   type="text"
                   value={formData.card_uid}
                   onChange={(e) => {
-                    const value = e.target.value.toUpperCase().replace(/[^0-9A-F]/g, '')
+                    // Separators and an `0x` survive typing, and are removed
+                    // when the field is left. Stripping them per keystroke
+                    // turned a pasted `0x001EB4CB` into `0001EB4CB` — the `x`
+                    // gone, the `0` left behind, and a UID one nibble adrift
+                    // that still looks plausible.
+                    const value = sanitizeCardUidInput(e.target.value)
                     setFormData({ ...formData, card_uid: value })
                     // Clear error when user starts typing
                     if (formErrors.card_uid) {
                       setFormErrors({ ...formErrors, card_uid: '' })
                     }
                   }}
+                  onBlur={() => {
+                    const canonical = canonicalizeCardUid(formData.card_uid)
+                    if (canonical && canonical !== formData.card_uid) {
+                      setFormData({ ...formData, card_uid: canonical })
+                    }
+                  }}
                   placeholder={t('members.form.cardUidPlaceholder')}
-                  maxLength={20}
+                  // Room for the separators a UID is pasted with; what may be
+                  // *stored* is still twenty characters, enforced on the
+                  // canonical value by CARD_UID_PATTERN and by the column.
+                  maxLength={32}
                   style={{
                     ...formInputStyle(Boolean(formErrors.card_uid), isGapField('card_uid')),
                     fontFamily: 'monospace',
                   }}
                 />
+                {/* What will actually be stored, while there is still a chance
+                    to look at it. This is the typo defence: a UID is twenty
+                    characters of hex that nobody reads back, so the only moment
+                    a mistyped one is catchable is before Speichern. */}
+                {canonicalizeCardUid(formData.card_uid) &&
+                  canonicalizeCardUid(formData.card_uid) !== formData.card_uid && (
+                    <p
+                      data-testid="member-form-card-uid-canonical"
+                      style={formFieldHintStyle}
+                    >
+                      {t('members.form.cardUidStoredAs', {
+                        uid: canonicalizeCardUid(formData.card_uid),
+                      })}
+                    </p>
+                  )}
+                {/* A decimal reader prints the same chip as a ten-digit number.
+                    Offered, never applied: `0002012363` is also a well-formed
+                    five-byte hex UID, and only the person holding the reader
+                    knows which it is. */}
+                {looksLikeDecimalCardUid(formData.card_uid) && (
+                  <button
+                    type="button"
+                    data-testid="member-form-card-uid-decimal"
+                    onClick={() =>
+                      setFormData({
+                        ...formData,
+                        card_uid: cardUidFromDecimal(formData.card_uid)!,
+                      })
+                    }
+                    style={formFieldActionStyle}
+                  >
+                    {t('members.form.cardUidDecimalHint', {
+                      uid: cardUidFromDecimal(formData.card_uid),
+                    })}
+                  </button>
+                )}
                 {clearedPrevious.card_uid && (
                   <ClearedValueNotice
                     previous={clearedPrevious.card_uid}
@@ -2203,11 +2284,12 @@ export function MembersPage() {
                     testId="members-form-card-uid-cleared"
                   />
                 )}
-                {formData.card_uid && !CARD_UID_PATTERN.test(formData.card_uid) && (
-                  <p data-testid="member-form-card-uid-format-error" style={formFieldErrorStyle}>
-                    {t('members.validation.invalidCardUid')}
-                  </p>
-                )}
+                {formData.card_uid &&
+                  !CARD_UID_PATTERN.test(canonicalizeCardUid(formData.card_uid) ?? '') && (
+                    <p data-testid="member-form-card-uid-format-error" style={formFieldErrorStyle}>
+                      {t('members.validation.invalidCardUid')}
+                    </p>
+                  )}
                 {formErrors.card_uid && (
                   <p data-testid="member-form-card-uid-error" style={formFieldErrorStyle}>
                     {formErrors.card_uid}

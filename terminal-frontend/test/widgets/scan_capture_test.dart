@@ -161,7 +161,8 @@ void main() {
 
     // Issue #18: a reader that types lower-case hex used to produce a UID that
     // no exact-match lookup could resolve.
-    testWidgets('a lower-case reader emits a canonical UID', (tester) async {
+    testWidgets('the reader\'s characters are passed on untouched',
+        (tester) async {
       await tester.pumpWidget(buildShell());
       await tester.pump();
 
@@ -175,7 +176,12 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
-      expect(rfid.emittedScans, ['AB1']);
+      // Capture buffers keystrokes; it does not interpret them. Reducing the
+      // many spellings of one chip to the canonical UID belongs to
+      // `RfidProvider.handleCardScan`, where it happens exactly once — and the
+      // scan log wants the raw characters at this stage anyway, since that is
+      // all an unfamiliar reader dialect can be diagnosed from.
+      expect(rfid.emittedScans, ['ab1']);
     });
 
     testWidgets('a stale partial UID is never emitted on a later Enter',

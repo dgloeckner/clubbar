@@ -68,8 +68,13 @@ void main() {
     unknownCardCopy = await errorCopy(TerminalErrorKey.unknownCard);
   });
 
-  final memberA = _member('member-a', '1', 'Anna');
-  final memberB = _member('member-b', '2', 'Ben');
+  // The reader types a single digit in these tests (see [scanCard]); what
+  // reaches the repository is the canonical UID that digit stands for, since
+  // `RfidProvider.handleCardScan` restores the leading zero bytes a reader
+  // dropped. The fixtures name the canonical value on both sides so the
+  // conversion is asserted here rather than bypassed.
+  final memberA = _member('member-a', '00000001', 'Anna');
+  final memberB = _member('member-b', '00000002', 'Ben');
 
   late MembersProvider membersProvider;
   late SessionController sessionController;
@@ -96,11 +101,11 @@ void main() {
     when(() => cartProvider.removeListener(any())).thenReturn(null);
 
     membersRepository = MockMembersRepository();
-    when(() => membersRepository.findByCardUid('1'))
+    when(() => membersRepository.findByCardUid('00000001'))
         .thenAnswer((_) async => (memberA, null));
-    when(() => membersRepository.findByCardUid('2'))
+    when(() => membersRepository.findByCardUid('00000002'))
         .thenAnswer((_) async => (memberB, null));
-    when(() => membersRepository.findByCardUid('9'))
+    when(() => membersRepository.findByCardUid('00000009'))
         .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));
 
     final soundService = MockSoundService();

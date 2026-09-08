@@ -7,6 +7,7 @@ namespace App\Modules\Members\Controllers;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
 use App\Modules\Members\Enums\SupportedLanguage;
+use App\Shared\Utils\CardUid;
 use App\Shared\Validation\Validator;
 use App\Modules\Settlements\Services\CollectionHoldService;
 use App\Modules\Settlements\Services\SettlementsService;
@@ -44,7 +45,15 @@ class AdminController
         'date_of_birth' => ['nullable', 'date', 'past_date'],
         'preferred_language' => ['nullable', 'string', 'in:de,en,fr'],
         'account_holder_name' => ['nullable', 'string', 'max:70'],
-        'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:/^[0-9A-F]+$/'],
+        // Whole uppercase hex bytes, four to ten of them — the canonical
+        // spelling and the only one the column may hold ({@see CardUid}).
+        // `withCanonicalCardUid()` has already reduced the dialects a reader or
+        // a diagnostic tool prints (lower case, `00:1E:B4:CB`, `0x…`) to it, so
+        // what reaches this rule and fails it is a value that is not a card UID
+        // at all. The odd digit count the previous `[0-9A-F]+` admitted is half
+        // a written byte — a leading zero that went missing — and is completed
+        // rather than stored as a UID no reader will ever type again.
+        'card_uid' => ['nullable', 'string', 'min:8', 'max:20', 'regex:' . CardUid::PATTERN],
         // `iban` bounds the compact form at 34 characters on its own; `max:34`
         // additionally rejects a value padded past the column width with the
         // spaces IBANs are conventionally printed with.
@@ -128,6 +137,41 @@ class AdminController
                 $body[$field] = null;
             }
         }
+
+        return $body;
+    }
+
+    /**
+     * Reduce a submitted `card_uid` to its canonical spelling before anything
+     * reads it — validation, the uniqueness check and the column alike.
+     *
+     * The same chip is printed as `001EB4CB`, `001eb4cb`, `00:1E:B4:CB` or
+     * `0x001EB4CB` depending on which reader or diagnostic tool the volunteer
+     * copied it from, and `members.card_uid` is matched by exact string
+     * comparison. Storing whichever arrived means the card works only
+     * for as long as nobody swaps the reader, and the uniqueness check does not
+     * even notice that `001EB4CB` and `00:1E:B4:CB` are one card being assigned
+     * to two members.
+     *
+     * Running ahead of validation is what makes the strictness affordable: the
+     * rule below may insist on the one canonical form because every readable
+     * spelling has already become it.
+     *
+     * A value this cannot read as a UID is left exactly as it arrived, so the
+     * format rule produces the message rather than this method silently
+     * mangling it. {@see CardUid::canonicalize()} for why decimal and byte
+     * order are deliberately not guessed at here.
+     *
+     * @param array<string, mixed> $body
+     * @return array<string, mixed>
+     */
+    private static function withCanonicalCardUid(array $body): array
+    {
+        if (!isset($body['card_uid']) || !is_string($body['card_uid'])) {
+            return $body;
+        }
+
+        $body['card_uid'] = CardUid::canonicalize($body['card_uid']) ?? $body['card_uid'];
 
         return $body;
     }
@@ -263,7 +307,7 @@ class AdminController
 
     public function store(Request $request, Response $response): Response
     {
-        $body = self::withBlanksAsNull($request->getParsedBody() ?? []);
+        $body = self::withCanonicalCardUid(self::withBlanksAsNull($request->getParsedBody() ?? []));
         $adminId = $request->getAttribute('admin_user_id');
 
         $rules = self::FIELD_RULES;
@@ -311,7 +355,9 @@ class AdminController
     public function update(Request $request, Response $response, array $args): Response
     {
         $memberId = $args['memberId'];
-        $body = self::withBlanksAsNull(self::withBlankIbanAsAbsent($request->getParsedBody() ?? []));
+        $body = self::withCanonicalCardUid(
+            self::withBlanksAsNull(self::withBlankIbanAsAbsent($request->getParsedBody() ?? []))
+        );
         $adminId = $request->getAttribute('admin_user_id');
 
         // Only the fields the request carries are checked — three of them used

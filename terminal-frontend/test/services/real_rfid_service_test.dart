@@ -31,18 +31,22 @@ void main() {
       await subscription.cancel();
     });
 
-    test('emitScan should trim and uppercase card UID', () async {
+    test('emitScan trims the whitespace a wedge appends, and nothing else',
+        () async {
       final scans = <String>[];
       final subscription = service.cardScans.listen((cardUid) {
         scans.add(cardUid);
       });
 
-      // Simulate scan with lowercase and whitespace
-      service.emitScan('  abc123def  ');
+      service.emitScan('  001eb4cb  ');
 
       await Future.delayed(const Duration(milliseconds: 50));
 
-      expect(scans, ['ABC123DEF']);
+      // Deliberately still lower case. Reducing a reader's spelling to the
+      // canonical UID is `RfidProvider.handleCardScan`'s job and has to happen
+      // exactly once — under a decimal reader profile it is not idempotent, so
+      // a helpful conversion here would land some cards on a different member.
+      expect(scans, ['001eb4cb']);
 
       await subscription.cancel();
     });

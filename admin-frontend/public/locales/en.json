@@ -266,7 +266,9 @@
     "missing": "Missing",
     "form": {
       "cardUid": "Card UID",
-      "cardUidPlaceholder": "e.g., 0003195661"
+      "cardUidPlaceholder": "e.g. 001EB4CB",
+      "cardUidStoredAs": "Will be stored as {{uid}}",
+      "cardUidDecimalHint": "Looks like a decimal reader output — use {{uid}} instead"
     },
     "table": {
       "balance": "Tab",
@@ -298,7 +300,7 @@
       "resetFilters": "Reset Filters"
     },
     "validation": {
-      "invalidCardUid": "Invalid card UID format (8-20 hex characters required)",
+      "invalidCardUid": "Invalid card UID format (4-10 hex bytes, e.g. 001EB4CB)",
       "invalidIban": "Invalid IBAN (check country code and digits)",
       "invalidCreditLimit": "Enter an amount between 0 and €{{max}}"
     },

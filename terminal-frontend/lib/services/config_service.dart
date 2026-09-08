@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
+import 'package:clubbar_terminal/utils/card_uid.dart';
 
 // Thrown when config.json exists but cannot be parsed or is structurally invalid.
 class ConfigParseException implements Exception {
@@ -37,6 +38,7 @@ class ConfigParseException implements Exception {
 /// - RFID_READER_PRODUCT_ID
 /// - RFID_READER_NAME_PATTERN
 /// - RFID_READER_POLL_INTERVAL_SECONDS
+/// - RFID_READER_UID_FORMAT
 class ConfigService {
   static const String _configFileName = 'config.json';
 
@@ -69,6 +71,7 @@ class ConfigService {
   String? _rfidReaderProductId;
   String? _rfidReaderNamePattern;
   int _rfidReaderPollIntervalSeconds = 5;
+  CardUidFormat _rfidCardUidFormat = CardUidFormat.hex;
 
   ConfigService({String? configDir}) : _configDirOverride = configDir;
 
@@ -201,6 +204,37 @@ class ConfigService {
 
   int get rfidReaderPollIntervalSeconds => _rfidReaderPollIntervalSeconds;
 
+  /// How this terminal's reader spells a card UID (`rfidReader.uidFormat`).
+  ///
+  /// A property of the hardware, not of the card: the same chip is typed as
+  /// `001EB4CB`, `0002012363` or `CBB41E00` depending only on how the reader
+  /// is configured, and a lookup is an exact string match. Configuring it here
+  /// is what turns "we bought a replacement reader" into a one-line change
+  /// instead of re-registering every member card — see [normalizeCardUid].
+  ///
+  /// Defaults to [CardUidFormat.hex], which is what every reader shipped with
+  /// a Club Bar terminal so far emits and the format every stored UID is in.
+  CardUidFormat get rfidCardUidFormat => _rfidCardUidFormat;
+
+  /// Read a configured reader profile name, refusing an unknown one.
+  ///
+  /// A typo here must not fall back to the default. The fallback would be
+  /// silent, and its symptom is that every card on the terminal stops being
+  /// recognised — a failure that looks like broken hardware and says nothing
+  /// about the config file that caused it. Refusing to start names the typo.
+  CardUidFormat _parseUidFormat(String? name) {
+    if (name == null || name.trim().isEmpty) return CardUidFormat.hex;
+
+    final format = CardUidFormat.tryParse(name);
+    if (format == null) {
+      throw ConfigParseException(
+        'Unknown rfidReader.uidFormat "$name". '
+        'Expected one of: ${CardUidFormat.names.join(', ')}.',
+      );
+    }
+    return format;
+  }
+
   Future<String> _getConfigDir() async {
     if (_configDirOverride != null) {
       return _configDirOverride;
@@ -290,6 +324,8 @@ class ConfigService {
           _rfidReaderNamePattern = rfidReader['namePattern'] as String?;
           _rfidReaderPollIntervalSeconds =
               rfidReader['pollIntervalSeconds'] as int? ?? 5;
+          _rfidCardUidFormat =
+              _parseUidFormat(rfidReader['uidFormat'] as String?);
         }
       } catch (e) {
         throw ConfigParseException(
@@ -358,6 +394,9 @@ class ConfigService {
     if (env.containsKey('RFID_READER_NAME_PATTERN')) {
       _rfidReaderNamePattern = env['RFID_READER_NAME_PATTERN'];
     }
+    if (env.containsKey('RFID_READER_UID_FORMAT')) {
+      _rfidCardUidFormat = _parseUidFormat(env['RFID_READER_UID_FORMAT']);
+    }
     final pollInterval =
         int.tryParse(env['RFID_READER_POLL_INTERVAL_SECONDS'] ?? '');
     if (pollInterval != null && pollInterval > 0) {
@@ -401,6 +440,7 @@ class ConfigService {
     _rfidReaderProductId = null;
     _rfidReaderNamePattern = null;
     _rfidReaderPollIntervalSeconds = 5;
+    _rfidCardUidFormat = CardUidFormat.hex;
 
     final configFile = await _getConfigFile();
     if (configFile.existsSync()) {
