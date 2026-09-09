@@ -527,6 +527,21 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
+      // Member feedback: product names were too small. The name is now set
+      // at `xxxl`, where "Alkoholfreies" — the longest single word on a
+      // German drinks list — needs ~190 px; a sixth column on the kiosk
+      // (198 px tiles, 174 inside the padding) would break it mid-word.
+      // Five columns on 1280 give every tile 240 px. This pins that floor
+      // so a later tweak to the column bound cannot quietly cross it.
+      testWidgets('a kiosk tile is wide enough for the larger name',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 12, surface: const Size(1280, 800));
+        final tile = tester.getSize(find.byType(ProductCard).first);
+
+        expect(tile.width, greaterThanOrEqualTo(230));
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('column count follows the screen width, not a fixed 4',
           (WidgetTester tester) async {
         await pumpCatalog(tester, 12, surface: const Size(1920, 1080));

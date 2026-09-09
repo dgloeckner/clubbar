@@ -70,6 +70,10 @@ class _TerminalMaterialAppState extends State<TerminalMaterialApp> {
 
     return MaterialApp.router(
       title: AppConfig.appName,
+      // A kiosk has no developer looking at it: the ribbon a debug build
+      // paints over the header's top-right corner sits exactly where the
+      // clock is, and it is not a signal anyone at the bar can act on.
+      debugShowCheckedModeBanner: false,
       scrollBehavior: widget.scrollBehavior,
       // Raise the touch slop for every route, dialog and sheet below. The
       // engine reports the platform's own slop through `gestureSettings`

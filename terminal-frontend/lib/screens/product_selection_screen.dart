@@ -55,11 +55,16 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   //
   // [_tileMaxWidth] is an upper bound: Flutter fits as many columns of at most
   // this width as the row allows, so tiles stay finger-sized on a 1920 px
-  // screen instead of stretching.
+  // screen instead of stretching. On the 1280 px kiosk that is five columns
+  // of exactly 240 — which matters since the name went up to `xxxl`: the
+  // longest single word on a German drinks list ("Alkoholfreies") needs
+  // ~190 px at that size, and a sixth column would break it mid-word. The
+  // grid sizing tests hold the floor.
   static const double _tileMaxWidth = 240.0;
 
-  // [_tileHeight] is what the card actually needs — 60 px icon + two lines of
-  // name at `xl` + price at `xxl` + the card's padding — with a little slack.
+  // [_tileHeight] is what the card actually needs — the icon + two lines of
+  // name at `ProductCard.nameFontSize` + price at `xxl` + the card's padding
+  // — with a little slack.
   //
   // Computed, not a constant (#41): the type scale is a *deployment setting*
   // (`AppFontSizes.applyConfig`, `fontSizes` in config.json), so a pinned
@@ -75,17 +80,20 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   // relationship at three different scales.
   //
   // 143 -> 119 with #369, which took 24 px off ProductCard (icon 72 -> 60,
-  // padding lg -> md, the gap under the icon lg -> md). Move this by exactly
-  // what the card moved and no more: the constant carries ~7 px of *measured*
-  // slack over the card's nominal height, and re-deriving it from first
-  // principles would spend the slack that #41 put there.
-  static const double _tileChrome = 119.0;
+  // padding lg -> md, the gap under the icon lg -> md). 119 -> 107 when the
+  // name went up to `xxxl` and the icon paid for it (60 -> 52, the gap under
+  // it md -> sm). Move this by exactly what the card moved and no more: the
+  // constant carries ~7 px of *measured* slack over the card's nominal
+  // height, and re-deriving it from first principles would spend the slack
+  // that #41 put there.
+  static const double _tileChrome = 107.0;
   static const double _tileTextLineHeight = 1.34;
   static const double _tileSlack = 4.0;
 
   static double get _tileHeight =>
       _tileChrome +
-      _tileTextLineHeight * (2 * AppFontSizes.xl + AppFontSizes.xxl) +
+      _tileTextLineHeight *
+          (2 * ProductCard.nameFontSize + AppFontSizes.xxl) +
       _tileSlack;
   static const double _gridSpacing = 12.0;
   static const double _horizontalPadding = 16.0;
