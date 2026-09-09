@@ -73,6 +73,7 @@ export class MembersPage extends BasePage {
   // The member's own credit ceiling (ADR-0047, #563). Empty means "follow the
   // club default"; a typed 0 means "no ceiling for this member".
   private readonly creditLimitInput = () => this.page.getByTestId('members-form-credit-limit-input')
+  private readonly creditLimitValue = () => this.page.getByTestId('members-form-credit-limit-input-value')
   private readonly creditLimitHelper = () => this.page.getByTestId('members-form-credit-limit-helper')
   private readonly creditLimitError = () => this.page.getByTestId('members-form-credit-limit-error')
   private readonly formSubmitBtn = () => this.page.getByTestId('members-form-submit-button')
@@ -340,8 +341,12 @@ export class MembersPage extends BasePage {
     await this.creditLimitInput().fill(euros)
   }
 
+  /**
+   * The ceiling the form will send, in canonical `250.00` form — the field's
+   * hidden value, not its locale-formatted text ("250,00" in German).
+   */
   async getCreditLimit(): Promise<string> {
-    return await this.creditLimitInput().inputValue()
+    return await this.creditLimitValue().inputValue()
   }
 
   /** What the field's placeholder offers — the club figure this member inherits. */

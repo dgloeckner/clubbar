@@ -61,7 +61,8 @@ import {
 } from '../styles/tableTokens'
 import { ageRestrictionOf } from '../utils/ageRestriction'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
-import { parsePriceToCents } from '../utils/price'
+import { parseMoneyToCents } from '../utils/money'
+import { MoneyField } from '../components/forms/MoneyField'
 import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
@@ -245,7 +246,7 @@ export function ProductsPage() {
       return
     }
 
-    const priceCents = parsePriceToCents(formData.price)
+    const priceCents = parseMoneyToCents(formData.price)
     if (priceCents === null) {
       setFormError(t('products.validation.priceRequired'))
       return
@@ -302,7 +303,7 @@ export function ProductsPage() {
       return
     }
 
-    const priceCents = parsePriceToCents(formData.price)
+    const priceCents = parseMoneyToCents(formData.price)
     if (priceCents === null || priceCents <= 0) {
       setFormError(t('products.validation.priceRequired'))
       return
@@ -1035,17 +1036,14 @@ export function ProductsPage() {
                   htmlFor="products-form-price-input"
                   label={`${t('common.price')} (€)`}
                   requirement="required"
-                  satisfied={parsePriceToCents(formData.price) !== null}
+                  satisfied={parseMoneyToCents(formData.price) !== null}
                   testId="products-form-price-label"
                 />
-                <input
+                <MoneyField
                   id="products-form-price-input"
-                  data-testid="products-form-price-input"
-                  type="number"
-                  step="0.01"
-                  placeholder="10.50"
+                  testId="products-form-price-input"
                   value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  onChange={(price) => setFormData({ ...formData, price })}
                   style={{
                     width: '100%',
                     padding: '10px 12px',

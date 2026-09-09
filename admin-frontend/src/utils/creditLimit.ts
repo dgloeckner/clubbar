@@ -20,6 +20,8 @@
  * sent cents.
  */
 
+import { parseMoneyToCents } from './money'
+
 /** The largest ceiling the API accepts, in cents — `CreditLimitPolicy::MAX_LIMIT_CENTS`. */
 export const MAX_CREDIT_LIMIT_CENTS = 10_000_000
 
@@ -41,13 +43,14 @@ export function creditLimitToInput(cents: number | null | undefined): string {
  * value that is not a non-negative amount.
  */
 export function creditLimitFromInput(value: string): number | null {
-  const normalised = value.trim().replace(',', '.')
-  if (normalised === '') return null
-  if (!/^\d+(\.\d{1,2})?$/.test(normalised)) return NaN
+  if (value.trim() === '') return null
 
-  // Rounded, not truncated: 19.99 * 100 is 1998.9999999999998 in IEEE 754, and
+  // The shared parser, which reads both decimal separators and is integer
+  // arithmetic throughout: 19.99 * 100 is 1998.9999999999998 in IEEE 754, and
   // a cent lost here is a cent the ceiling is wrong by forever.
-  return Math.round(Number(normalised) * 100)
+  const cents = parseMoneyToCents(value)
+
+  return cents === null ? NaN : cents
 }
 
 /** Whether the field holds something the API will accept. */
