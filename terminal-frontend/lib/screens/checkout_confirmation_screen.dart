@@ -68,6 +68,15 @@ class CheckoutConfirmationScreen extends StatefulWidget {
       _CheckoutConfirmationScreenState();
 }
 
+/// Hero sizes for the receipt, read standing up from across a bar counter.
+///
+/// Fixed rather than token-driven, like the idle headline and the cart's grand
+/// total (docs/font-sizes.md): they are the receipt's visual identity, and the
+/// three of them are sized against each other, not against the type scale.
+const double _receiptTitleSize = 40.0;
+const double _receiptTotalSize = 34.0;
+const double _receiptBalanceSize = 48.0;
+
 class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
   Timer? _autoReturnTimer;
@@ -270,7 +279,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             // Secondary, not muted: this explains why the receipt is thin, so
             // it is text the member has to be able to read (#41).
             color: AppColors.textSecondary,
-            fontSize: AppFontSizes.base,
+            fontSize: AppFontSizes.xl,
           ),
           textAlign: TextAlign.center,
         ),
@@ -292,13 +301,13 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     required String title,
   }) {
     return [
-      Icon(icon, size: 48, color: iconColor),
+      Icon(icon, size: 64, color: iconColor),
       const SizedBox(height: AppSpacing.md),
       Text(
         title,
-        style: TextStyle(
+        style: const TextStyle(
           color: AppColors.textPrimary,
-          fontSize: AppFontSizes.xxxl,
+          fontSize: _receiptTitleSize,
           fontWeight: FontWeight.w700,
         ),
         textAlign: TextAlign.center,
@@ -308,7 +317,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         _memberName,
         style: TextStyle(
           color: AppColors.textSecondary,
-          fontSize: AppFontSizes.lg,
+          fontSize: AppFontSizes.xl,
         ),
         textAlign: TextAlign.center,
       ),
@@ -319,19 +328,19 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   /// One booked line: icon, "2 ×", name, what it came to.
   Widget _lineRow(ReceiptLine line) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         children: [
-          getProductIcon(line.iconName, size: 36),
-          const SizedBox(width: AppSpacing.md),
+          getProductIcon(line.iconName, size: 44),
+          const SizedBox(width: AppSpacing.lg),
           SizedBox(
-            width: 44,
+            width: 52,
             child: Text(
               '${line.quantity} ×',
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: AppFontSizes.lg,
+                fontSize: AppFontSizes.xxl,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -344,7 +353,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: AppFontSizes.lg,
+                fontSize: AppFontSizes.xxl,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -354,7 +363,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             formatPrice(line.totalCents, _locale),
             style: TextStyle(
               color: AppColors.textPrimary,
-              fontSize: AppFontSizes.lg,
+              fontSize: AppFontSizes.xxl,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -371,8 +380,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     int? originalTotalCents,
   }) {
     return Container(
-      margin: const EdgeInsets.only(top: AppSpacing.sm),
-      padding: const EdgeInsets.only(top: AppSpacing.md),
+      margin: const EdgeInsets.only(top: AppSpacing.md),
+      padding: const EdgeInsets.only(top: AppSpacing.lg),
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.borderLight)),
       ),
@@ -383,7 +392,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               l10n.cartTotal,
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: AppFontSizes.lg,
+                fontSize: AppFontSizes.xxl,
               ),
             ),
           ),
@@ -392,7 +401,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               formatPrice(originalTotalCents, _locale),
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: AppFontSizes.lg,
+                fontSize: AppFontSizes.xxl,
                 decoration: TextDecoration.lineThrough,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -402,11 +411,11 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           Text(
             formatPrice(billedCents, _locale),
             key: const Key('receipt-total'),
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.semanticInfo,
-              fontSize: AppFontSizes.xxl,
+              fontSize: _receiptTotalSize,
               fontWeight: FontWeight.w700,
-              fontFeatures: const [FontFeature.tabularFigures()],
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -426,7 +435,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         l10n.receiptBalanceLabel,
         style: TextStyle(
           color: AppColors.textSecondary,
-          fontSize: AppFontSizes.base,
+          fontSize: AppFontSizes.xl,
         ),
         textAlign: TextAlign.center,
       ),
@@ -436,7 +445,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         key: const Key('receipt-balance'),
         style: TextStyle(
           color: balanceColor(_balanceCents),
-          fontSize: AppFontSizes.xxxl,
+          fontSize: _receiptBalanceSize,
           fontWeight: FontWeight.w700,
         ),
         textAlign: TextAlign.center,
@@ -466,7 +475,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               vertical: AppSpacing.xl,
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
+              constraints: const BoxConstraints(maxWidth: 720),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: children,
@@ -497,8 +506,8 @@ class _DwellBar extends StatelessWidget {
       key: const Key('receipt-dwell'),
       value: fraction.toStringAsFixed(2),
       child: SizedBox(
-        width: 160,
-        height: 4,
+        width: 240,
+        height: 5,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppBorderRadius.full),
           child: ColoredBox(
