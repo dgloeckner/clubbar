@@ -257,12 +257,15 @@ Future<ClubBarDatabase> createTestDatabase() async {
 ///
 /// Pass [cartService] to substitute the real [CartService] — e.g. with a
 /// slower one that keeps a checkout in flight long enough to tap again.
+/// Pass [transactionsRepository] to substitute the real repository — e.g.
+/// one whose receipt lookup fails, to reach the fallback receipt (#16).
 ///
 /// The returned widget can be passed to [tester.pumpWidget] in
 /// integration tests.
 Future<Widget> buildTestApp(
   ClubBarDatabase database, {
   CartService? cartService,
+  TransactionsRepository? transactionsRepository,
 }) async {
   // Install mock HTTP overrides so all dart:io HTTP calls return 200 OK.
   // This prevents TransactionHistoryService (which bypasses NetworkService)
@@ -291,7 +294,8 @@ Future<Widget> buildTestApp(
   // Repositories
   final membersRepo = MembersRepository(database);
   final productsRepo = ProductsRepository(database);
-  final transactionsRepo = TransactionsRepository(database);
+  final transactionsRepo =
+      transactionsRepository ?? TransactionsRepository(database);
   final syncRepo = SyncRepository(database);
 
   // Services

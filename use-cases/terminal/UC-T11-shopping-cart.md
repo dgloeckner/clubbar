@@ -28,8 +28,8 @@ to review items before purchase
 6. Member reviews items
 7. Member taps "Buy" to confirm purchase
 8. System creates transactions for all items
-9. System displays confirmation with new balance
-10. Member chooses "Done" or "Continue Shopping"
+9. System displays the receipt: the lines booked, the total, and the new balance (UC-T01 step 12)
+10. The receipt returns to idle by itself; a card scan starts the next session (UC-T01 step 13)
 
 ## Postconditions
 - Transactions recorded (one per line item)

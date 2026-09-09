@@ -1086,6 +1086,124 @@ void main() {
 
         expect(info, isNull);
       });
+
+      /// One category and three products, so the receipt lines have names
+      /// to carry (foreign keys are on in this fixture).
+      Future<void> createCatalogue() async {
+        await db.into(db.categoriesCache).insert(CategoriesCacheCompanion(
+          id: const Value('cat-1'),
+          names: const Value('{"de":"Getränke","en":"Drinks"}'),
+          isActive: const Value(1),
+          updatedAt: const Value('2025-02-01T12:00:00Z'),
+        ));
+        for (final (id, names, price, dispenser) in [
+          ('prod-pils', '{"de":"Pils 0,5l","en":"Pils 0.5l"}', 350, 0),
+          ('prod-brezel', '{"de":"Brezel","en":"Pretzel"}', 250, 0),
+          ('prod-token', '{"de":"Sauna-Token","en":"Sauna token"}', 200, 1),
+        ]) {
+          await db.into(db.productsCache).insert(ProductsCacheCompanion(
+            id: Value(id),
+            categoryId: const Value('cat-1'),
+            names: Value(names),
+            priceCents: Value(price),
+            isActive: const Value(1),
+            requiresDispenser: Value(dispenser),
+            iconName: Value('icon-$id'),
+            updatedAt: const Value('2025-02-01T12:00:00Z'),
+          ));
+        }
+      }
+
+      /// One row per unit, the way CartService writes a checkout.
+      Future<void> insertUnit(
+        String id,
+        String productId,
+        int priceCents, {
+        String session = 'sess-1',
+        String createdAt = '2025-01-01T12:00:00Z',
+        int? requested,
+        int? actual,
+      }) async {
+        await db.into(db.transactionsLocal).insert(TransactionsLocalCompanion(
+          id: Value(id),
+          memberId: const Value('m1'),
+          productId: Value(productId),
+          amountCents: Value(priceCents),
+          transactionType: const Value('purchase'),
+          createdAt: Value(createdAt),
+          synced: const Value(0),
+          sessionId: Value(session),
+          unitPriceCents: Value(priceCents),
+          dispenserTxId:
+              requested == null ? const Value(null) : const Value('disp-1'),
+          dispenserRequested: Value(requested),
+          dispenserActual: Value(actual),
+        ));
+      }
+
+      group('getSessionLines', () {
+        test('folds the one-row-per-unit bookings of a session back into '
+            'the lines the member bought, in the order they were rung up',
+            () async {
+          await createTestMember('m1');
+          await createCatalogue();
+          // Two Pils, one Brezel — then another session's Pils, which must
+          // not leak in.
+          await insertUnit('t1', 'prod-pils', 350);
+          await insertUnit('t2', 'prod-pils', 350);
+          await insertUnit('t3', 'prod-brezel', 250,
+              createdAt: '2025-01-01T12:00:01Z');
+          await insertUnit('t9', 'prod-pils', 350, session: 'sess-2');
+
+          final lines = await repo.getSessionLines('sess-1');
+
+          expect(lines.map((l) => l.productId), ['prod-pils', 'prod-brezel']);
+          expect(lines[0].quantity, 2);
+          expect(lines[0].unitPriceCents, 350);
+          expect(lines[0].totalCents, 700);
+          expect(lines[0].iconName, 'icon-prod-pils');
+          expect(lines[0].name('de'), 'Pils 0,5l');
+          expect(lines[0].name('en'), 'Pils 0.5l');
+          expect(lines[1].quantity, 1);
+          expect(lines[1].totalCents, 250);
+          // Not a token line: nothing was asked of a dispenser.
+          expect(lines[0].requestedQuantity, isNull);
+        });
+
+        test('a dispensed line remembers how many tokens were asked for',
+            () async {
+          await createTestMember('m1');
+          await createCatalogue();
+          // Five requested, three came out — three rows, each carrying the
+          // request (CartService.createTransactionsFromDispenseResult).
+          for (var i = 0; i < 3; i++) {
+            await insertUnit('tok-$i', 'prod-token', 200,
+                requested: 5, actual: 3);
+          }
+
+          final lines = await repo.getSessionLines('sess-1');
+
+          expect(lines, hasLength(1));
+          expect(lines.single.quantity, 3);
+          expect(lines.single.requestedQuantity, 5);
+          expect(lines.single.totalCents, 600);
+        });
+
+        test('falls back to German, then to a placeholder, for a name it '
+            'does not have in the reader\'s language', () async {
+          await createTestMember('m1');
+          await createCatalogue();
+          await insertUnit('t1', 'prod-pils', 350);
+
+          final line = (await repo.getSessionLines('sess-1')).single;
+
+          expect(line.name('fr'), 'Pils 0,5l');
+        });
+
+        test('is empty for a session nothing was booked in', () async {
+          expect(await repo.getSessionLines('no-such-session'), isEmpty);
+        });
+      });
     });
 
     test('completeSyncAtomically marks transactions synced and updates balances', () async {

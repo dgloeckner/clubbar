@@ -5,30 +5,56 @@ import 'dart:async';
 import 'package:clubbar_terminal/config/app_config.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/models/receipt_line.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
-import 'package:clubbar_terminal/widgets/styled_components/price_display.dart';
-import 'package:clubbar_terminal/widgets/styled_components/secondary_button.dart';
+import 'package:clubbar_terminal/utils/icon_registry.dart';
 
-class _SessionData {
+/// What a session bought, read back from the rows the checkout wrote.
+class _Receipt {
+  final List<ReceiptLine> lines;
   final int billedCents;
+
+  /// Fewer tokens came out than were asked for.
   final bool isPartial;
-  final int? dispenserRequested;
-  final int? dispenserActual;
+  final int? dispensedCount;
+
+  /// What the round would have cost had every token come out — only on a
+  /// partial dispense, where it is shown struck through beside the bill.
   final int? originalTotalCents;
 
-  const _SessionData({
+  const _Receipt({
+    required this.lines,
     required this.billedCents,
     required this.isPartial,
-    this.dispenserRequested,
-    this.dispenserActual,
+    this.dispensedCount,
     this.originalTotalCents,
   });
 }
 
+/// The post-checkout receipt (ADR-0027 rule 10; UC-T01 step 12).
+///
+/// A receipt, not a dialog: it has **no buttons**. Members were unsure what
+/// the buttons on the old screen would do to a purchase that had already gone
+/// through ("Fertig" — finish *what*?), so the screen now only states what
+/// was booked and what the tab stands at, and leaves on its own. Everything
+/// a button used to do has a quieter route:
+///
+/// - **Leaving** happens by itself after [AppConfig.receiptAutoReturnDelay];
+///   the thin bar under the balance drains to show it is coming. A tap
+///   anywhere leaves at once — the ordinary kiosk gesture, and what the
+///   queue needs from a member who has read enough.
+/// - **A second round** is a card scan: on this screen any valid card starts
+///   that member's session, the same member's included (rule 9). That is how
+///   the member got here the first time, so it needs no explaining.
+///
+/// A receipt that needs *reading* rather than glancing at — a partial dispense,
+/// or one whose details could not be read back (#16) — stays for
+/// [AppConfig.receiptAttentionDwell] instead. Time is the one thing a screen
+/// without buttons can give.
 class CheckoutConfirmationScreen extends StatefulWidget {
   final String sessionId;
 
@@ -44,13 +70,14 @@ class CheckoutConfirmationScreen extends StatefulWidget {
 
 class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
-  Timer? _autoLoopTimer;
-  Timer? _countdownTimer;
+  Timer? _autoReturnTimer;
+  Timer? _tickTimer;
+  Duration _dwell = AppConfig.receiptAutoReturnDelay;
   int _secondsRemaining = AppConfig.receiptAutoReturnDelay.inSeconds;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
-  late Future<_SessionData> _sessionDataFuture;
-  bool _autoNavStarted = false;
+  late Future<_Receipt> _receiptFuture;
+  bool _dwellStarted = false;
 
   /// Whom the receipt was issued to, captured once at mount.
   ///
@@ -61,7 +88,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   /// it fades out. The balance is already final here — the cart screen awaits
   /// `refreshDeckel()` before navigating.
   late final String _memberName;
-  late final int _billedToBalanceCents;
+  late final int _balanceCents;
   late final String _locale;
 
   /// What the checkout actually billed, captured once at mount.
@@ -79,62 +106,59 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ? '${selectedMember.firstName} ${selectedMember.lastName}'
         : 'Member';
     _locale = selectedMember?.preferredLanguage ?? 'de';
-    _billedToBalanceCents = context.read<MembersProvider>().memberDeckel ?? 0;
+    _balanceCents = context.read<MembersProvider>().memberDeckel ?? 0;
     _lastBilledCents = context.read<CartProvider>().lastCheckoutTotalCents;
 
-    // Initialize scale-in animation
     _scaleController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(parent: _scaleController, curve: Curves.easeOut),
     );
-
     _scaleController.forward();
 
-    _sessionDataFuture = _loadSessionData();
+    _receiptFuture = _loadReceipt();
   }
 
-  Future<_SessionData> _loadSessionData() async {
+  Future<_Receipt> _loadReceipt() async {
     final repo = context.read<TransactionsRepository>();
     final billedCents = await repo.getSessionTotal(widget.sessionId);
-    final dispenserRow = await repo.getSessionDispenserInfo(widget.sessionId);
+    final lines = await repo.getSessionLines(widget.sessionId);
 
-    final isPartial = dispenserRow != null &&
-        dispenserRow.dispenserActual != null &&
-        dispenserRow.dispenserRequested != null &&
-        dispenserRow.dispenserActual! < dispenserRow.dispenserRequested!;
-
-    int? originalTotalCents;
-    if (isPartial && dispenserRow != null && dispenserRow.unitPriceCents != null) {
-      originalTotalCents =
-          dispenserRow.dispenserRequested! * dispenserRow.unitPriceCents!;
-    }
-
-    return _SessionData(
+    final partial = lines.where((l) => l.isPartial).firstOrNull;
+    return _Receipt(
+      lines: lines,
       billedCents: billedCents,
-      isPartial: isPartial,
-      dispenserRequested: dispenserRow?.dispenserRequested,
-      dispenserActual: dispenserRow?.dispenserActual,
-      originalTotalCents: originalTotalCents,
+      isPartial: partial != null,
+      dispensedCount: partial?.quantity,
+      // Every other line was billed in full, so only the short line's
+      // shortfall separates the two totals.
+      originalTotalCents: partial == null
+          ? null
+          : billedCents +
+              (partial.requestedQuantity! - partial.quantity) *
+                  partial.unitPriceCents,
     );
   }
 
-  void _startAutoNav() {
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          _secondsRemaining--;
-        });
-      }
-    });
+  /// Starts the receipt's clock: a one-second tick for the drain bar, and the
+  /// return to idle when [dwell] is up.
+  ///
+  /// Called once, from the first frame that knows which receipt this is —
+  /// the dwell depends on that.
+  void _startDwell(Duration dwell) {
+    if (_dwellStarted) return;
+    _dwellStarted = true;
+    _dwell = dwell;
+    _secondsRemaining = dwell.inSeconds;
 
-    _autoLoopTimer = Timer(AppConfig.receiptAutoReturnDelay, () {
-      if (mounted) {
-        _endSessionAndReturnToIdle();
-      }
+    _tickTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _secondsRemaining = (_secondsRemaining - 1).clamp(0, 999));
+    });
+    _autoReturnTimer = Timer(dwell, () {
+      if (mounted) _endSessionAndReturnToIdle();
     });
   }
 
@@ -151,23 +175,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     context.go('/idle');
   }
 
-  /// Sends the member back to the product list with their session intact
-  /// (ADR-0027 rule 10).
-  ///
-  /// The purchase is booked and the cart already empty, so this is a fresh
-  /// round of shopping — not a session end, hence no [SessionController]
-  /// teardown. `recordActivity()` restarts the inactivity timer, so the
-  /// resumed session is governed by rule 6 again rather than by whatever was
-  /// left running.
-  void _continueShopping() {
-    _cancelTimers();
-    context.read<SessionController>().recordActivity();
-    context.go('/products');
-  }
-
   void _cancelTimers() {
-    _autoLoopTimer?.cancel();
-    _countdownTimer?.cancel();
+    _autoReturnTimer?.cancel();
+    _tickTimer?.cancel();
   }
 
   @override
@@ -180,124 +190,69 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final locale = _locale;
 
-    return FutureBuilder<_SessionData>(
-      future: _sessionDataFuture,
+    return FutureBuilder<_Receipt>(
+      future: _receiptFuture,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           // The purchase already succeeded — only the receipt details are
-          // missing. Say so and let the member dismiss it themselves (#16);
-          // bouncing to idle leaves them unsure whether they were charged.
+          // missing. Say so, and give it the longer dwell (#16): an
+          // unexplained bounce to idle leaves the member unsure whether they
+          // were charged.
+          _scheduleDwell(AppConfig.receiptAttentionDwell);
           return _buildFallbackReceipt(l10n);
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final data = snapshot.data!;
-
-        // Trigger auto-nav on first load for non-partial sessions
-        if (!_autoNavStarted && !data.isPartial) {
-          _autoNavStarted = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _startAutoNav();
-          });
-        }
+        final receipt = snapshot.data!;
+        _scheduleDwell(receipt.isPartial
+            ? AppConfig.receiptAttentionDwell
+            : AppConfig.receiptAutoReturnDelay);
 
         return _receiptFrame(
           children: [
-            // Icon: partial dispense gets warning icon
             ..._receiptHeader(
-              icon: data.isPartial
+              icon: receipt.isPartial
                   ? Icons.warning_amber_rounded
                   : Icons.check_circle,
-              iconColor: data.isPartial
+              iconColor: receipt.isPartial
                   ? AppColors.semanticWarning
                   : AppColors.semanticSuccess,
-              title: data.isPartial
-                  ? l10n.checkoutPartialSuccess(data.dispenserActual ?? 0)
+              title: receipt.isPartial
+                  ? l10n.checkoutPartialSuccess(receipt.dispensedCount ?? 0)
                   : l10n.checkoutSuccess,
             ),
 
-            // For partial dispense: show crossed-out original amount above billed amount
-            if (data.isPartial && data.originalTotalCents != null) ...[
-              SizedBox(
-                width: double.infinity,
-                child: Text(
-                  formatPrice(data.originalTotalCents!, locale),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.semanticInfo,
-                    fontSize: AppFontSizes.xl,
-                    fontWeight: FontWeight.w700,
-                    decoration: TextDecoration.lineThrough,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-            ],
-
-            // Actual billed amount
-            PriceDisplay(
-              priceCents: data.billedCents,
-              locale: locale,
-              fontSize: PriceFontSize.large,
-              fullWidth: true,
+            // What was booked — the lines the member put in the cart, so the
+            // receipt reads like the cart they just confirmed.
+            for (final line in receipt.lines) _lineRow(line),
+            _totalRow(
+              l10n,
+              billedCents: receipt.billedCents,
+              originalTotalCents: receipt.originalTotalCents,
             ),
-            const SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.xxl),
 
-            // The balance the purchase was booked against
-            ..._receiptFooter(l10n),
-
-            // Partial dispense: show confirm button; normal: countdown + actions
-            if (data.isPartial) ...[
-              // Deliberately bare: this used to render default M3 seed
-              // colors matching nothing else in the app — the app theme
-              // now makes a bare button correct by construction (#301).
-              ElevatedButton(
-                onPressed: _endSessionAndReturnToIdle,
-                child: Text(l10n.checkoutPartialConfirm),
-              ),
-            ] else ...[
-              Text(
-                l10n.redirectingIn(_secondsRemaining),
-                style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: AppFontSizes.base,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _doneButton(l10n),
-                  const SizedBox(width: AppSpacing.md),
-                  // For the member who is not done yet — buying a second
-                  // round should not cost them a card scan. Outlined, beside
-                  // "Done", so it reads as an option rather than a cancel
-                  // (#25's red-button history on this same screen) (#295).
-                  SecondaryButton(
-                    label: l10n.continueShopping,
-                    onPressed: _continueShopping,
-                  ),
-                ],
-              ),
-            ],
+            ..._balanceBlock(l10n),
           ],
         );
       },
     );
   }
 
+  /// Starts the dwell after this frame — the builder must not touch state.
+  void _scheduleDwell(Duration dwell) {
+    if (_dwellStarted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startDwell(dwell);
+    });
+  }
+
   /// The receipt shown when the session details cannot be loaded (#16).
   ///
   /// The money already moved, so this stays a receipt — success wording plus
-  /// the amount the checkout billed — with a note about what is missing and
-  /// no auto-navigation: the member decides when to leave. The terminal is
-  /// not pinned by that; [SessionController]'s inactivity timer is running
-  /// again by now (the cart screen ends its critical operation before it
-  /// navigates here), so a walked-away session still times out per ADR-0027.
+  /// the amount the checkout billed — with a note about what is missing.
   Widget _buildFallbackReceipt(AppLocalizations l10n) {
     return _receiptFrame(
       children: [
@@ -307,17 +262,6 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           iconColor: AppColors.semanticSuccess,
           title: l10n.checkoutSuccess,
         ),
-
-        // Billed amount, absent only for a zero-total checkout
-        if (_lastBilledCents > 0) ...[
-          PriceDisplay(
-            priceCents: _lastBilledCents,
-            locale: _locale,
-            fontSize: PriceFontSize.large,
-            fullWidth: true,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
 
         // What is missing, so the thinner receipt is not a mystery
         Text(
@@ -332,13 +276,11 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ),
         const SizedBox(height: AppSpacing.lg),
 
-        // The balance the purchase was booked against
-        ..._receiptFooter(l10n),
+        // Billed amount, absent only for a zero-total checkout
+        if (_lastBilledCents > 0) _totalRow(l10n, billedCents: _lastBilledCents),
+        const SizedBox(height: AppSpacing.xxl),
 
-        // No countdown here: the unexplained bounce to idle is the bug (#16).
-        // No "continue shopping" either — this branch means we could not read
-        // the receipt back, which is the wrong moment to invite more spending.
-        _doneButton(l10n),
+        ..._balanceBlock(l10n),
       ],
     );
   }
@@ -351,7 +293,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   }) {
     return [
       Icon(icon, size: 48, color: iconColor),
-      const SizedBox(height: AppSpacing.lg),
+      const SizedBox(height: AppSpacing.md),
       Text(
         title,
         style: TextStyle(
@@ -361,7 +303,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: AppSpacing.lg),
+      const SizedBox(height: AppSpacing.xs),
       Text(
         _memberName,
         style: TextStyle(
@@ -370,71 +312,212 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: AppSpacing.lg),
+      const SizedBox(height: AppSpacing.xxl),
     ];
   }
 
-  /// The resulting balance — the bottom of every receipt.
+  /// One booked line: icon, "2 ×", name, what it came to.
+  Widget _lineRow(ReceiptLine line) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          getProductIcon(line.iconName, size: 36),
+          const SizedBox(width: AppSpacing.md),
+          SizedBox(
+            width: 44,
+            child: Text(
+              '${line.quantity} ×',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: AppFontSizes.lg,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              line.name(_locale),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: AppFontSizes.lg,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.lg),
+          Text(
+            formatPrice(line.totalCents, _locale),
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: AppFontSizes.lg,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The bill: a rule, "Gesamt", the amount — and on a partial dispense the
+  /// amount the round would have cost, struck through beside it.
+  Widget _totalRow(
+    AppLocalizations l10n, {
+    required int billedCents,
+    int? originalTotalCents,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(top: AppSpacing.sm),
+      padding: const EdgeInsets.only(top: AppSpacing.md),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.borderLight)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              l10n.cartTotal,
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: AppFontSizes.lg,
+              ),
+            ),
+          ),
+          if (originalTotalCents != null) ...[
+            Text(
+              formatPrice(originalTotalCents, _locale),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: AppFontSizes.lg,
+                decoration: TextDecoration.lineThrough,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+          ],
+          Text(
+            formatPrice(billedCents, _locale),
+            key: const Key('receipt-total'),
+            style: TextStyle(
+              color: AppColors.semanticInfo,
+              fontSize: AppFontSizes.xxl,
+              fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The tab as it stands now — the number the member walks away with —
+  /// and, under it, the bar that drains while the receipt is on screen.
   ///
   /// No session reference here (#25): a raw UUID means nothing to the member
   /// it is shown to, and the transaction is looked up from the local database
   /// or the backend when staff actually need it.
-  List<Widget> _receiptFooter(AppLocalizations l10n) {
+  List<Widget> _balanceBlock(AppLocalizations l10n) {
     return [
       Text(
-        formatNewBalance(_billedToBalanceCents, l10n, _locale),
+        l10n.receiptBalanceLabel,
         style: TextStyle(
-          color: balanceColor(_billedToBalanceCents),
-          fontSize: AppFontSizes.lg,
+          color: AppColors.textSecondary,
+          fontSize: AppFontSizes.base,
         ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: AppSpacing.lg),
+      const SizedBox(height: AppSpacing.xs),
+      Text(
+        formatBalance(_balanceCents, l10n, _locale),
+        key: const Key('receipt-balance'),
+        style: TextStyle(
+          color: balanceColor(_balanceCents),
+          fontSize: AppFontSizes.xxxl,
+          fontWeight: FontWeight.w700,
+        ),
+        textAlign: TextAlign.center,
+      ),
+      const SizedBox(height: AppSpacing.xxl),
+      _DwellBar(
+        fraction: _dwell.inSeconds == 0 ? 0 : _secondsRemaining / _dwell.inSeconds,
+      ),
     ];
   }
 
   /// The scale-in card every receipt variant is painted into.
+  ///
+  /// The whole body takes the dismissing tap, not a control inside it: there
+  /// is nothing to find and nothing to aim for.
   Widget _receiptFrame({required List<Widget> children}) {
-    return Center(
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: AppSpacing.xl,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: children,
+    return GestureDetector(
+      key: const Key('receipt'),
+      behavior: HitTestBehavior.opaque,
+      onTap: _endSessionAndReturnToIdle,
+      child: Center(
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.xl,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: children,
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+}
 
-  /// Dismisses the receipt.
-  ///
-  /// Deliberately *not* the danger colour (#25): this ends a session that
-  /// already succeeded, and a red button on a success screen reads as "cancel
-  /// my purchase" — members avoided it and sat out the countdown instead.
-  Widget _doneButton(AppLocalizations l10n) {
-    return ElevatedButton(
-      onPressed: _endSessionAndReturnToIdle,
-      // Background/foreground here match the app theme's elevatedButtonTheme
-      // (#301) exactly — kept local (rather than trimmed to just the size
-      // override below) because the test suite asserts this button's color
-      // directly against its own style, not the resolved theme.
-      style: ElevatedButton.styleFrom(
-        // Strong blue: white on #3b82f6 is 3.7:1 (#41).
-        backgroundColor: AppColors.semanticPrimaryStrong,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 17),
-        textStyle: TextStyle(
-          fontSize: AppFontSizes.lg * 1.2,
-          fontWeight: FontWeight.w600,
+/// The receipt's clock: a thin bar that empties over the dwell.
+///
+/// Says "this leaves on its own" without a number to read — the countdown
+/// text it replaces was a thing to keep checking on a screen that should need
+/// no attention. Each second's step is eased over less than a second, so the
+/// bar is never mid-animation when the next tick lands.
+class _DwellBar extends StatelessWidget {
+  const _DwellBar({required this.fraction});
+
+  /// Share of the dwell still to run, 1 → 0.
+  final double fraction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: const Key('receipt-dwell'),
+      value: fraction.toStringAsFixed(2),
+      child: SizedBox(
+        width: 160,
+        height: 4,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppBorderRadius.full),
+          child: ColoredBox(
+            color: AppColors.borderLight,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: fraction.clamp(0.0, 1.0)),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOut,
+              builder: (context, value, _) => Align(
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: value,
+                  child: const ColoredBox(color: AppColors.textSecondary),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
-      child: Text(l10n.checkoutDone),
     );
   }
 }

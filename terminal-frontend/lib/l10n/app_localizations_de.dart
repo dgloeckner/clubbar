@@ -154,25 +154,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get checkoutPartialConfirm => 'Alles klar!';
+  String get receiptBalanceLabel => 'Dein Deckel jetzt';
 
   @override
   String get checkoutReceiptUnavailable =>
       'Dein Kauf wurde gebucht — die Belegdaten konnten nicht geladen werden.';
-
-  @override
-  String get checkoutDone => 'Fertig';
-
-  @override
-  String redirectingIn(int seconds) {
-    String _temp0 = intl.Intl.pluralLogic(
-      seconds,
-      locale: localeName,
-      other: 'Sekunden',
-      one: 'Sekunde',
-    );
-    return 'Weiterleitung in $seconds $_temp0...';
-  }
 
   @override
   String get myPurchases => 'Meine Buchungen';
@@ -363,9 +349,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get loading => 'Laden...';
-
-  @override
-  String get continueShopping => 'Weiter einkaufen';
 
   @override
   String get rfidErrorUnknownCard =>

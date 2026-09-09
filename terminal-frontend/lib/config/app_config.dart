@@ -21,6 +21,12 @@ class AppConfig {
   // the queue cannot start.
   static const Duration receiptAutoReturnDelay = Duration(seconds: 8);
 
+  // The dwell for a receipt that needs reading rather than glancing at: a
+  // partial dispense ("only 3 of 5 tokens came out") or one whose details
+  // could not be read back (#16). The receipt has no buttons, so time is the
+  // only thing that can be given; a tap still dismisses it early.
+  static const Duration receiptAttentionDwell = Duration(seconds: 20);
+
   // Seed values for the credit limit, and **only** seed values (ADR-0047).
   //
   // The club configures its own ceiling and warning band; the terminal fetches
