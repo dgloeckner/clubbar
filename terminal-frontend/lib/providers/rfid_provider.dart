@@ -228,6 +228,11 @@ class RfidProvider extends ChangeNotifier with ErrorSignal {
         resetError();
         _loginMoment =
             LoginMoment(member: member, sequence: ++_loginMomentSequence);
+        // A login is the moment the till must be audible: start every sound
+        // player afresh so a pipeline that wedged earlier — a sound server
+        // that restarted, or was not up when the app started — cannot keep
+        // this session silent. The scan chime is the first to use one.
+        _soundService.renewPlayers();
         _soundService.play(SoundEvent.scanSuccess);
         return true;
     }

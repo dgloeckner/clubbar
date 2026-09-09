@@ -92,6 +92,36 @@ void main() {
       verify(() => soundService.play(SoundEvent.scanSuccess)).called(1);
     });
 
+    test('a login renews the sound players before the scan chime', () async {
+      // A player whose GStreamer pipeline failed once stays silent for good
+      // (audioplayers reports "prepared" and plays nothing). A login is the
+      // moment the till must be audible, so it starts every player afresh —
+      // and the scan chime is the first sound to use one.
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-1'), null));
+      when(() => membersProvider.setSelectedMember(any()))
+          .thenAnswer((_) async {});
+
+      await provider.handleCardScan('card-member-1');
+
+      verifyInOrder([
+        () => soundService.renewPlayers(),
+        () => soundService.play(SoundEvent.scanSuccess),
+      ]);
+    });
+
+    test('a refused scan does not renew the sound players', () async {
+      when(() => membersRepository.findByCardUid(any()))
+          .thenAnswer((_) async => (member('member-b'), null));
+      when(() => sessionController.startSession(any()))
+          .thenAnswer((_) async => SessionStartResult.rejectedActiveSession);
+
+      await provider.handleCardScan('card-member-b');
+
+      verifyNever(() => soundService.renewPlayers());
+      verify(() => soundService.play(SoundEvent.scanError)).called(1);
+    });
+
     test('plays scanError when card not found', () async {
       when(() => membersRepository.findByCardUid(any()))
           .thenAnswer((_) async => (null, TerminalErrorKey.unknownCard));

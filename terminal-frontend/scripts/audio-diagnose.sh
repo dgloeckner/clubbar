@@ -58,8 +58,8 @@ if [ -z "$PID" ]; then
 else
   echo "  pid=$PID"
   run ps -o pid,lstart,etime,stat,rss,cmd -p "$PID"
-  # The env the app actually got. GST_AUDIO_SINK is set in the .desktop entry;
-  # if it is missing here, the entry was not the thing that launched this.
+  # The env the app actually got. GST_AUDIO_SINK is set in the systemd user
+  # unit; if it is missing here, the unit was not the thing that launched this.
   sh_run "tr '\\0' '\\n' < /proc/$PID/environ | grep -E '^(GST_|PULSE|XDG_RUNTIME|WAYLAND|DISPLAY|TMPDIR|TERMINAL_SOUNDS)' | sort"
   # Which audio path it holds open right now: an ALSA device, or a socket to a
   # sound server. This is what decides the whole rest of the investigation.
@@ -107,6 +107,9 @@ section "7. The terminal's own log"
 sh_run "ls -l '$CONFIG_DIR/logs/' 2>&1"
 sh_run "tail -60 '$CONFIG_DIR/logs/error.log' 2>&1"
 sh_run "tail -60 '$CONFIG_DIR/logs/stdout.log' 2>&1 || true"
+# Under the systemd user unit the app's stdout is the journal, and that is
+# where audioplayers prints the GStreamer error it does not throw.
+have journalctl && sh_run "journalctl --user -u clubbar-terminal.service -n 80 --no-pager 2>&1 | grep -iE 'audioplayers|gst|alsa|pulse|pipewire' | tail -40"
 
 section "8. Kernel and session messages"
 sh_run "dmesg 2>&1 | grep -iE 'vc4|hdmi|snd|audio|alsa|xrun' | tail -30 || echo '(nothing, or dmesg needs root: try sudo dmesg)'"
