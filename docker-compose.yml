@@ -91,7 +91,18 @@ services:
 
       # Session & Auth
       SESSION_MAX_AGE: 7200
-      SESSION_REGEN_INTERVAL: 900
+      # Must stay comfortably longer than a suite run, and that is a constraint
+      # rather than a default nobody revisited. The E2E suite pins ONE session
+      # cookie (playwright/.auth/admin.json) for every spec in the run, so the
+      # first rotation turns that stored cookie into a tombstone and every
+      # worker still holding it falls off the end of the grace window.
+      #
+      # It is also why CI never caught #340's sign-out bug: at 900s a 2.5-minute
+      # lane never rotates once, so the suite never exercised the rotation path
+      # at all. tests/api/session-rotation.spec.ts covers it against a stack
+      # started with a short interval — which is what the override here is for,
+      # and the header of that file has the command.
+      SESSION_REGEN_INTERVAL: ${SESSION_REGEN_INTERVAL:-900}
       API_TOKEN_TTL_DAYS: 365
       # Fixed dev key for encrypting TOTP secrets at rest.
       # Matches the key used to pre-encrypt the test admin's TOTP secret in

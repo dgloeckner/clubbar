@@ -8,6 +8,7 @@ use App\Modules\AdminUsers\Enums\AdminRole;
 use App\Modules\AdminUsers\Repositories\AdminUserRolesRepository;
 use App\Modules\Auth\Middleware\AdminSessionAuth;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
+use App\Modules\Auth\Domain\SessionRotation;
 use App\Modules\Auth\Domain\SessionTimeout;
 use App\Shared\Config\AppConfig;
 use PHPUnit\Framework\TestCase;
@@ -306,6 +307,126 @@ class AdminSessionAuthTest extends TestCase
 
         $this->assertSame(401, $response->getStatusCode());
         $this->assertSame([], $_SESSION, 'expiry is checked before rotation, so an expired session is destroyed, not rotated');
+    }
+
+    /**
+     * The tombstone is what makes the rotation survivable, so assert its shape
+     * rather than only its effect: the old ID must forward to the successor and
+     * must not still be a login in its own right.
+     */
+    public function test_rotation_leaves_the_old_session_forwarding_rather_than_deleted(): void
+    {
+        $middleware = $this->middlewareWithRegenInterval(10);
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::REGENERATED_AT => time() - 11,
+        ];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+        $previousId = session_id();
+
+        $middleware->process($this->request(), $this->passthroughHandler());
+        $successorId = session_id();
+
+        // Re-open what the browser would still be holding.
+        session_write_close();
+        session_id($previousId);
+        session_start();
+
+        $this->assertSame(
+            $successorId,
+            SessionRotation::successorWithinGrace($_SESSION),
+            'the old session forwards to the one that replaced it'
+        );
+        $this->assertArrayNotHasKey(
+            'admin_user_id',
+            $_SESSION,
+            'a tombstone is a forwarding address, never a session that still authenticates'
+        );
+    }
+
+    /**
+     * The bug this whole mechanism exists for: a request that was in flight when
+     * the rotation happened — or one whose rotation the browser never heard
+     * about — arrives on the previous ID. It used to be handed a fresh empty
+     * session and answered 401, which signed the admin out of a live session.
+     */
+    public function test_a_request_arriving_on_a_just_rotated_id_is_carried_across(): void
+    {
+        $middleware = $this->middlewareWithRegenInterval(10);
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::REGENERATED_AT => time() - 11,
+        ];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+        $previousId = session_id();
+
+        $middleware->process($this->request(), $this->passthroughHandler());
+        $successorId = session_id();
+
+        // The straggler: same middleware, but arriving on the old ID.
+        session_write_close();
+        session_id($previousId);
+        session_start();
+
+        $response = $middleware->process($this->request(), $this->passthroughHandler());
+
+        $this->assertSame(200, $response->getStatusCode(), 'the straggler is served, not signed out');
+        $this->assertSame($successorId, session_id(), 'and it is now holding the successor');
+        $this->assertSame('admin-1', $_SESSION['admin_user_id'] ?? null);
+    }
+
+    /**
+     * The grace window is not a second login mechanism: once it has passed, the
+     * old ID is refused exactly like any other session with no admin on it.
+     */
+    public function test_a_tombstone_past_its_grace_window_is_refused(): void
+    {
+        $_SESSION = SessionRotation::tombstone(
+            'deadbeefdeadbeefdeadbeefdeadbeef',
+            time() - SessionRotation::GRACE_SECONDS - 1
+        );
+        $this->adminUsersRepository->expects($this->never())->method('findById');
+
+        $response = $this->middleware->process(
+            $this->request(),
+            $this->createMock(RequestHandlerInterface::class)
+        );
+
+        $this->assertSame(401, $response->getStatusCode());
+        $this->assertSame('admin_not_authenticated', $this->decode($response)['error']);
+    }
+
+    /**
+     * Rotation must not cost the hardening. `ini_set()` refuses a session
+     * directive while a session is active, so an implementation that switched
+     * `use_strict_mode` off to adopt the new ID could not switch it back — and
+     * `/api/admin/security-check` reads the live value, so the panel would
+     * start reporting the hardening as missing.
+     */
+    public function test_rotation_leaves_use_strict_mode_on(): void
+    {
+        $middleware = $this->middlewareWithRegenInterval(10);
+
+        // The unit environment never runs RuntimeHardening, so the directive is
+        // at PHP's compiled default here. Put it where a real request would have
+        // it — which needs the session closed, since ini_set() refuses a session
+        // directive while one is active. That refusal is the whole point of the
+        // test, so it has to be arranged rather than assumed.
+        $session = $_SESSION;
+        session_write_close();
+        ini_set('session.use_strict_mode', '1');
+        session_start();
+        $_SESSION = $session;
+
+        $_SESSION = [
+            'admin_user_id' => 'admin-1',
+            SessionTimeout::REGENERATED_AT => time() - 11,
+        ];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $middleware->process($this->request(), $this->passthroughHandler());
+
+        $this->assertSame('1', ini_get('session.use_strict_mode'));
     }
 
     /* ─────────── The credentials epoch (PR #469, ADR-0026 amendment) ─────────── */

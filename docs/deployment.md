@@ -175,6 +175,15 @@ stat -c '%a %n' .                  # 755, in the document root — never 777
 | `session.save_path` | `storage/sessions` in the data directory | By default PHP writes session files into a directory shared with the host's other accounts, where a readable session file is an admin login |
 | `X-Powered-By` | removed | `expose_php` is `PHP_INI_SYSTEM` and out of reach on shared hosting; removing the header at runtime is the only lever available |
 
+`session.regeneration_interval` (default 900s) is separate from those: it is how
+often a signed-in admin's session ID is replaced, so that a leaked cookie stops
+working sooner than the session itself does. The previous ID keeps forwarding to
+its replacement for 60 seconds afterwards — without that, a request the browser
+had already sent, or one the panel cancelled, would arrive on an ID the server
+had just deleted and sign the admin out mid-session. Set it below 60 seconds and
+those forwarding records start chaining, which works but keeps an old ID usable
+for longer than the 60 seconds suggests; there is no reason to go near that.
+
 Two consequences worth knowing about:
 
 - **Session files move on upgrade.** Everyone signed in at the moment of the upgrade is signed out once, because PHP looks for their session in the new directory. Nothing else is affected.
