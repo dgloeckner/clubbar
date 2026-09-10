@@ -8,12 +8,12 @@ They can be overridden at runtime via the `fontSizes` key in `config.json`
 
 | Token | Default (px) | UI elements |
 |-------|-------------|-------------|
-| `xxxl` | 26 | **Member bar — member name**; **Product card — product name**; Checkout confirmation title ("Zahlung erfolgreich" / "Teilweise Ausgabe") |
-| `xxl`  | 22 | Cart item product name; Cart footer — "Gesamt" label; Product card price |
-| `xl`   | 20 | Cart item quantity badge; Cart item line total; Cart footer "Neuer Kontostand"; Checkout button; Category chip label; Dispenser error dialog title; Struck-through original amount on partial checkout; Member details page AppBar title |
-| `lg`   | 18 | Header — club name (secondary colour); Member bar — balance/Deckel and avatar initials; Empty-cart message; Member details page "Account Information" section header; Dispenser error dialog body text and button labels; Checkout confirmation member name |
-| `base` | 16 | Cart item "je €X.XX" unit price; Demo scan button; Member bar button labels; Member details page field labels and values; Dispenser error dialog hint text; Action button label; Checkout confirmation "Neuer Kontostand" and countdown text; `PriceDisplay` (small variant) |
-| `sm`   | 14 | RFID error message on idle screen; Member info card language indicator; Checkout confirmation session reference ID (monospace) |
+| `xxxl` | 26 | **Member bar — member name**; **Product card — product name** |
+| `xxl`  | 22 | Cart item product name; Cart footer — "Gesamt" label; Product card price; Checkout receipt line items (count, name, line total), its "Gesamt" label and the struck-through original amount on a partial dispense |
+| `xl`   | 20 | Checkout receipt member name, "Dein Deckel jetzt" caption and the note on a receipt whose details could not be loaded; Cart item quantity badge; Cart item line total; Cart footer "Neuer Kontostand"; Checkout button; Category chip label; Dispenser error dialog title; Member details page AppBar title |
+| `lg`   | 18 | Header — club name (secondary colour); Member bar — balance/Deckel and avatar initials; Empty-cart message; Member details page "Account Information" section header; Dispenser error dialog body text and button labels |
+| `base` | 16 | Cart item "je €X.XX" unit price; Demo scan button; Member bar button labels; Member details page field labels and values; Dispenser error dialog hint text; Action button label; `PriceDisplay` (small variant) |
+| `sm`   | 14 | RFID error message on idle screen; Member info card language indicator |
 | `xs`   | 13 | *(not currently used by any widget)* |
 
 The defaults are the kiosk scale #41 introduced (the app used to ship base
@@ -70,6 +70,18 @@ are not intended to be operator-configurable.
 | `IdleWaitingScreen` | Main title ("Karte scannen") | 42 | Hero display size |
 | `ShoppingCartScreen` | Grand total price | 48 | Hero display size |
 | `ShoppingCartScreen` | Quantity stepper ＋ / − touch targets | 24 | Touch-target size, same as xxxl |
+
+## Derived sizes (multiples of a token)
+
+The checkout receipt's three hero sizes are multiples of the configured scale
+rather than fixed numbers, so a terminal that raises `fontSizes` keeps the
+receipt's hierarchy instead of having the lines catch up with the title.
+
+| Screen / widget | Element | Size | On the production scale (`xxl` 27, `xxxl` 31) |
+|-----------------|---------|------|-------------------|
+| `CheckoutConfirmationScreen` | Receipt title ("Buchung erfolgreich!") | `xxxl` × 1.3 | 40 |
+| `CheckoutConfirmationScreen` | Receipt total | `xxl` × 1.35 | 36 |
+| `CheckoutConfirmationScreen` | Resulting balance ("Offener Betrag: 26,80 €") | `xxxl` × 1.55 | 48 — the number the member walks away with |
 
 ## StatusInfoModal (developer overlay)
 

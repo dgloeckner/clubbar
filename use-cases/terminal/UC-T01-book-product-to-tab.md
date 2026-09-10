@@ -26,8 +26,8 @@ Member scans RFID card
 9. Member taps same or different products to add more; the running total grows with each tap
 10. Member taps "Buy" in the summary bar to confirm purchase
 11. System creates transactions for all cart items
-12. System displays confirmation with new tab balance
-13. Member chooses: "Done" (logout) or "Continue Shopping"
+12. System displays the receipt: every line booked with its count and price, the total, and the tab as it now stands
+13. The receipt has no buttons. It returns to idle by itself after 8 s (a tap anywhere returns at once); scanning a card — the same member's included — starts the next session straight from the receipt (ADR-0027 rule 9)
 
 The shopping cart view (UC-T11) is an optional detour for reviewing or removing
 items, not a step on the way to paying.
@@ -222,8 +222,10 @@ are about to spend without leaving the grid.
 - Category navigation: add from Beer, switch to Snacks, add, verify both in cart
 - Add-remove-add: add product, remove in cart, return, add again, verify works
 - Remove partial: add 3x, remove 1x in cart, verify badge shows "2"
-- Continue shopping: checkout, continue, add new items, verify fresh cart
-- Badge cleared after checkout: checkout, continue, verify all badges reset
+- Receipt lists the round: add 2× one product and 1× another, checkout, verify both lines with their counts, the total and the new tab
+- Receipt has no buttons: checkout, verify no button is rendered, verify the terminal is idle after 8 s
+- Receipt dismissed by a tap: checkout, tap the receipt, verify idle at once
+- One more round: checkout, scan the same card on the receipt, verify a fresh session with an empty cart and cleared badges
 - New user clears cart: user A adds items, user B scans, verify cart flushed
 - Timeout without checkout: add items, wait for timeout, verify no transactions
 - Balance preview: add items, verify preview = current balance + cart total

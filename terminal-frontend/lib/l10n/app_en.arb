@@ -40,10 +40,8 @@
   "checkoutPartialSuccess": "Only {count} {count, plural, =1{token} other{tokens}} dispensed",
   "checkoutPartialMessage": "You have been charged for {count} {count, plural, =1{token} other{tokens}} only.\nSorry for the inconvenience.",
   "checkoutOriginalTotal": "(not {amount})",
-  "checkoutPartialConfirm": "All good!",
+  "receiptBalanceLabel": "Your tab now",
   "checkoutReceiptUnavailable": "Your purchase was recorded — the receipt details could not be loaded.",
-  "checkoutDone": "Done",
-  "redirectingIn": "Redirecting in {seconds} {seconds, plural, =1{second} other{seconds}}...",
 
   "myPurchases": "My purchases",
   "firstName": "First Name",
@@ -109,7 +107,6 @@
   "pendingOperationDetails": "Member {member} · Qty {quantity} · Created {date}",
 
   "loading": "Loading...",
-  "continueShopping": "Continue Shopping",
 
   "rfidErrorUnknownCard": "We don't know this chip — please report it to an admin",
   "rfidErrorAccountInactive": "Your account is inactive — please see the bar staff",

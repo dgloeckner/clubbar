@@ -84,14 +84,14 @@ Products in inactive categories are hidden even if the product itself is active.
       │                              ▼
       │                       ┌─────────────┐
       │                       │  Shopping   │
-      │    done               │   Cart      │
-      └─────────────────────  └──────┬──────┘
-                                     │
-                              buy    │
-                                     ▼
-                              ┌─────────────┐
-                              │ Confirmation│ ─── continue ──► Product View
-                              └─────────────┘                  (cart cleared)
+      │                       │   Cart      │
+      │                       └──────┬──────┘
+      │                              │
+      │  8 s / tap                   │ buy
+      │                              ▼
+      │                       ┌─────────────┐
+      └─────────────────────  │   Receipt   │ ─── card scan ──► Product View
+                              └─────────────┘                  (fresh session)
 ```
 
 ## Non-Functional Requirements

@@ -314,29 +314,17 @@ abstract class AppLocalizations {
   /// **'(nicht {amount})'**
   String checkoutOriginalTotal(String amount);
 
-  /// No description provided for @checkoutPartialConfirm.
+  /// Caption above the balance on the post-checkout receipt — the tab as it stands after this purchase
   ///
   /// In de, this message translates to:
-  /// **'Alles klar!'**
-  String get checkoutPartialConfirm;
+  /// **'Dein Deckel jetzt'**
+  String get receiptBalanceLabel;
 
   /// Shown on the confirmation screen when the receipt details could not be loaded
   ///
   /// In de, this message translates to:
   /// **'Dein Kauf wurde gebucht — die Belegdaten konnten nicht geladen werden.'**
   String get checkoutReceiptUnavailable;
-
-  /// Dismisses the confirmation screen after a successful purchase
-  ///
-  /// In de, this message translates to:
-  /// **'Fertig'**
-  String get checkoutDone;
-
-  /// Countdown message before redirecting
-  ///
-  /// In de, this message translates to:
-  /// **'Weiterleitung in {seconds} {seconds, plural, =1{Sekunde} other{Sekunden}}...'**
-  String redirectingIn(int seconds);
 
   /// Title of the sheet the member bar's purchases button opens. Deliberately built on the same word as the button label, so that the tap confirms itself. Replaced "Mitgliedsdetails", which named the container rather than the thing members came for.
   ///
@@ -691,12 +679,6 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Laden...'**
   String get loading;
-
-  /// Button to continue shopping
-  ///
-  /// In de, this message translates to:
-  /// **'Weiter einkaufen'**
-  String get continueShopping;
 
   /// Error when scanned card is not in database. Names an admin as the next step, not the bar: only an admin can register a chip to a member, so pointing at the bar would be a promise the staff cannot keep
   ///

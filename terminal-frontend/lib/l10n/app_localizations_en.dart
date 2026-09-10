@@ -153,25 +153,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get checkoutPartialConfirm => 'All good!';
+  String get receiptBalanceLabel => 'Your tab now';
 
   @override
   String get checkoutReceiptUnavailable =>
       'Your purchase was recorded — the receipt details could not be loaded.';
-
-  @override
-  String get checkoutDone => 'Done';
-
-  @override
-  String redirectingIn(int seconds) {
-    String _temp0 = intl.Intl.pluralLogic(
-      seconds,
-      locale: localeName,
-      other: 'seconds',
-      one: 'second',
-    );
-    return 'Redirecting in $seconds $_temp0...';
-  }
 
   @override
   String get myPurchases => 'My purchases';
@@ -362,9 +348,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get loading => 'Loading...';
-
-  @override
-  String get continueShopping => 'Continue Shopping';
 
   @override
   String get rfidErrorUnknownCard =>

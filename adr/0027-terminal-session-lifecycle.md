@@ -1,6 +1,6 @@
 # ADR-0027: Terminal Session Lifecycle and Cart Ownership
 
-**Status**: Accepted (amended 2026-08-18 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation), [Amendment 2](#amendment-2-per-route-scan-policy-53), [Amendment 3](#amendment-3-a-shorter-resumable-receipt-25), [Amendment 4](#amendment-4-the-displayed-catalogue-is-frozen-for-the-session))
+**Status**: Accepted (amended 2026-09-09 — see [Amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation), [Amendment 2](#amendment-2-per-route-scan-policy-53), [Amendment 3](#amendment-3-a-shorter-resumable-receipt-25), [Amendment 4](#amendment-4-the-displayed-catalogue-is-frozen-for-the-session), [Amendment 5](#amendment-5-the-receipt-has-no-buttons))
 
 **Date**: 2026-08-05
 
@@ -33,9 +33,8 @@ stateDiagram-v2
     Warning --> Idle: 10 s countdown elapses → endSession()
     Active --> Idle: explicit logout → endSession()
     Active --> Confirmation: checkout completes
-    Confirmation --> Idle: "Done" button / 8 s auto-return → endSession()
-    Confirmation --> Active: card scan (receipt finalized, fresh session)
-    Confirmation --> Active: "continue shopping" (same session, no endSession())
+    Confirmation --> Idle: 8 s auto-return (20 s if it needs reading) / tap anywhere → endSession()
+    Confirmation --> Active: card scan (receipt finalized, fresh session — "one more round")
 ```
 
 Session ends are suspended for as long as a checkout or dispense is in flight (rule 7).
@@ -53,7 +52,7 @@ Session ends are suspended for as long as a checkout or dispense is in flight (r
 | 7 | **Nothing ends a session while a checkout or dispense operation is in flight** — not the inactivity timer, not an explicit logout, not a card scan. `endSession()` is a no-op for as long as the critical operation runs, and the logout affordance renders disabled. | A long token dispense must never be interrupted mid-billing. Broadened from "the inactivity timer is suspended" by [amendment 1](#amendment-1-nothing-ends-a-session-during-a-critical-operation): the member must always reach the confirmation screen for a charge they incurred (#48). |
 | 8 | All session ends go through a single `endSession()` on a session controller; no screen clears member or cart state directly. | One code path to enforce the invariant; future paths (e.g. new screens) cannot reintroduce #13 — and, since rule 7's guard lives inside `endSession()`, cannot reintroduce #48 either. |
 | 9 | On the **Confirmation** screen any card that could start a session finalizes the shown receipt and starts that member's session (the same member gets a fresh session — "one more round"); an invalid card shows a scan error and does **not** finalize the receipt. | The receipt is a finished transaction, not an open cart: there is nothing to protect and takeover is the queue win. Added by [amendment 2](#amendment-2-per-route-scan-policy-53). |
-| 10 | The **Confirmation** screen auto-returns to idle after **8 s**, and offers a non-destructive "Done" that dismisses it immediately plus a "continue shopping" that returns to the product list **without ending the session**. | The receipt is the tail of a fast flow; a long dwell throttles the whole queue. Added by [amendment 3](#amendment-3-a-shorter-resumable-receipt-25). |
+| 10 | The **Confirmation** screen is a receipt with **no buttons**: it lists what was booked and the resulting balance, auto-returns to idle after **8 s** (**20 s** for a receipt that needs reading — a partial dispense, or one whose details could not be read back), and a tap anywhere dismisses it at once. A further round is rule 9's card scan. | The receipt is the tail of a fast flow; a long dwell throttles the whole queue, and a button on a finished purchase asks a question the member cannot answer. Added by [amendment 3](#amendment-3-a-shorter-resumable-receipt-25); the buttons withdrawn by [amendment 5](#amendment-5-the-receipt-has-no-buttons). |
 | 11 | The product grid (prices and per-product active/availability status) is snapshotted at `startSession()` and rendered from that snapshot until `endSession()`, regardless of how many background syncs land in between. The underlying cache keeps updating live throughout. | A background sync can otherwise repaint a price under a member's eyes mid-order, and — because the cart pins price at tap time — give the *same product* two different prices within the *same cart*. Added by [amendment 4](#amendment-4-the-displayed-catalogue-is-frozen-for-the-session). |
 
 ### Amendments
@@ -123,8 +122,11 @@ to *displayed* catalogue data, not just cart/member state:
 Because every session start/end already funnels through `SessionController` (rule 8),
 this covers every existing call site — inactivity timeout, explicit logout, checkout
 confirmation, and rule-9 Confirmation-screen takeover — with no changes to any screen.
-"Continue shopping" (rule 10) does not end the session, so the freeze correctly
-persists across multiple rounds in one sitting rather than refreshing between them.
+"Continue shopping" (rule 10 as amendment 3 wrote it) did not end the session, so the
+freeze persisted across multiple rounds in one sitting rather than refreshing between
+them; since [amendment 5](#amendment-5-the-receipt-has-no-buttons) a further round is a
+rule-9 takeover, which is a session end and start, so the snapshot is refreshed
+between rounds.
 
 **Deactivation follows the same freeze.** A product deactivated or deleted mid-session
 stays visible/tappable until the session ends, exactly like its price, rather than
@@ -139,6 +141,43 @@ This does not change [ADR-0012](./0012-eventual-consistency-frontend-caching.md)
 [ADR-0033](./0033-terminal-sync-contract.md)'s decisions: those cover staleness
 *across* sessions and terminal-vs-backend price divergence, both of which remain
 exactly as decided. This amendment only bounds staleness to *within* one session.
+
+#### Amendment 5: the receipt has no buttons
+
+Decided 2026-09-09 (record: #862). Rule 10's "Done" and "continue shopping"
+buttons are withdrawn, and the receipt says more.
+
+Members were unsure what "Done" would do to a purchase that had already gone
+through — the same doubt that had kept them away from amendment 3's red "Log out",
+now attached to a neutral button. A button on a finished transaction asks the
+member a question ("finish *what*?") that the transaction has already answered.
+And the receipt itself said only an amount: not what it was for, and not where the
+tab stood afterwards, which is what a member at a bar actually wants to know.
+
+So the Confirmation screen is a receipt and nothing else:
+
+- It **lists what was booked** — every line with its count, name and line total,
+  then the total — and **the tab as it now stands**, under its own caption. A
+  partial dispense lists the count that came out, with the full price struck
+  through beside the bill.
+- It **has no buttons**. It auto-returns to idle after **8 s**, with a thin bar
+  draining under the balance in place of a countdown to read; a tap anywhere
+  dismisses it at once. A receipt that needs *reading* rather than glancing at —
+  a partial dispense, or one whose details could not be read back (#16) — stays
+  **20 s** instead; time is the one thing a screen without buttons can give.
+- **A further round is a card scan.** Rule 9 already starts the scanning member's
+  fresh session from the receipt, the same member's included, and that is how
+  the member got here the first time. "Continue shopping" therefore had a quieter
+  route all along; the difference is that the new round is a new session (cart
+  and catalogue snapshot fresh), which is the right shape for "one more round".
+
+Rule 2's three session ends are unchanged: the auto-return and the tap are both
+checkout completion, and the scan is rule 9's takeover. Rule 7's guard is
+unchanged too — a dismissal gates on `endSession()`'s return value, as amendment 3
+recorded, and a refused end leaves the receipt up. The receipt shown when the
+session lookup fails (#16) loses its "Done" like every other variant; the objection
+in #16 was the *unexplained* bounce, and a receipt that says the booking succeeded,
+what it billed and where the tab stands is not that.
 
 ### Alternatives considered
 
@@ -168,5 +207,5 @@ exactly as decided. This amendment only bounds staleness to *within* one session
 - [ADR-0012](./0012-eventual-consistency-frontend-caching.md) — the terminal-vs-backend staleness this amendment does not change; Amendment 4 only bounds staleness to within one session
 - [ADR-0033](./0033-terminal-sync-contract.md) — why the cart pins the tap-time price (§6), which is what makes an unfrozen grid a same-cart, two-prices problem
 - Issues: #13 (cart persists across logout), #23 (inactivity timeout), #26 (scan outside idle screen), #48 (logout during in-flight checkout)
-- Decision records for the amendments: #55 (logout guard), #53 (per-route scan policy)
+- Decision records for the amendments: #55 (logout guard), #53 (per-route scan policy), #862 (buttonless receipt)
 - `CONTEXT.md` — definitions of *Session*, *Cart*, *Deckel*

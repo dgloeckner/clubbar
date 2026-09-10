@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import '../database/database.dart';
+import '../models/receipt_line.dart';
 import 'members_repository.dart';
 
 class TransactionsRepository {
@@ -240,6 +241,46 @@ class TransactionsRepository {
           ..where((t) => t.sessionId.equals(sessionId)))
         .get();
     return rows.fold<int>(0, (sum, t) => sum + t.amountCents.abs());
+  }
+
+  /// What a session bought, folded back into lines: one per product, in the
+  /// order the products were first rung up, each with its unit count, unit
+  /// price and what it came to.
+  ///
+  /// The checkout writes one row per unit; the receipt shows the member the
+  /// lines they put in the cart, so this undoes that. A dispensed product's
+  /// rows all carry the requested count, which the line keeps so a partial
+  /// dispense can say "3 of 5".
+  ///
+  /// A left join, not an inner one: `product_id` is nullable on the row, and
+  /// a line with no product to name is still money the member was billed.
+  Future<List<ReceiptLine>> getSessionLines(String sessionId) async {
+    final t = _db.transactionsLocal;
+    final p = _db.productsCache;
+    final rows = await (_db.select(t).join([
+      leftOuterJoin(p, p.id.equalsExp(t.productId)),
+    ])
+          ..where(t.sessionId.equals(sessionId))
+          ..orderBy([OrderingTerm(expression: t.createdAt)]))
+        .get();
+
+    final byProduct = <String, ReceiptLine>{};
+    for (final row in rows) {
+      final txn = row.readTable(t);
+      final product = row.readTableOrNull(p);
+      final key = txn.productId ?? '';
+      final previous = byProduct[key];
+      byProduct[key] = ReceiptLine(
+        productId: key,
+        namesJson: product?.names ?? '{}',
+        iconName: product?.iconName,
+        quantity: (previous?.quantity ?? 0) + 1,
+        unitPriceCents: txn.unitPriceCents ?? txn.amountCents.abs(),
+        totalCents: (previous?.totalCents ?? 0) + txn.amountCents.abs(),
+        requestedQuantity: txn.dispenserRequested ?? previous?.requestedQuantity,
+      );
+    }
+    return byProduct.values.toList(growable: false);
   }
 
   /// Returns the dispenser row for a session (the row that has a dispenserTxId),
