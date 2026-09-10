@@ -1101,7 +1101,8 @@ components:
           minProperties: 1
           description: |
             All available translations of product name (keyed by ISO 639-1 language code).
-            Example: {"en": "Pilsner 0.5L", "de": "Pils 0,5L", "fr": "Pilsner 0,5L"}
+            Example: {"en": "Pilsner", "de": "Pils", "fr": "Pilsner"}
+            The size is not part of the name — see `volume_ml`.
             Terminal displays name for member's preferred_language (with fallback to backend default).
         descriptions:
           type: object
@@ -1161,6 +1162,25 @@ components:
 
             The refusal names *this* value — never the member's age (rule 6).
           example: 18
+        volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: |
+            The product's size in whole **millilitres**, language-neutral
+            ([ADR-0056](../../adr/0056-product-volume.md)). The size is no
+            longer written into `names`, so the terminal draws it as a badge
+            under a one-line name and formats it for the member's own language
+            — `0,5 l` in German, `0.5 l` in English.
+
+            `null` means the product has **no size** (a Sauna-Token, a Kaffee),
+            not a size of zero: the badge is simply not drawn, though the row
+            keeps its height so every price on a grid row stays level.
+
+            Additive on the wire. A terminal built before this field ignores
+            it, so the backend can be deployed first.
+          example: 500
         deleted_at:
           type: string
           format: date-time
@@ -1194,9 +1214,9 @@ components:
       example:
         id: 987f6543-e21a-11d3-b456-426614174999
         names:
-          en: Pilsner 0.5L
-          de: Pils 0,5L
-          fr: Pilsner 0,5L
+          en: Pilsner
+          de: Pils
+          fr: Pilsner
         descriptions:
           en: German pilsner beer
           de: Deutsches Lagerbier
@@ -1207,6 +1227,7 @@ components:
         icon_name: beer-pils
         requires_dispenser: false
         min_age: 16
+        volume_ml: 500
         deleted_at: null
         created_at: '2024-01-01T00:00:00Z'
         updated_at: '2025-01-10T10:15:30Z'
@@ -1430,9 +1451,9 @@ components:
         products:
           - id: 987f6543-e21a-11d3-b456-426614174999
             names:
-              en: Pilsner 0.5L
-              de: Pils 0,5L
-              fr: Pilsner 0,5L
+              en: Pilsner
+              de: Pils
+              fr: Pilsner
             descriptions:
               en: German pilsner beer
               de: Deutsches Lagerbier
@@ -1440,13 +1461,14 @@ components:
             price_cents: 350
             category_id: abc12345-e21a-11d3-b456-426614174001
             is_active: true
+            volume_ml: 500
             created_at: '2024-01-01T00:00:00Z'
             updated_at: '2025-01-10T10:15:30Z'
           - id: 987f6543-e21a-11d3-b456-426614174998
             names:
-              en: Radler 0.5L
-              de: Radler 0,5L
-              fr: Radler 0,5L
+              en: Radler
+              de: Radler
+              fr: Radler
             descriptions:
               en: Beer and lemonade mix
               de: Biergemisch
@@ -1886,7 +1908,7 @@ x-internal-notes: |
   ### Delta Sync Algorithm (Products)
   ```
   SELECT id, category_id, names, descriptions, price_cents, is_active,
-         icon_name, requires_dispenser, min_age, deleted_at, created_at, updated_at
+         icon_name, requires_dispenser, min_age, volume_ml, deleted_at, created_at, updated_at
   FROM products
   WHERE updated_at >= {since} OR (deleted_at >= {since} AND deleted_at IS NOT NULL)
   ORDER BY COALESCE(updated_at, deleted_at) ASC

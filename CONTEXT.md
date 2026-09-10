@@ -34,6 +34,12 @@ The refusal to sell a product to a member who is too young for it. The limit bel
 It is a standing condition, not a transient failure: nothing about it will be different if the member tries again, so the refusal offers no Retry. The message names the age the product requires and never the member's own — the terminal screen is read by whoever is at the bar. See [ADR-0045](./adr/0045-age-restricted-products.md).
 _Avoid_: age check, age gate, 18+, adult verification, ID check (the system verifies no identity — it trusts the birth date on file)
 
+**Volume**:
+A product's size, held as whole millilitres in `volume_ml` and never written into its name. `NULL` means the product has no size at all — a Sauna-Token, a Kaffee — which is not the same as zero.
+
+It extends [ADR-0002](./adr/0002-product-internationalization.md) rather than contradicting it: a name is translated prose, a size is language-neutral data, and each reader is shown the size in their own punctuation — `0,5 l` for a German member, `0.5 l` for an English one — derived from one stored number rather than typed once per language. Below 100 ml it reads in millilitres, because `20 ml` says more than `0,02 l` does. Everything that prints a product name prints the volume after it, and the terminal draws it as a badge under a one-line name. See [ADR-0056](./adr/0056-product-volume.md).
+_Avoid_: size, amount, quantity (none of them say it is a volume), Füllmenge in English text, `0,5l` as part of a name
+
 **Limit**:
 The ceiling a member's **Deckel** may reach. One number, in cents, and it is always *that member's*: their own where the club has set one for them, the club's default otherwise. Set by the Kassenwart — the club default in Einstellungen → Limits, an individual one on the member — and never computed by the system from tenure, arrears or anything else.
 

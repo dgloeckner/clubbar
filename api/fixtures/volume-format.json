@@ -1,0 +1,181 @@
+{
+  "$comment": "The single source of the product-volume formatting rule (ADR-0056, decision 4). PHP, TypeScript and Dart each implement the rule and each language's test suite reads THIS FILE. A new vector belongs here, never in one suite. The unit is preceded by a no-break space (U+00A0) so a size never wraps across a line.",
+  "rule": {
+    "unit": "Stored as whole millilitres.",
+    "threshold_ml": 100,
+    "below_threshold": "Whole millilitres: '<n> ml'. Below 100 ml the litre value has no non-zero first decimal, and below 5 ml it rounds to zero outright.",
+    "at_or_above_threshold": "Litres, at most two decimals, trailing zeros dropped.",
+    "rounding": "Half away from zero at hundredths of a litre, computed on integers: hundredths = (ml + 5) div 10. No float decides a boundary.",
+    "decimal_separator": "The reader's: ',' for de, '.' for en.",
+    "unknown_language": "Falls back to the decimal comma, in all three implementations. A size in the wrong punctuation is a smaller failure than a statement or a card that does not render at all.",
+    "grouping": "None. The validated maximum is 10 000 ml = 10 l, so no value ever groups.",
+    "unit_separator": "U+00A0 NO-BREAK SPACE.",
+    "null": "A product with no volume formats to nothing at all; the caller prints the name alone."
+  },
+  "languages": [
+    "de",
+    "en"
+  ],
+  "cases": [
+    {
+      "ml": 1,
+      "why": "the lower bound of the validated range; two decimals of a litre round it to zero, so it reads in millilitres",
+      "expected": {
+        "de": "1 ml",
+        "en": "1 ml"
+      }
+    },
+    {
+      "ml": 20,
+      "why": "a Schnaps; 0,02 l says less than 20 ml does",
+      "expected": {
+        "de": "20 ml",
+        "en": "20 ml"
+      }
+    },
+    {
+      "ml": 50,
+      "why": "still millilitres",
+      "expected": {
+        "de": "50 ml",
+        "en": "50 ml"
+      }
+    },
+    {
+      "ml": 99,
+      "why": "the last millilitre value below the threshold",
+      "expected": {
+        "de": "99 ml",
+        "en": "99 ml"
+      }
+    },
+    {
+      "ml": 100,
+      "why": "the threshold: at 100 ml the litre value gains a non-zero first decimal",
+      "expected": {
+        "de": "0,1 l",
+        "en": "0.1 l"
+      }
+    },
+    {
+      "ml": 200,
+      "why": "one decimal, trailing zero dropped",
+      "expected": {
+        "de": "0,2 l",
+        "en": "0.2 l"
+      }
+    },
+    {
+      "ml": 250,
+      "why": "two decimals",
+      "expected": {
+        "de": "0,25 l",
+        "en": "0.25 l"
+      }
+    },
+    {
+      "ml": 300,
+      "why": "a small Apfelschorle",
+      "expected": {
+        "de": "0,3 l",
+        "en": "0.3 l"
+      }
+    },
+    {
+      "ml": 330,
+      "why": "a Cola bottle; two decimals kept",
+      "expected": {
+        "de": "0,33 l",
+        "en": "0.33 l"
+      }
+    },
+    {
+      "ml": 333,
+      "why": "rounds down to the same hundredth as 330",
+      "expected": {
+        "de": "0,33 l",
+        "en": "0.33 l"
+      }
+    },
+    {
+      "ml": 335,
+      "why": "rounds half away from zero, up",
+      "expected": {
+        "de": "0,34 l",
+        "en": "0.34 l"
+      }
+    },
+    {
+      "ml": 500,
+      "why": "the half litre the names used to carry",
+      "expected": {
+        "de": "0,5 l",
+        "en": "0.5 l"
+      }
+    },
+    {
+      "ml": 999,
+      "why": "rounds up to a whole litre, and the trailing zeros go",
+      "expected": {
+        "de": "1 l",
+        "en": "1 l"
+      }
+    },
+    {
+      "ml": 1000,
+      "why": "a whole litre prints without decimals",
+      "expected": {
+        "de": "1 l",
+        "en": "1 l"
+      }
+    },
+    {
+      "ml": 1005,
+      "why": "the rounding boundary: half away from zero, decided on integers, never on a float",
+      "expected": {
+        "de": "1,01 l",
+        "en": "1.01 l"
+      }
+    },
+    {
+      "ml": 1050,
+      "why": "a hundredth that is not a tenth",
+      "expected": {
+        "de": "1,05 l",
+        "en": "1.05 l"
+      }
+    },
+    {
+      "ml": 1500,
+      "why": "a Maß",
+      "expected": {
+        "de": "1,5 l",
+        "en": "1.5 l"
+      }
+    },
+    {
+      "ml": 2000,
+      "why": "whole litres again",
+      "expected": {
+        "de": "2 l",
+        "en": "2 l"
+      }
+    },
+    {
+      "ml": 5000,
+      "why": "a keg sold by the unit",
+      "expected": {
+        "de": "5 l",
+        "en": "5 l"
+      }
+    },
+    {
+      "ml": 10000,
+      "why": "the upper bound of the validated range",
+      "expected": {
+        "de": "10 l",
+        "en": "10 l"
+      }
+    }
+  ]
+}

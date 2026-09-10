@@ -80,6 +80,7 @@ Each ADR follows this structure:
 | [0053](./0053-anmeldelink-carries-no-credential.md) | The Anmeldelink Carries No Credential | Accepted (amends 0052) | 2026-09-04 |
 | [0054](./0054-terminal-runs-its-backends-version.md) | A Terminal Runs Its Backend's Version | Accepted | 2026-09-06 |
 | [0055](./0055-canonical-card-uid.md) | One Canonical Spelling for a Card UID | Accepted (amends 0014, 0021) | 2026-09-08 |
+| [0056](./0056-product-volume.md) | A Product's Size Is Data, Not Part of Its Name | Accepted (extends 0002) | 2026-09-10 |
 
 ## Creating a New ADR
 
