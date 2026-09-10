@@ -56,6 +56,7 @@ export class ProductsPage extends BasePage {
   private readonly nameInputEn = () => this.page.getByTestId('products-form-name-input-en')
   private readonly categorySelect = () => this.page.getByTestId('products-form-category-select')
   private readonly priceInput = () => this.page.getByTestId('products-form-price-input')
+  private readonly priceValue = () => this.page.getByTestId('products-form-price-input-value')
   private readonly requiresDispenserCheckbox = () => this.page.getByTestId('products-form-requires-dispenser-checkbox')
   private readonly minAgeInput = () => this.page.getByTestId('products-form-min-age-input')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
@@ -440,8 +441,31 @@ export class ProductsPage extends BasePage {
     return await this.nameInputDe().inputValue() || ''
   }
 
+  /**
+   * The price the form will send, in canonical `12.34` form.
+   *
+   * Read from the field's hidden value rather than from the visible input:
+   * `MoneyField` renders the amount the way the admin's language writes it
+   * ("3,50" in German), so an assertion on the visible text would be an
+   * assertion about the locale (see `admin-frontend/patterns/money-field.md`).
+   */
   async getFormPriceValue(): Promise<string> {
+    return await this.priceValue().inputValue() || ''
+  }
+
+  /**
+   * The price as the admin sees it — the locale's notation ("3,50" in German).
+   *
+   * The counterpart to `getFormPriceValue()`, and the only assertion that is
+   * *about* the localisation rather than about the amount.
+   */
+  async getFormPriceText(): Promise<string> {
     return await this.priceInput().inputValue() || ''
+  }
+
+  /** Type into the price field without touching the rest of the form. */
+  async fillPrice(price: string) {
+    await this.priceInput().fill(price)
   }
 
   /**

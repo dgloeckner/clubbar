@@ -34,6 +34,7 @@ export class SettingsPage {
   private readonly limitsTab: Locator
   private readonly limitsForm: Locator
   private readonly limitsDefaultInput: Locator
+  private readonly limitsDefaultValue: Locator
   private readonly limitsWarnInput: Locator
   private readonly limitsWarnAtValue: Locator
   private readonly limitsHelper: Locator
@@ -67,6 +68,7 @@ export class SettingsPage {
     this.limitsTab = page.getByTestId('settings-tab-limits')
     this.limitsForm = page.getByTestId('settings-limits-form')
     this.limitsDefaultInput = page.getByTestId('settings-limits-input-default')
+    this.limitsDefaultValue = page.getByTestId('settings-limits-input-default-value')
     this.limitsWarnInput = page.getByTestId('settings-limits-input-warn')
     this.limitsWarnAtValue = page.getByTestId('settings-limits-warn-at')
     this.limitsHelper = page.getByTestId('settings-limits-helper-default')
@@ -94,8 +96,12 @@ export class SettingsPage {
     await expect(this.limitsForm).toBeVisible()
   }
 
+  /**
+   * The ceiling the form will send, in canonical `500.00` form — the field's
+   * hidden value, not its locale-formatted text ("500,00" in German).
+   */
   async getClubDefaultLimit(): Promise<string> {
-    return await this.limitsDefaultInput.inputValue()
+    return await this.limitsDefaultValue.inputValue()
   }
 
   async getWarnThresholdPercent(): Promise<string> {

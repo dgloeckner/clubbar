@@ -32,6 +32,7 @@ import { Toggle } from '../components/common/Toggle'
 import { TableCell } from '../components/tables/TableCell'
 import { LanguageSelector } from '../components/forms/LanguageSelector'
 import { DateField } from '../components/forms/DateField'
+import { MoneyField } from '../components/forms/MoneyField'
 import { validateIban } from '../utils/iban'
 import {
   creditLimitToInput,
@@ -2479,13 +2480,11 @@ export function MembersPage() {
                   }
                   testId="members-form-credit-limit-label"
                 />
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  data-testid="members-form-credit-limit-input"
+                <MoneyField
+                  testId="members-form-credit-limit-input"
                   value={formData.credit_limit}
-                  onChange={(e) => {
-                    setFormData({ ...formData, credit_limit: e.target.value })
+                  onChange={(credit_limit) => {
+                    setFormData({ ...formData, credit_limit })
                     setFormErrors((prev) =>
                       Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'credit_limit_cents')),
                     )
@@ -2497,7 +2496,7 @@ export function MembersPage() {
                           amount: formatters.formatPrice(clubDefaultLimitCents),
                         })
                   }
-                  aria-invalid={Boolean(formErrors.credit_limit_cents)}
+                  invalid={Boolean(formErrors.credit_limit_cents)}
                   style={formInputStyle(Boolean(formErrors.credit_limit_cents))}
                 />
                 {/* A typed 0 is the one state the field cannot show on its own.
