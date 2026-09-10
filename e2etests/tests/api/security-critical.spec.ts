@@ -45,16 +45,27 @@ test.describe('C1: install.php access control', () => {
 // C2: CORS — no wildcard with credentials
 // ============================================================
 test.describe('C2: CORS configuration', () => {
-  test('does not echo Access-Control-Allow-Origin: * on API response', async ({ request }) => {
+  test('answers an unknown origin with no Access-Control-Allow-Origin at all', async ({ request }) => {
     const response = await request.get(`${API_BASE}/api/health`, {
       headers: { Origin: 'http://evil.example.com' },
     });
-    // Should not reflect a wildcard or an unknown origin
-    const allowOrigin = response.headers()['access-control-allow-origin'];
-    // Either no header (origin not in allowlist) or the specific origin — never '*' when credentials present
-    if (allowOrigin) {
-      expect(allowOrigin).not.toBe('*');
-    }
+    // Not a wildcard, not the requested origin, nothing — without the header
+    // the browser refuses to hand the response to the page that asked.
+    //
+    // This used to be `if (header) expect(header).not.toBe('*')`, which passed
+    // on a deployment answering `*` to everyone: the default was `*` and a
+    // package install had no key that could change it (#875).
+    expect(response.headers()['access-control-allow-origin']).toBeUndefined();
+  });
+
+  test('marks an origin-dependent response as varying on Origin', async ({ request }) => {
+    // Otherwise a shared cache hands the first caller's Allow-Origin to the
+    // next one to ask — including handing an allowed origin's headers to a
+    // refused one.
+    const response = await request.get(`${API_BASE}/api/health`, {
+      headers: { Origin: 'http://localhost:5173' },
+    });
+    expect(response.headers()['vary']?.toLowerCase()).toContain('origin');
   });
 
   test('allows requests from localhost:5173 (admin frontend)', async ({ request }) => {

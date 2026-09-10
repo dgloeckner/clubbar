@@ -54,6 +54,52 @@ class ConfigFileTest extends TestCase
     }
 
     /**
+     * A package install's whole environment is `config.php`, so a key that is
+     * not mapped here cannot be set at all. `CORS_ORIGINS` was one (#875):
+     * `ServiceFactory` read it with a `*` default, nothing published it, and
+     * every self-hosted deployment answered `Access-Control-Allow-Origin: *`
+     * with no way to change it.
+     */
+    public function test_the_allowed_browser_origins_reach_the_environment(): void
+    {
+        $config = $this->config();
+        $config['app']['cors_origins'] = ['https://panel.example.com', 'https://terminal.example.com'];
+
+        ConfigFile::applyToEnvironment($config, '/srv/clubbar-data');
+
+        $this->assertSame('https://panel.example.com,https://terminal.example.com', $_ENV['CORS_ORIGINS']);
+    }
+
+    /**
+     * A list reads better in `config.php`; the environment is flat. Somebody
+     * who writes the flat form anyway is not punished for it.
+     */
+    public function test_a_hand_written_string_of_origins_is_taken_as_it_is(): void
+    {
+        $config = $this->config();
+        $config['app']['cors_origins'] = 'https://panel.example.com';
+
+        ConfigFile::applyToEnvironment($config, '/srv/clubbar-data');
+
+        $this->assertSame('https://panel.example.com', $_ENV['CORS_ORIGINS']);
+    }
+
+    /**
+     * Published as an empty string rather than left unset, unlike the timezone
+     * below. `AppConfig` reads empty as "derive it from the app URL", and an
+     * absent key would instead let a stray `CORS_ORIGINS` in the process
+     * environment answer for an installation that never mentioned one.
+     */
+    public function test_an_installation_that_says_nothing_publishes_an_empty_value(): void
+    {
+        $_ENV['CORS_ORIGINS'] = 'https://left.over.example';
+
+        ConfigFile::applyToEnvironment($this->config(), '/srv/clubbar-data');
+
+        $this->assertSame('', $_ENV['CORS_ORIGINS']);
+    }
+
+    /**
      * The club's zone reaches the environment from `config.php`, which is the
      * only place a self-hosted installation can set it — it governs every
      * surface that states the club's books, not just the mails.
@@ -265,5 +311,96 @@ class ConfigFileTest extends TestCase
         );
 
         $this->assertSame('14', $_ENV['BACKUP_LOCAL_RETENTION_DAYS']);
+    }
+
+    /**
+     * Every setting the backend reads is either reachable from `config.php` or
+     * listed below with a reason.
+     *
+     * This is the test #875 did not have. `CORS_ORIGINS` was read by
+     * `ServiceFactory` with a `*` default and published by nothing, so a
+     * package install — whose entire environment is this mapping — could not
+     * set it, and answered `Access-Control-Allow-Origin: *` forever. Nothing
+     * about that was visible in either file: the reader looked complete, the
+     * mapping looked complete, and only the pair of them was wrong.
+     *
+     * The check runs against the source rather than against a list somebody
+     * has to remember to extend, so the next unreachable setting fails the
+     * unit suite on the commit that introduces it.
+     */
+    public function test_every_setting_the_backend_reads_is_reachable_from_config_php(): void
+    {
+        // Set by the deployment, never by config.php — the file cannot
+        // configure the thing that decides whether it is read at all, and the
+        // rest are development switches that must stay impossible to turn on
+        // from a club's own configuration.
+        $unreachableOnPurpose = [
+            // Development and CI only, and stated as such in .env.example:
+            // both remove a control that is the last thing standing between a
+            // guessed TOTP code and an admin session.
+            'DISABLE_LOGIN_RATE_LIMITING',
+            'DISABLE_TERMINAL_RATE_LIMITING',
+            // Guards the *development* installer (backend/public/install.php).
+            // The package has its own, and ADR-0031 blocks that route in
+            // .htaccess rather than gating it on a key in the file it writes.
+            'INSTALL_KEY',
+        ];
+
+        $source = (string) file_get_contents(dirname(__DIR__, 4) . '/src/Shared/Config/ConfigFile.php');
+        preg_match_all("/'([A-Z][A-Z0-9_]+)'/", $source, $matches);
+        $published = array_unique($matches[1]);
+
+        $unreachable = [];
+        foreach ($this->settingsTheBackendReads() as $key => $files) {
+            if (in_array($key, $published, true) || in_array($key, $unreachableOnPurpose, true)) {
+                continue;
+            }
+
+            $unreachable[] = $key . ' (read by ' . implode(', ', $files) . ')';
+        }
+
+        $this->assertSame(
+            [],
+            $unreachable,
+            "These settings are read by the backend but published by nothing, so a package install cannot set them. "
+            . "Map them in ConfigFile::applyToEnvironment() and document the key in config.sample.php — or, if the "
+            . "setting must not be configurable by a club, add it to \$unreachableOnPurpose above with the reason."
+        );
+    }
+
+    /**
+     * @return array<string, list<string>> setting => the files reading it
+     */
+    private function settingsTheBackendReads(): array
+    {
+        $found = [];
+
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator(dirname(__DIR__, 4) . '/src', \FilesystemIterator::SKIP_DOTS)
+        );
+
+        /** @var \SplFileInfo $file */
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            $source = (string) file_get_contents($file->getPathname());
+            if (preg_match_all("/Env::get\(\s*'([A-Z][A-Z0-9_]+)'/", $source, $matches) === 0) {
+                continue;
+            }
+
+            foreach ($matches[1] as $key) {
+                $found[$key][$file->getBasename()] = true;
+            }
+        }
+
+        $reads = [];
+        foreach ($found as $key => $byFile) {
+            $reads[$key] = array_keys($byFile);
+        }
+        ksort($reads);
+
+        return $reads;
     }
 }

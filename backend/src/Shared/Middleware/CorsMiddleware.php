@@ -10,13 +10,27 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Slim\Psr7\Response;
 
+/**
+ * Decides which browser origins may read an API response.
+ *
+ * The list comes from {@see \App\Shared\Config\AppConfig::$corsAllowedOrigins},
+ * which defaults to the installation's own origin — never `*` (#875). A
+ * wildcard remains possible, because an operator can still ask for one, but it
+ * is a stated choice rather than what a deployment gets by saying nothing.
+ */
 class CorsMiddleware implements MiddlewareInterface
 {
+    /** @var list<string> */
     private array $allowedOrigins;
 
+    /**
+     * @param list<string> $allowedOrigins Origins as a browser sends them
+     *        (`https://panel.club.de`), or the single entry `*`. Empty answers
+     *        no cross-origin request at all.
+     */
     public function __construct(array $allowedOrigins = ['*'])
     {
-        $this->allowedOrigins = $allowedOrigins;
+        $this->allowedOrigins = array_values($allowedOrigins);
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -28,8 +42,19 @@ class CorsMiddleware implements MiddlewareInterface
             $response = $handler->handle($request);
         }
 
+        $wildcard = in_array('*', $this->allowedOrigins, true);
         $origin = $request->getHeaderLine('Origin');
-        $allowOrigin = in_array('*', $this->allowedOrigins) ? '*' : (in_array($origin, $this->allowedOrigins) ? $origin : '');
+        $allowOrigin = $wildcard ? '*' : (in_array($origin, $this->allowedOrigins, true) ? $origin : '');
+
+        // Anything but a wildcard means this response depends on the request's
+        // Origin, and a shared cache that does not know that would hand one
+        // site's `Access-Control-Allow-Origin` to the next one to ask. Set
+        // whether or not the origin was allowed: the *refusal* is origin-
+        // dependent too, and caching that as the answer for everyone is the
+        // same bug pointing the other way.
+        if (!$wildcard) {
+            $response = self::varyOn($response, 'Origin');
+        }
 
         if ($allowOrigin) {
             $response = $response
@@ -46,5 +71,21 @@ class CorsMiddleware implements MiddlewareInterface
         }
 
         return $response;
+    }
+
+    /**
+     * Add one field to `Vary` without discarding what a handler already put
+     * there — `withHeader()` would replace it, and the field it replaced would
+     * be the one that mattered.
+     */
+    private static function varyOn(ResponseInterface $response, string $field): ResponseInterface
+    {
+        foreach (explode(',', $response->getHeaderLine('Vary')) as $existing) {
+            if (strcasecmp(trim($existing), $field) === 0) {
+                return $response;
+            }
+        }
+
+        return $response->withAddedHeader('Vary', $field);
     }
 }

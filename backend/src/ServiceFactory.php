@@ -1357,9 +1357,15 @@ class ServiceFactory implements ContainerInterface
 
     public function getCorsMiddleware(): CorsMiddleware
     {
-        $origins = Env::get('CORS_ORIGINS', '*');
-        $allowedOrigins = $origins === '*' ? ['*'] : array_map('trim', explode(',', $origins));
-        return $this->resolve(CorsMiddleware::class, fn() => new CorsMiddleware($allowedOrigins));
+        // Resolved by AppConfig, which defaults to this installation's own
+        // origin rather than to `*` (#875). Read from there rather than from
+        // the environment here, so a package install — whose whole environment
+        // is config.php — gets the same answer as a container that sets
+        // CORS_ORIGINS directly.
+        return $this->resolve(
+            CorsMiddleware::class,
+            fn() => new CorsMiddleware($this->config->corsAllowedOrigins),
+        );
     }
 
     public function getJsonBodyParser(): JsonBodyParser
