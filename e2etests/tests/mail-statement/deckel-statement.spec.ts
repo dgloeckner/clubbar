@@ -197,6 +197,18 @@ test.describe('Deckelauszug — cadence, cron, delivered statement', () => {
     terminalRequest: ApiRequestLike,
     amounts: number[],
     language: 'de' | 'en' = 'de',
+    /** Whole millilitres per product, `null` for one with no size (ADR-0056). */
+    volumes: (number | null)[] = [],
+    /**
+     * Stem of the generated product names.
+     *
+     * The default is long on purpose — most tests here only need the label to
+     * be findable. A test that asserts on the *rendered* line wants a short one:
+     * the plain-text statement lays its labels out in a 34-character column and
+     * truncates past it, which a 29-character stem plus a size would trip over
+     * while a real product name would not.
+     */
+    stem = 'Deckel Getraenk',
   ): Promise<StatementMember> {
     // Short: the local part is bounded at 64 characters by RFC 5321, and this
     // suite has been bitten by that before.
@@ -208,9 +220,14 @@ test.describe('Deckelauszug — cadence, cron, delivered statement', () => {
     const labels: string[] = []
     const productIds: string[] = []
     for (const [index, amountCents] of amounts.entries()) {
-      const label = `Deckel Getraenk ${suffix} ${String.fromCharCode(65 + index)}`
+      const label = `${stem} ${suffix} ${String.fromCharCode(65 + index)}`
       const product = await adminRequest.post('/api/admin/products', {
-        data: { names: { de: label, en: label }, price_cents: amountCents, category_id: categoryId },
+        data: {
+          names: { de: label, en: label },
+          price_cents: amountCents,
+          category_id: categoryId,
+          volume_ml: volumes[index] ?? null,
+        },
       })
       expect(product.status(), await product.text()).toBe(201)
       productIds.push((await product.json()).id)
@@ -325,6 +342,52 @@ test.describe('Deckelauszug — cadence, cron, delivered statement', () => {
       'two ticks inside one period deliver one statement'
     ).toHaveLength(1)
     expect(await statementRows(authenticatedRequest, member.id)).toHaveLength(1)
+  })
+
+  /**
+   * A delivered statement names each drink the way every other surface does:
+   * the name, then its size (ADR-0056, M7).
+   *
+   * Read from what a real drain actually delivered to Mailpit (Pattern 010),
+   * not from the outbox row that claims it sent something — the formatting is
+   * done at render time, so an outbox assertion would prove nothing about what
+   * the member reads.
+   */
+  test('a delivered statement prints each product with its size', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const member = await seedMember(
+      authenticatedRequest,
+      authenticatedTerminalRequest,
+      [420, 300],
+      'de',
+      // One with a size, one without: a Sauna-Token has none, and its line must
+      // be the name alone rather than the name plus a stray separator.
+      [500, null],
+      // Short, so the rendered line is about the size rather than about the
+      // plain-text statement's 34-character label column.
+      'Weizen',
+    )
+
+    drainMailQueue({ period, budgetSeconds: BUDGET_SECONDS })
+
+    const message = await mail.waitForMessage(member.email)
+    const { html, text } = parts(message)
+
+    for (const part of [html, text]) {
+      // The German notation, with the no-break space the formatter puts before
+      // the unit. In HTML that survives as either the character or `&nbsp;`.
+      const normalised = part.replace(/&nbsp;|\u00a0/g, ' ')
+
+      expect(normalised, 'the sized product carries its size').toContain(
+        `${member.labels[0]} 0,5 l`,
+      )
+      // …and the one with no size is its name alone. Asserting the *absence* of
+      // a following digit is what catches a stray separator or an "0 l".
+      expect(normalised).toContain(member.labels[1])
+      expect(normalised).not.toContain(`${member.labels[1]} 0`)
+    }
   })
 
   /**

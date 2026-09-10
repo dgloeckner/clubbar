@@ -195,6 +195,13 @@ against ADR-0004 and ADR-0033. Doing it inside a layout change would bury it.
   quietly moved in one language.
 - Products whose size is not a volume — a Portion, a Stück — still carry it in
   the name. They are the minority this decision does not serve.
+- **The Deckelauszug's plain-text label column is 34 characters**, and a label
+  is now the name *plus* the size. A realistic name still fits — `Alkoholfreies
+  Bier 0,5 l` is 24 — and a name long enough to be truncated was already being
+  truncated before the size was appended. The column is not widened: that would
+  rewrap every statement for every club to serve the longest name any of them
+  has. It is pinned by a test instead, so a future change that lengthens labels
+  fails there rather than in somebody's inbox.
 
 ---
 

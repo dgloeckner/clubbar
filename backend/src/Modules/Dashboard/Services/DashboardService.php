@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Dashboard\Services;
 
+use App\Shared\Format\VolumeFormatter;
 use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
 use App\Modules\CreditLimits\Repositories\NearLimitRepository;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
@@ -210,7 +211,7 @@ class DashboardService
         $topProduct = null;
         if ($topProductRows !== []) {
             $topProduct = [
-                'name' => self::displayName($topProductRows[0]['names']) ?? 'Unknown',
+                'name' => self::displayName($topProductRows[0]['names'], $topProductRows[0]['volume_ml'] ?? null) ?? 'Unknown',
                 'sold_count' => (int) $topProductRows[0]['sold_count'],
             ];
         }
@@ -223,7 +224,7 @@ class DashboardService
 
         $topProducts = array_map(static fn(array $row): array => [
             'id' => $row['id'],
-            'name' => self::displayName($row['names']) ?? 'Unknown',
+            'name' => self::displayName($row['names'], $row['volume_ml'] ?? null) ?? 'Unknown',
             'sold_count' => (int) $row['sold_count'],
             'revenue_cents' => (int) $row['revenue_cents'],
         ], $this->dashboardRepository->findTopProductsByRevenue($startDate, $endDate, self::TOP_LIST_LIMIT));
@@ -493,7 +494,7 @@ class DashboardService
      * Pick a product's display name out of its translation blob: German first,
      * then English, then nothing.
      */
-    public static function displayName(?string $namesJson): ?string
+    public static function displayName(?string $namesJson, int|string|null $volumeMl = null): ?string
     {
         if ($namesJson === null || $namesJson === '') {
             return null;
@@ -504,7 +505,19 @@ class DashboardService
             return null;
         }
 
-        return $names['de'] ?? $names['en'] ?? null;
+        $name = $names['de'] ?? $names['en'] ?? null;
+        if ($name === null) {
+            return null;
+        }
+
+        // Name then size (ADR-0056). A dashboard's top-sellers list is where
+        // two sizes of the same drink would otherwise appear as one row
+        // repeated — `Bier`, `Bier` — with no way to tell which is which.
+        return VolumeFormatter::withName(
+            (string) $name,
+            is_numeric($volumeMl) ? (int) $volumeMl : null,
+            'de',
+        );
     }
 
     /**
@@ -520,7 +533,7 @@ class DashboardService
             'terminal_name' => $row['terminal_name'],
             'type' => $row['type'],
             'amount_cents' => (int) $row['amount_cents'],
-            'product_name' => self::displayName($row['product_names']),
+            'product_name' => self::displayName($row['product_names'], $row['product_volume_ml'] ?? null),
             // "2026-09-01 19:33:12" → "2026-09-01T19:33:12Z". Replacing only
             // the space produced a valid ISO string *without* a zone, which the
             // browser reads as local time — the shape parsed, so the two-hour

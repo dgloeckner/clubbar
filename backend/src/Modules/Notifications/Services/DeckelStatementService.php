@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Shared\Format\VolumeFormatter;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\DeckelStatementDataDto;
@@ -184,11 +185,15 @@ class DeckelStatementService
 
     /**
      * @param array<string,mixed> $row
-     * @param array<string, array{product_names: ?string, notes: ?string, settlement_date: ?string}> $originals
+     * @param array<string, array{product_names: ?string, product_volume_ml: ?int, notes: ?string, settlement_date: ?string}> $originals
      */
     private function label(array $row, array $originals, MailLanguage $language, MailStrings $t): string
     {
-        $product = self::productName($row['product_names'] ?? null, $language);
+        $product = self::productLabel(
+            $row['product_names'] ?? null,
+            $row['product_volume_ml'] ?? null,
+            $language,
+        );
         if ($product !== null) {
             return $product;
         }
@@ -198,7 +203,11 @@ class DeckelStatementService
 
             $reversed = $original === null
                 ? null
-                : (self::productName($original['product_names'], $language) ?? self::nullIfBlank($original['notes']));
+                : (self::productLabel(
+                        $original['product_names'],
+                        $original['product_volume_ml'] ?? null,
+                        $language,
+                    ) ?? self::nullIfBlank($original['notes']));
 
             // The Storno's own note is the reason it was booked; without a
             // product to name it is the only description there is.
@@ -220,6 +229,27 @@ class DeckelStatementService
         $note = trim((string) ($row['notes'] ?? ''));
 
         return $note !== '' ? $note : (string) ($row['transaction_type'] ?? '');
+    }
+
+    /**
+     * The product as the member reads it: the name in their language, then the
+     * size in their notation (ADR-0056) — `Weizenbier 0,5 l`.
+     *
+     * A product with no size is its name alone, with no trailing separator: a
+     * Sauna-Token is a Sauna-Token.
+     */
+    private static function productLabel(mixed $names, mixed $volumeMl, MailLanguage $language): ?string
+    {
+        $name = self::productName($names, $language);
+        if ($name === null) {
+            return null;
+        }
+
+        return VolumeFormatter::withName(
+            $name,
+            is_numeric($volumeMl) ? (int) $volumeMl : null,
+            $language->value,
+        );
     }
 
     /** The product's name in the member's language, falling back the way ADR-0002 does. */

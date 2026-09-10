@@ -8037,6 +8037,18 @@ components:
         product_name:
           type: string
           nullable: true
+        product_volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: >-
+            The product's size in whole millilitres
+            ([ADR-0056](../../adr/0056-product-volume.md)), or `null` when the
+            product has no size — and always `null` on a row that carries no
+            product at all. Language-neutral: the panel formats it for the
+            admin's own language and prints it after the name. Read live from
+            the product, exactly as `product_name` is (decision 3).
         notes:
           type: string
           nullable: true
@@ -8482,6 +8494,18 @@ components:
         product_name:
           type: string
           nullable: true
+        product_volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: >-
+            The product's size in whole millilitres
+            ([ADR-0056](../../adr/0056-product-volume.md)), or `null` when the
+            product has no size — and always `null` on a row that carries no
+            product at all. Language-neutral: the panel formats it for the
+            admin's own language and prints it after the name. Read live from
+            the product, exactly as `product_name` is (decision 3).
         product_names:
           type: string
           nullable: true

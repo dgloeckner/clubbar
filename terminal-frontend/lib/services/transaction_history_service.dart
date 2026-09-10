@@ -6,6 +6,7 @@ import '../database/database.dart';
 import 'network_service.dart';
 import '../generated/terminal.swagger.dart';
 import '../generated/terminal.enums.swagger.dart';
+import '../utils/formatters.dart';
 
 /// Service for fetching transaction history (local + remote)
 class TransactionHistoryService {
@@ -69,6 +70,7 @@ class TransactionHistoryService {
       final remoteTransactions = await _fetchRemoteTransactions(
         memberId: memberId,
         limit: remoteLimit,
+        preferredLanguage: preferredLanguage,
       );
 
       _logger.d('Fetched ${remoteTransactions.length} remote transactions');
@@ -142,6 +144,7 @@ class TransactionHistoryService {
   Future<List<TransactionListItem>> _fetchRemoteTransactions({
     required String memberId,
     required int limit,
+    required String preferredLanguage,
   }) async {
     try {
       final response = await _networkService
@@ -162,7 +165,11 @@ class TransactionHistoryService {
                 (item.type == TransactionHistoryResponse$Transactions$ItemType.payout
                     ? 'Auszahlung'
                     : 'Storno'))
-            : item.productName;
+            // Name then size (ADR-0056): a history line has to name the same
+            // thing the tile the member tapped did. A storno or a payout has no
+            // product, so it keeps its note.
+            : formatProductLabel(
+                item.productName, item.productVolumeMl, preferredLanguage);
 
         // A transaction that landed in a (non-cancelled) settlement is history,
         // not a running tab — the badge has to say so.

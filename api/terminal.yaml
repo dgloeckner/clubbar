@@ -713,6 +713,7 @@ paths:
                         type: purchase
                         product_id: 987f6543-e21a-11d3-b456-426614174999
                         product_name: Pils
+                        product_volume_ml: 500
                         created_at: '2025-01-25T14:32:00Z'
                       - id: 550e8400-e29b-41d4-a716-446655440002
                         amount_cents: -350
@@ -1657,6 +1658,24 @@ components:
               product_name:
                 type: string
                 description: Display name of product or storno reason (translated to member's language)
+              product_volume_ml:
+                type: integer
+                nullable: true
+                minimum: 1
+                maximum: 10000
+                description: |
+                  The product's size in whole millilitres
+                  ([ADR-0056](../../adr/0056-product-volume.md)), or `null` when
+                  the product has no size — and always `null` for a storno or a
+                  payout, which carry no product at all.
+
+                  Language-neutral, like the amount: the terminal formats it for
+                  the member's own language and prints it after the name, so a
+                  history line reads `Weizenbier 0,5 l`.
+
+                  Read from the product as it stands **now**, exactly as
+                  `product_name` is — a transaction stores no product snapshot
+                  (ADR-0056, decision 3).
               product_icon:
                 type: string
                 nullable: true

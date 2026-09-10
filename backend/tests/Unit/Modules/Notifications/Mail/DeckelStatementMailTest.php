@@ -301,4 +301,61 @@ class DeckelStatementMailTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('/\{[a-z_]+\}/', $part);
         }
     }
+
+    /**
+     * The plain-text statement lays its labels out in a fixed 34-character
+     * column and truncates past it with an ellipsis. Since #878 a label is the
+     * product's name *plus its size* (ADR-0056), which makes that column a real
+     * constraint rather than a generous one.
+     *
+     * The check is that a realistic name plus a size still fits whole. It is
+     * not that the column is wide enough for anything — a name long enough to
+     * be truncated was already truncated before the size was appended, and
+     * widening the column would rewrap every statement for every club.
+     */
+    public function test_a_product_name_with_its_size_fits_the_text_column_whole(): void
+    {
+        $labels = [
+            "Weizenbier 0,5\u{00A0}l",
+            "Alkoholfreies Bier 0,5\u{00A0}l",
+            "Apfelschorle 0,33\u{00A0}l",
+            "Kräuterlikör 20\u{00A0}ml",
+            'Sauna-Token',
+        ];
+
+        $message = $this->render(MailLanguage::German, [
+            'lines' => array_map(
+                static fn (string $label): StatementLineDto => new StatementLineDto($label, '2026-07-02 20:14:00', 250),
+                $labels,
+            ),
+        ]);
+
+        foreach ($labels as $label) {
+            $this->assertStringContainsString(
+                $label,
+                $message->text,
+                "'{$label}' must survive the 34-character label column intact",
+            );
+        }
+
+        $this->assertStringNotContainsString('…', $message->text, 'nothing here should need truncating');
+    }
+
+    /**
+     * The other half of the same rule, stated so it cannot be mistaken for a
+     * bug later: a label that *is* too long is still truncated, exactly as it
+     * was before sizes existed.
+     */
+    public function test_an_over_long_label_is_still_truncated_with_an_ellipsis(): void
+    {
+        $message = $this->render(MailLanguage::German, [
+            'lines' => [new StatementLineDto(
+                "Donaudampfschifffahrtsgesellschaftskapitänsmütze 0,5\u{00A0}l",
+                '2026-07-02 20:14:00',
+                250,
+            )],
+        ]);
+
+        $this->assertStringContainsString('…', $message->text);
+    }
 }

@@ -243,4 +243,73 @@ test.describe('Product volume', () => {
     expect(synced, 'the edited product must be in the delta').toBeTruthy()
     expect(synced.volume_ml).toBe(330)
   })
+
+  /**
+   * Every surface that prints a product name prints the volume after it
+   * (ADR-0056). On the API the volume travels as a **number** rather than a
+   * finished string, because the API is language-agnostic (ADR-0002) and the
+   * client is what knows its reader.
+   */
+  test('the transaction list carries product_volume_ml beside the name', async ({
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    const categoryId = await createCategory(authenticatedRequest)
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/products`, {
+      data: productBody(categoryId, { volume_ml: 500 }),
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    const product = await created.json()
+
+    const member = await testTransactions.createMember('Volume', 'Reader')
+    const purchaseId = await testTransactions.createSyncTransaction(
+      member.id,
+      220,
+      'Volume test',
+      product.id,
+    )
+
+    const list = await authenticatedRequest.get(`${API_BASE}/admin/transactions`, {
+      params: { member_id: member.id, per_page: 50 },
+    })
+    expect(list.status(), await list.text()).toBe(200)
+
+    const row = (await list.json()).data.find((t: { id: string }) => t.id === purchaseId)
+    expect(row, 'the purchase must be in the member\'s list').toBeTruthy()
+    expect(row.product_volume_ml).toBe(500)
+    // The names stay names. This endpoint hands over `product_names` as
+    // translated JSON and the size as a separate number, so the panel — which
+    // is the thing that knows its reader — is what joins them (ADR-0002).
+    expect(JSON.parse(row.product_names)).not.toHaveProperty('volume_ml')
+    expect(row.product_names).not.toContain(' l')
+  })
+
+  test('a booking of a product with no size reports a null volume', async ({
+    authenticatedRequest,
+    testTransactions,
+  }) => {
+    const categoryId = await createCategory(authenticatedRequest)
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/products`, {
+      data: productBody(categoryId),
+    })
+    const product = await created.json()
+
+    const member = await testTransactions.createMember('NoSize', 'Reader')
+    const purchaseId = await testTransactions.createSyncTransaction(
+      member.id,
+      220,
+      'No size test',
+      product.id,
+    )
+
+    const list = await authenticatedRequest.get(`${API_BASE}/admin/transactions`, {
+      params: { member_id: member.id, per_page: 50 },
+    })
+    const row = (await list.json()).data.find((t: { id: string }) => t.id === purchaseId)
+
+    // Null, not absent and not 0: the client has to be able to tell "no size"
+    // from "an older backend".
+    expect(row).toHaveProperty('product_volume_ml')
+    expect(row.product_volume_ml).toBeNull()
+  })
 })

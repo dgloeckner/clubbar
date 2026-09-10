@@ -67,7 +67,8 @@ class DashboardRepository
         $stmt = $this->db->prepare(
             "SELECT t.id, t.member_id, CONCAT(m.first_name, ' ', m.last_name) as member_name,
                     t.transaction_type as type, t.amount_cents,
-                    p.names as product_names, t.occurred_at as timestamp,
+                    p.names as product_names, p.volume_ml as product_volume_ml,
+                    t.occurred_at as timestamp,
                     te.name as terminal_name
              FROM transactions t
              LEFT JOIN members m ON t.member_id = m.id
@@ -173,7 +174,7 @@ class DashboardRepository
     public function findTopProductsByRevenue(string $startDate, string $endDate, int $limit): array
     {
         $stmt = $this->db->prepare(
-            "SELECT p.id, p.names, COUNT(*) as sold_count, SUM(t.amount_cents) as revenue_cents
+            "SELECT p.id, p.names, p.volume_ml, COUNT(*) as sold_count, SUM(t.amount_cents) as revenue_cents
              FROM transactions t
              JOIN products p ON t.product_id = p.id
              WHERE t.occurred_at >= :start AND t.occurred_at < :end
@@ -199,7 +200,7 @@ class DashboardRepository
     public function findTopProductsBySoldCount(string $startDate, string $endDate, int $limit): array
     {
         $stmt = $this->db->prepare(
-            "SELECT p.id, p.names, COUNT(*) as sold_count
+            "SELECT p.id, p.names, p.volume_ml, COUNT(*) as sold_count
              FROM transactions t
              JOIN products p ON t.product_id = p.id
              WHERE t.occurred_at >= :start AND t.occurred_at < :end

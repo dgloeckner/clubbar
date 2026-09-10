@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Shared\Format\VolumeFormatter;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\CancellationNoticeDataDto;
@@ -161,7 +162,12 @@ class SettlementMailBuilder implements MailContentBuilder
         return $lines;
     }
 
-    /** @param array<string,mixed> $item */
+    /**
+     * One booked line, named the way every other surface names it: the product,
+     * then its size (ADR-0056).
+     *
+     * @param array<string,mixed> $item
+     */
     private static function itemLabel(array $item): string
     {
         if (!empty($item['product_names'])) {
@@ -169,7 +175,11 @@ class SettlementMailBuilder implements MailContentBuilder
             if (is_array($names) && $names !== []) {
                 $name = $names['de'] ?? $names['en'] ?? reset($names);
                 if (is_string($name) && trim($name) !== '') {
-                    return $name;
+                    return VolumeFormatter::withName(
+                        $name,
+                        isset($item['product_volume_ml']) ? (int) $item['product_volume_ml'] : null,
+                        'de',
+                    );
                 }
             }
         }

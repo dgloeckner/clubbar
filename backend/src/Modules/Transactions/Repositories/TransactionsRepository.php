@@ -234,6 +234,10 @@ class TransactionsRepository
             "SELECT t.*,
                     t.occurred_at AS created_at,
                     p.names as product_names,
+                    -- Read live from the same join as the name (ADR-0056
+                    -- decision 3): a transaction stores no product snapshot,
+                    -- so every surface prints the product as it stands now.
+                    p.volume_ml as product_volume_ml,
                     p.icon_name as product_icon,
                     s.id as settlement_id,
                     s.settlement_date
@@ -304,7 +308,7 @@ class TransactionsRepository
             // its original; without the reverse the journal could only show the
             // original as reversed when its storno happened to land on the same
             // page, and the row action could not be reliably disabled.
-            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.active_transaction_id = t.id LIMIT 1) as settlement_date, (SELECT st.id FROM transactions st WHERE st.related_transaction_id = t.id AND st.transaction_type = 'storno' LIMIT 1) as stornoed_by_transaction_id FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
+            "SELECT t.*, t.occurred_at AS created_at, CONCAT(m.first_name, ' ', m.last_name) as member_name, m.first_name, m.last_name, m.email, p.names as product_names, p.volume_ml as product_volume_ml, (SELECT s.settlement_date FROM settlement_items si JOIN settlements s ON si.settlement_id = s.id WHERE si.active_transaction_id = t.id LIMIT 1) as settlement_date, (SELECT st.id FROM transactions st WHERE st.related_transaction_id = t.id AND st.transaction_type = 'storno' LIMIT 1) as stornoed_by_transaction_id FROM transactions t LEFT JOIN members m ON t.member_id = m.id LEFT JOIN products p ON t.product_id = p.id {$whereClause} ORDER BY {$sortCol} {$dir} LIMIT ? OFFSET ?"
         );
         $stmt->execute($dataParams);
 

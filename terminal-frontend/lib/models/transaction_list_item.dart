@@ -1,3 +1,4 @@
+import 'package:clubbar_terminal/utils/formatters.dart';
 import 'dart:convert';
 import '../database/database.dart';
 
@@ -56,6 +57,9 @@ class TransactionListItem {
         // Fallback to raw string if JSON parsing fails
         details = productNames;
       }
+      // Name then size (ADR-0056), so an unsynced local row reads exactly like
+      // the same purchase does once it has come back from the server.
+      details = formatProductLabel(details, product.volumeMl, preferredLanguage);
       iconName = product.iconName;
     } else {
       // Product not found (shouldn't happen with proper foreign keys)

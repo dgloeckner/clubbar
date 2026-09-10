@@ -83,6 +83,48 @@ class JugendschutzViolationMailBuilderTest extends TestCase
         ]);
     }
 
+    /**
+     * The notice names the drink the way every other surface does: name, then
+     * size (ADR-0056).
+     *
+     * It matters more here than on a screen. A Getränkewart reading "ein
+     * Kräuterlikör wurde an ein zu junges Mitglied verkauft" has to find the
+     * product row that caused it, and `Bier` is three products on some lists.
+     */
+    public function test_the_message_names_the_drinks_size_after_it(): void
+    {
+        $this->transactionsRepository->method('findById')->willReturn([
+            'id' => 'tx-1',
+            'member_id' => 'member-1',
+            'product_id' => 'product-1',
+            'created_at' => '2026-08-20 21:14:00',
+            'created_by_terminal_id' => 'terminal-1',
+        ]);
+        $this->productsRepository->method('findById')->willReturn([
+            'id' => 'product-1',
+            'names' => '{"de":"Kräuterlikör","en":"Herbal liqueur"}',
+            'min_age' => 18,
+            'volume_ml' => 20,
+        ]);
+
+        $mail = $this->builder->build($this->outboxRow(), $this->mailConfig);
+
+        // Under 100 ml, so the shared rule renders millilitres: `0,02 l` says
+        // less than `20 ml` does.
+        $this->assertStringContainsString("Kräuterlikör 20\u{00A0}ml", $mail->text);
+    }
+
+    public function test_a_drink_with_no_size_is_named_alone(): void
+    {
+        $this->aSale();
+
+        $mail = $this->builder->build($this->outboxRow(), $this->mailConfig);
+
+        // No trailing separator where a size would have been.
+        $this->assertStringContainsString('Kräuterlikör', $mail->text);
+        $this->assertStringNotContainsString("Kräuterlikör\u{00A0}", $mail->text);
+    }
+
     public function test_it_claims_the_kind(): void
     {
         $this->assertTrue($this->builder->supports(MailKind::JUGENDSCHUTZ_VIOLATION));
