@@ -199,7 +199,7 @@ void main() {
       expect(g.wordsBroken, isTrue);
     });
 
-    test('the floor is the configured xxxl, whatever the category', () {
+    test('the floor is the configured minimum, whatever the category', () {
       final names = List.generate(40, (i) => 'Bier $i');
       for (final floor in [24.0, 26.0, 31.0]) {
         final g = solve(names, floor: floor, ceiling: floor * 1.5);
@@ -207,7 +207,7 @@ void main() {
       }
     });
 
-    test('the ceiling follows the scale a club set', () {
+    test('the ceiling is the configured maximum', () {
       final g = solve(['Cola', 'Bier'], floor: 31, ceiling: 46.5);
 
       expect(g.nameFontSize, 46.5);

@@ -135,9 +135,9 @@ class ProductGridGeometry {
 ///    fits, and the only way to know that is to measure it.
 /// 2. **One size per category.** The size is the largest at which *every* name
 ///    of the category fits, so tiles never argue with each other.
-/// 3. **Large, adaptive, bounded.** Between [floor] — the configured `xxxl`,
-///    which keeps its meaning as the size the club wants at minimum — and
-///    [ceiling]. The solver tries every column count the width allows and
+/// 3. **Large, adaptive, bounded.** Between [floor] — `productNameMin` in
+///    config, the size the club wants at minimum — and [ceiling]
+///    (`productNameMax`). The solver tries every column count the width allows and
 ///    keeps the one that yields the largest name: a sparse category gets
 ///    fewer, wider tiles that fill the screen; a full one stays at the floor
 ///    and scrolls, as issue #29 settled. It goes *below* the floor only to keep
