@@ -40,8 +40,17 @@ header) and product names as *too small* (`xl`, under a price at `xxl`).
 | Cart line — product name | `lg` 600 | `xxl` 700 | Same reading order as the tile; the cart list scrolls, so height is not at a premium there |
 
 Rendered at the kiosk's own 1280x800: `tool/screenshots/out/01-product-grid.png`
-through `04-long-name-with-banner.png`, regenerated with
+through `04-long-name-with-banner.png` at the shipped scale, and `11-` through
+`14-` at the scale a production terminal runs (`xxxl` 31), regenerated with
 `flutter test tool/screenshots/product_screen_screenshot_test.dart --update-goldens`.
+
+Both `xxxl` strings carry a pinned line height: the product card sets 1.2 on
+its name and price (`ProductCard.textLineHeight`), and the tile height is
+computed from exactly that — Roboto's own ~1.34 was 27 px per two rows the
+grid could not spare at the scale a production terminal runs (`xxxl` 31),
+where the second row sat cut off behind the summary bar whenever the
+credit-limit banner was up. That scale is now one of the four the grid
+sizing tests pin, and one of the two the screenshot harness renders.
 
 The member bar keeps its height: the name and balance lines carry pinned
 line-height factors (1.15 and 1.2) so the column stays at the 52 px button

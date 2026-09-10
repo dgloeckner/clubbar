@@ -29,6 +29,7 @@ import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
 import 'package:clubbar_terminal/screens/shopping_cart_screen.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 import '../../integration_test/test_helpers.dart';
 
@@ -241,38 +242,76 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   }
 
-  testWidgets('product selection', (tester) async {
-    await boot(tester);
+  /// One pass through both scenarios at a given type scale.
+  ///
+  /// [prefix] keys the output files; [scale] is a `fontSizes` map as a club
+  /// would write it in config.json, or null for the shipped defaults.
+  void scenarios(String prefix, Map<String, double>? scale) {
+    Future<void> useScale(WidgetTester tester) async {
+      if (scale == null) return;
+      final shipped = {
+        'xs': AppFontSizes.xs,
+        'sm': AppFontSizes.sm,
+        'base': AppFontSizes.base,
+        'lg': AppFontSizes.lg,
+        'xl': AppFontSizes.xl,
+        'xxl': AppFontSizes.xxl,
+        'xxxl': AppFontSizes.xxxl,
+      };
+      addTearDown(() => AppFontSizes.applyConfig(shipped));
+      AppFontSizes.applyConfig(scale);
+    }
 
-    // 1. Fresh session, nothing in the cart yet.
-    final rfid = await scan(tester, 'card-jane');
-    await shoot(tester, '01-product-grid');
+    testWidgets('$prefix product selection', (tester) async {
+      await useScale(tester);
+      await boot(tester);
 
-    // 2. Two tiles tapped: quantity badges and the summary bar.
-    await tap(tester, 'Pils 0,5l');
-    await tap(tester, 'Pils 0,5l');
-    await tap(tester, 'Alkoholfreies Weizen');
-    await shoot(tester, '02-product-grid-with-cart');
+      // 1. Fresh session, nothing in the cart yet.
+      final rfid = await scan(tester, 'card-jane');
+      await shoot(tester, '${prefix}1-product-grid');
 
-    // 3. The cart screen, with the member bar's back button.
-    await tester.tap(find.byKey(const Key('view-cart-button')));
-    await _pumpFrames(tester, count: 20);
-    expect(find.byType(ShoppingCartScreen), findsOneWidget);
-    await shoot(tester, '03-cart');
+      // 2. Two tiles tapped: quantity badges and the summary bar.
+      await tap(tester, 'Pils 0,5l');
+      await tap(tester, 'Pils 0,5l');
+      await tap(tester, 'Alkoholfreies Weizen');
+      await shoot(tester, '${prefix}2-product-grid-with-cart');
 
-    await endSession(tester, rfid);
-  });
+      // 3. The cart screen, with the member bar's back button.
+      await tester.tap(find.byKey(const Key('view-cart-button')));
+      await _pumpFrames(tester, count: 20);
+      expect(find.byType(ShoppingCartScreen), findsOneWidget);
+      await shoot(tester, '${prefix}3-cart');
 
-  testWidgets('long name and credit-limit banner', (tester) async {
-    await boot(tester);
+      await endSession(tester, rfid);
+    });
 
-    // Worst case for the band above the grid: the longest name a member is
-    // likely to have, a tab inside the warning band, and an item in the
-    // cart — the layout #369 measured.
-    final rfid = await scan(tester, 'card-max');
-    await tap(tester, 'Pils 0,5l');
-    await shoot(tester, '04-long-name-with-banner');
+    testWidgets('$prefix long name and credit-limit banner', (tester) async {
+      await useScale(tester);
+      await boot(tester);
 
-    await endSession(tester, rfid);
+      // Worst case for the band above the grid: the longest name a member is
+      // likely to have, a tab inside the warning band, and an item in the
+      // cart — the layout #369 measured.
+      final rfid = await scan(tester, 'card-max');
+      await tap(tester, 'Pils 0,5l');
+      await shoot(tester, '${prefix}4-long-name-with-banner');
+
+      await endSession(tester, rfid);
+    });
+  }
+
+  // The shipped defaults (INSTALL.md § Configuration reference).
+  scenarios('0', null);
+
+  // The scale a production terminal actually runs — larger than the
+  // defaults at every step, and the one the floor's feedback was about.
+  scenarios('1', const {
+    'xs': 20.0,
+    'sm': 23.0,
+    'base': 21.0,
+    'lg': 23.0,
+    'xl': 25.0,
+    'xxl': 27.0,
+    'xxxl': 31.0,
   });
 }

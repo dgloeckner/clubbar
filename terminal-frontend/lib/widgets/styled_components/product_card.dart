@@ -38,6 +38,19 @@ class ProductCard extends StatefulWidget {
   /// `ProductSelectionScreen._tileChrome` by the same amount.
   static const double iconSize = 52.0;
 
+  /// Line height of the name and the price, as a multiple of the font size.
+  ///
+  /// Pinned rather than left to the font, for the same reason the member bar
+  /// pins its own: Roboto's natural line box is ~1.34 em, and at the scale a
+  /// production terminal runs (`xxxl` 31) that is 12 px per tile the grid
+  /// could not spare — the second row sat cut off behind the summary bar
+  /// whenever the credit-limit banner was up. 1.2 is ordinary leading for a
+  /// bold two-line headline, and it makes the tile's text block *exactly*
+  /// `textLineHeight * (2 * name + price)`, which is what
+  /// `ProductSelectionScreen` sizes the tile from — no longer a measured
+  /// figure that has to be re-measured when a font changes.
+  static const double textLineHeight = 1.2;
+
   const ProductCard({
     super.key,
     required this.product,
@@ -152,6 +165,7 @@ class _ProductCardState extends State<ProductCard>
                           color: AppColors.textPrimary,
                           fontSize: ProductCard.nameFontSize,
                           fontWeight: FontWeight.w700,
+                          height: ProductCard.textLineHeight,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -164,6 +178,7 @@ class _ProductCardState extends State<ProductCard>
                           color: AppColors.semanticInfo,
                           fontSize: AppFontSizes.xxl,
                           fontWeight: FontWeight.bold,
+                          height: ProductCard.textLineHeight,
                         ),
                       ),
                     ],

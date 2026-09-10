@@ -73,26 +73,27 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   // card 225 px and every tile overflowed by 7. A club dialling the scale up
   // further would have hit the same wall.
   //
-  // [_tileTextLineHeight] is the font's line box as a multiple of its size,
-  // measured from the rendered card; [_tileChrome] is everything that does not
-  // scale with type (icon, gaps, padding, card border). See the grid sizing
-  // tests in `test/screens/product_selection_screen_test.dart`, which pin the
-  // relationship at three different scales.
+  // [_tileChrome] is everything that does not scale with type: the Card's
+  // default margin (2 x 4), the card's padding (2 x md), the icon and the two
+  // gaps under icon and name (sm each) — 8 + 24 + 52 + 8 + 8 = 100, exactly;
+  // [_tileSlack] is the only headroom over it. See the grid sizing tests in
+  // `test/screens/product_selection_screen_test.dart`, which pin the
+  // relationship at four different scales.
   //
-  // 143 -> 119 with #369, which took 24 px off ProductCard (icon 72 -> 60,
-  // padding lg -> md, the gap under the icon lg -> md). 119 -> 107 when the
-  // name went up to `xxxl` and the icon paid for it (60 -> 52, the gap under
-  // it md -> sm). Move this by exactly what the card moved and no more: the
-  // constant carries ~7 px of *measured* slack over the card's nominal
-  // height, and re-deriving it from first principles would spend the slack
-  // that #41 put there.
-  static const double _tileChrome = 107.0;
-  static const double _tileTextLineHeight = 1.34;
+  // The text block is exact rather than measured: ProductCard pins the line
+  // height of name and price to [ProductCard.textLineHeight], so two lines
+  // of name plus one of price occupy precisely that multiple of their sizes.
+  // Before that this carried a font-measured 1.34 and a chrome figure with
+  // ~7 px of slack folded in (143 -> 119 with #369, 119 -> 107 when the
+  // icon paid for the larger name) — which was fine at the shipped scale and
+  // 27 px too tall at the scale a production terminal runs, where the second
+  // row sat cut off behind the summary bar whenever the banner was up.
+  static const double _tileChrome = 100.0;
   static const double _tileSlack = 4.0;
 
   static double get _tileHeight =>
       _tileChrome +
-      _tileTextLineHeight *
+      ProductCard.textLineHeight *
           (2 * ProductCard.nameFontSize + AppFontSizes.xxl) +
       _tileSlack;
   static const double _gridSpacing = 12.0;
