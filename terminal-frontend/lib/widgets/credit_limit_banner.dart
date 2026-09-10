@@ -9,10 +9,12 @@ import 'package:clubbar_terminal/utils/formatters.dart';
 /// (UC-T11 E3, UC-T12).
 ///
 /// Not dismissible on purpose: unlike [ErrorBanner] this is not an event that
-/// happened once, it is a condition that holds until the cart shrinks. It
-/// shows the three numbers the member needs to act on — what they owe, what
-/// the cart adds, and where the ceiling is — because "limit reached" alone
-/// gives them nothing to remove.
+/// happened once, it is a condition that holds until the cart shrinks. Once it
+/// blocks, it shows the three numbers the member needs to act on — what they
+/// owe, what the cart adds, and where the ceiling is — because "limit reached"
+/// alone gives them nothing to remove. While it is only *approaching*, it
+/// names the ceiling alone: the other two are already on the screen it sits
+/// on, and the ceiling is the one figure that is not.
 ///
 /// Renders nothing when [check] does not warn, so callers can place it
 /// unconditionally.
@@ -51,13 +53,24 @@ class CreditLimitBanner extends StatelessWidget {
         ? l10n.creditLimitReached
         : l10n.creditLimitApproaching;
     // One joined string, not three widgets: the cart screen's tests read it
-    // back with `textContaining`, and a member scanning it wants the three
-    // figures in one eyeline anyway.
-    final amounts = [
-      l10n.creditLimitCurrent(formatPrice(check.currentBalanceCents, locale)),
-      l10n.creditLimitCart(formatPrice(check.cartTotalCents, locale)),
-      l10n.creditLimitMaximum(formatPrice(check.limitCents, locale)),
-    ].join('   ·   ');
+    // back with `textContaining`, and a member scanning the blocked banner
+    // wants the figures in one eyeline anyway.
+    //
+    // The *approaching* banner names the ceiling and nothing else. The tab and
+    // the cart total are already on screen either side of it — the member bar
+    // above shows the open amount, the cart summary bar below shows the cart —
+    // so repeating them here says a third time what the screen has said twice,
+    // and buries the one number the member does not otherwise know. The
+    // blocked banner keeps all three: it is the one asking for items to come
+    // back out, and that needs the arithmetic that puts the tab over the line.
+    final amounts = check.blocksCheckout
+        ? [
+            l10n.creditLimitCurrent(
+                formatPrice(check.currentBalanceCents, locale)),
+            l10n.creditLimitCart(formatPrice(check.cartTotalCents, locale)),
+            l10n.creditLimitMaximum(formatPrice(check.limitCents, locale)),
+          ].join('   ·   ')
+        : l10n.creditLimitMaximum(formatPrice(check.limitCents, locale));
 
     return Container(
       key: const Key('credit-limit-banner'),

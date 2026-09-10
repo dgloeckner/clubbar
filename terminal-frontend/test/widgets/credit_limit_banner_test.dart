@@ -59,13 +59,26 @@ void main() {
       expect(banner(), findsNothing);
     });
 
-    testWidgets('warns on approach and names all three amounts',
-        (tester) async {
+    // The approaching banner names the ceiling *only*. The tab is in the
+    // member bar above it and the cart total in the summary bar below it, so
+    // saying either here is the screen's third telling — and it pushes the one
+    // figure the member cannot read anywhere else to the end of the line.
+    testWidgets('warns on approach and names the limit alone', (tester) async {
       await pumpBanner(tester, balanceCents: 8210, cartCents: 350);
 
       expect(banner(), findsOneWidget);
       expect(find.text('Du näherst dich deinem Limit.'), findsOneWidget);
-      expect(find.textContaining('Aktueller Betrag: 82,10'), findsOneWidget);
+      expect(find.textContaining('Maximum: 100,00'), findsOneWidget);
+      expect(find.textContaining('Aktueller Betrag'), findsNothing);
+      expect(find.textContaining('Warenkorb'), findsNothing);
+    });
+
+    // ...whereas the blocked one keeps the arithmetic, because it is asking
+    // the member to take items back out and has to say by how much.
+    testWidgets('names all three amounts once it blocks', (tester) async {
+      await pumpBanner(tester, balanceCents: 9900, cartCents: 350);
+
+      expect(find.textContaining('Aktueller Betrag: 99,00'), findsOneWidget);
       expect(find.textContaining('Warenkorb: 3,50'), findsOneWidget);
       expect(find.textContaining('Maximum: 100,00'), findsOneWidget);
     });
@@ -197,7 +210,10 @@ void main() {
         locale: 'en',
       );
 
-      expect(find.textContaining('€82.10'), findsOneWidget);
+      // `locale` drives the *money* formatting only — the label around it
+      // comes from the app locale, which this harness keeps German. `€100.00`
+      // against `100,00 €` is what is being pinned.
+      expect(find.textContaining('€100.00'), findsOneWidget);
     });
   });
 
