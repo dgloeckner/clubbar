@@ -59,6 +59,8 @@ export class ProductsPage extends BasePage {
   private readonly priceValue = () => this.page.getByTestId('products-form-price-input-value')
   private readonly requiresDispenserCheckbox = () => this.page.getByTestId('products-form-requires-dispenser-checkbox')
   private readonly minAgeInput = () => this.page.getByTestId('products-form-min-age-input')
+  private readonly volumeInput = () => this.page.getByTestId('products-form-volume-input')
+  private readonly volumeValue = () => this.page.getByTestId('products-form-volume-input-value')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
   private readonly iconSelectDropdown = () => this.page.getByTestId('products-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
@@ -367,6 +369,17 @@ export class ProductsPage extends BasePage {
     await this.waitForLoadingToComplete()
   }
 
+  /**
+   * Press Save and stop there.
+   *
+   * `submitForm()` waits for the list to reload, which never happens when the
+   * page refuses the form before calling the API — the wait times out and the
+   * test reports a timeout instead of the refusal it was checking for.
+   */
+  async submitFormExpectingRefusal() {
+    await this.formSubmitBtn().click()
+  }
+
   async cancelForm() {
     await this.formCancelBtn().click()
   }
@@ -501,6 +514,88 @@ export class ProductsPage extends BasePage {
    */
   async setMinAge(age: number | null) {
     await this.minAgeInput().fill(age === null ? '' : String(age))
+  }
+
+  /**
+   * Set the product's size, typed the way an admin types it — in **litres**,
+   * with either decimal separator (ADR-0056).
+   *
+   * Pass `null` to clear it, which is what "this product has no size" looks
+   * like from the form: an empty input, sent as an explicit null so the column
+   * is actually cleared rather than left alone.
+   */
+  async setVolume(litres: string | null) {
+    await this.volumeInput().fill(litres ?? '')
+    // Leave the field, so the mask settles the value the way a real admin's
+    // next click would. The field completes `0,500` to `0,5` on blur.
+    await this.volumeInput().blur()
+  }
+
+  /**
+   * The volume the form will send, in whole millilitres ('' when there is none).
+   *
+   * Read from the field's hidden value rather than from the visible input, for
+   * the same reason `getFormPriceValue()` is: `VolumeField` renders litres the
+   * way the admin's language writes them ("0,5" in German), so an assertion on
+   * the visible text would be an assertion about the locale.
+   */
+  async getFormVolumeValue(): Promise<string> {
+    return (await this.volumeValue().inputValue()) || ''
+  }
+
+  /**
+   * The size as the admin sees it in the field — the locale's notation ("0,5").
+   *
+   * The counterpart to `getFormVolumeValue()`, and the only assertion that is
+   * *about* the localisation rather than about the size.
+   */
+  async getFormVolumeText(): Promise<string> {
+    return (await this.volumeInput().inputValue()) || ''
+  }
+
+  /**
+   * The size the list prints beside a product's name, or `null` when the row
+   * shows none.
+   *
+   * The text is language-dependent by design — `0,5 l` in German, `0.5 l` in
+   * English — so this is the assertion that the *reader's* notation reached the
+   * screen, which is the whole point of storing millilitres (ADR-0056).
+   */
+  async getVolumeInList(productId: string): Promise<string | null> {
+    const cell = this.page.getByTestId(`products-table-cell-volume-${productId}`)
+    if ((await cell.count()) === 0) return null
+    return (await cell.first().innerText()).trim()
+  }
+
+  /** The preview tile's badge, or `null` when the previewed product has no size. */
+  async getPreviewVolume(): Promise<string | null> {
+    const badge = this.page.getByTestId('products-preview-volume')
+    if ((await badge.count()) === 0) return null
+    return (await badge.first().innerText()).trim()
+  }
+
+  /**
+   * Is the preview's volume row there at all?
+   *
+   * It is reserved whether or not the product has a size, because on the
+   * terminal that row is what holds every price on a grid row at the same
+   * height. A preview that collapsed it would show an admin a tile the terminal
+   * will never draw.
+   */
+  async isPreviewVolumeRowPresent(): Promise<boolean> {
+    return (await this.page.getByTestId('products-preview-volume-row').count()) > 0
+  }
+
+  /**
+   * The refusal the form itself put on screen, or `null` when it has none.
+   *
+   * The page validates before it calls the API, so an out-of-range size gets a
+   * sentence in the admin's language rather than the backend's English 422.
+   */
+  async getFormError(): Promise<string | null> {
+    const error = this.page.getByTestId('products-form-error')
+    if ((await error.count()) === 0) return null
+    return (await error.first().innerText()).trim()
   }
 
   /** What the form currently shows as the minimum age; '' means unrestricted. */

@@ -83,13 +83,16 @@ export function getMoneyFormat(locale: string): MoneyFormatSpec {
  *   exactly three digits.** `1.000` is a thousand euros to a German, not one
  *   euro; credit limits are typed as round thousands, so this case is the
  *   difference between a €1,000 ceiling and a €1 one.
- * - **At most two decimal digits**, and a trailing separator survives so that
- *   `3,` is a state you can keep typing from.
+ * - **At most `maxDecimals` decimal digits** (two, for money), and a trailing
+ *   separator survives so that `3,` is a state you can keep typing from. The
+ *   parameter exists because `VolumeField` types litres, where the bottom of
+ *   the validated range — 1 ml — is `0,001`; the masking rules are otherwise
+ *   identical, and a second copy of them is how the two drift apart.
  * - **A leading `-` survives.** The mask is not the validator: a negative
  *   amount has to reach the form's own refusal, beside the field, rather than
  *   being silently turned into a positive one.
  */
-export function maskMoneyInput(raw: string, spec: MoneyFormatSpec): string {
+export function maskMoneyInput(raw: string, spec: MoneyFormatSpec, maxDecimals = 2): string {
   const trimmed = raw.trim()
   const sign = trimmed.startsWith('-') ? '-' : ''
   const body = trimmed.replace(/[^\d.,]/g, '')
@@ -110,7 +113,7 @@ export function maskMoneyInput(raw: string, spec: MoneyFormatSpec): string {
 
   // A separator typed before any digit means "nought point something", which
   // is how a price under a euro is usually typed in a hurry.
-  return sign + (head === '' ? '0' : head) + spec.decimal + tail.slice(0, 2)
+  return sign + (head === '' ? '0' : head) + spec.decimal + tail.slice(0, maxDecimals)
 }
 
 /**
@@ -119,8 +122,8 @@ export function maskMoneyInput(raw: string, spec: MoneyFormatSpec): string {
  * A trailing separator is dropped — `3,` is a half-typed `3`, and the page's
  * validator should see a number rather than a syntax error on every keystroke.
  */
-export function toCanonicalMoney(text: string, spec: MoneyFormatSpec): string {
-  const masked = maskMoneyInput(text, spec)
+export function toCanonicalMoney(text: string, spec: MoneyFormatSpec, maxDecimals = 2): string {
+  const masked = maskMoneyInput(text, spec, maxDecimals)
   if (masked === '' || masked === '-') return masked
 
   const canonical = masked.split(spec.decimal).join('.')

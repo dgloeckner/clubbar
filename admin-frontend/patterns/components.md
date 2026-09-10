@@ -485,6 +485,36 @@ and the full test-ID list).
 />
 ```
 
+#### VolumeField Component
+
+The size control for a product — typed in litres, stored in whole millilitres
+(see [Volume Field Pattern](./volume-field.md) for the reasoning).
+`<input type="number">` is not used here either: it reports a comma to script as
+the empty string.
+
+**File**: `src/components/forms/VolumeField.tsx` (logic: `src/utils/volume.ts`)
+
+**Props**:
+- `value` (number | null, required): whole millilitres, or `null` for a product
+  with no size
+- `onChange` ((millilitres: number | null) => void, required): millilitres, or
+  `null` when the field is empty
+- `testId` (string, required): base for the field's test IDs; the hidden
+  `{testId}-value` carries the millilitres for E2E
+- `placeholder` (string, optional): overrides the locale's example size
+- `disabled`, `invalid`, `describedBy`, `ariaLabel`, `name`, `style`, `onBlur`
+
+**Example**:
+```typescript
+<VolumeField
+  id="products-form-volume-input"
+  testId="products-form-volume-input"
+  value={formData.volumeMl}
+  onChange={(volumeMl) => setFormData({ ...formData, volumeMl })}
+  invalid={!isVolumeInRange(formData.volumeMl)}
+/>
+```
+
 #### CharacterCounter Component
 
 Displays character count with color warning based on limit.

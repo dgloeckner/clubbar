@@ -63,6 +63,8 @@ import { ageRestrictionOf } from '../utils/ageRestriction'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { parseMoneyToCents } from '../utils/money'
 import { MoneyField } from '../components/forms/MoneyField'
+import { VolumeField } from '../components/forms/VolumeField'
+import { VOLUME_MAX_ML, VOLUME_MIN_ML } from '../utils/volume'
 import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { ConfirmDialog } from '../components/modals/ConfirmDialog'
@@ -94,6 +96,21 @@ function parseMinAge(value: string): number | null | 'invalid' {
   return parsed
 }
 
+/**
+ * Is the typed size one the API will take (ADR-0056)?
+ *
+ * `null` — an empty field — is a valid answer and the ordinary one: most of a
+ * snacks list has no size, and a Sauna-Token has none either. What this catches
+ * is the two typos worth a sentence rather than a 422: a size above ten litres
+ * (litres typed where the field asked for a drink) and a fractional millilitre,
+ * which `VolumeField`'s three-decimal mask already makes hard to produce.
+ */
+function isVolumeInRange(millilitres: number | null): boolean {
+  if (millilitres === null) return true
+
+  return Number.isInteger(millilitres) && millilitres >= VOLUME_MIN_ML && millilitres <= VOLUME_MAX_ML
+}
+
 // Extend Category to ensure required fields are non-optional at runtime
 type CategoryRuntime = Category & {
   id: string
@@ -111,7 +128,7 @@ interface ProductFilters {
 export function ProductsPage() {
   const { t, i18n } = useTranslation()
   const { apiErrorMessage } = useApiError()
-  const { formatPrice } = useFormatters()
+  const { formatPrice, formatVolume } = useFormatters()
   const breakpoint = useBreakpoint()
   // The category list is a second, independent stream, so it gets its own abort
   // slot — the product list's lives inside useListQuery (#96).
@@ -126,7 +143,7 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<ProductWithExtras | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
+  const [formData, setFormData] = useState({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '', volumeMl: null as number | null })
   const [formError, setFormError] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     type: 'delete'
@@ -213,7 +230,7 @@ export function ProductsPage() {
   function openCreateModal() {
     setModalMode('create')
     setEditingProduct(null)
-    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
+    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '', volumeMl: null })
     setSelectedCategory('')
     setSelectedIcon(null)
     setFormError(null)
@@ -230,6 +247,10 @@ export function ProductsPage() {
       // Held as a string like `price`, so the input round-trips an empty field
       // as "unrestricted" rather than as a 0 nobody can be old enough for.
       minAge: product.min_age == null ? '' : String(product.min_age),
+      // Whole millilitres, exactly as the API carries them. The field renders
+      // them as litres in the panel's own notation (ADR-0056); null means the
+      // product has no size, which is not a size of zero.
+      volumeMl: product.volume_ml ?? null,
     })
     setSelectedCategory(product.category_id || '')
     setSelectedIcon(product.icon_name || null)
@@ -263,6 +284,11 @@ export function ProductsPage() {
       return
     }
 
+    if (!isVolumeInRange(formData.volumeMl)) {
+      setFormError(t('products.validation.volumeRange'))
+      return
+    }
+
     try {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
@@ -276,11 +302,12 @@ export function ProductsPage() {
         icon_name: selectedIcon,
         requires_dispenser: formData.requiresDispenser,
         min_age: minAge,
+        volume_ml: formData.volumeMl,
       }
 
       await getProducts().createProduct(productData as ProductCreateRequest)
 
-      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
+      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '', volumeMl: null })
       setSelectedCategory('')
       setSelectedIcon(null)
       setModalMode('create')
@@ -320,6 +347,11 @@ export function ProductsPage() {
       return
     }
 
+    if (!isVolumeInRange(formData.volumeMl)) {
+      setFormError(t('products.validation.volumeRange'))
+      return
+    }
+
     try {
       // Filter out empty language names - backend requires all values to be non-empty
       const nonEmptyNames = Object.entries(formData.names)
@@ -338,11 +370,16 @@ export function ProductsPage() {
         // claiming it had been cleared (ADR-0045; the backend reads an explicit
         // null via `array_key_exists`).
         min_age: minAge,
+        // Always sent, for the same reason as min_age above: an empty field is
+        // the assertion that this product has no size, and a dropped key would
+        // leave the old volume on the row with the form claiming it was cleared
+        // (the backend reads an explicit null via `array_key_exists`).
+        volume_ml: formData.volumeMl,
       }
 
       await getProducts().updateProduct(editingProduct!.id!, updateData as ProductUpdateRequest)
 
-      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
+      setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '', volumeMl: null })
       setSelectedCategory('')
       setSelectedIcon(null)
       setEditingProduct(null)
@@ -400,7 +437,7 @@ export function ProductsPage() {
 
   function handleCancel() {
     setShowModal(false)
-    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '' })
+    setFormData({ names: { de: '', en: '' }, price: '', requiresDispenser: false, minAge: '', volumeMl: null })
     setSelectedCategory('')
     setSelectedIcon(null)
     setFormError(null)
@@ -601,6 +638,16 @@ export function ProductsPage() {
                       />
                       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, color: tableColors.cellText, fontSize: '14px' }}>
                         {getLocalizedName(product.names as Record<string, string>, i18n.language)}
+                        {/* Inside the name slot, so it ellipsizes with the name
+                            rather than pushing the price off a narrow card. */}
+                        {product.volume_ml != null && (
+                          <span
+                            data-testid={`products-table-cell-volume-${product.id}`}
+                            style={{ marginLeft: '6px', fontWeight: 400, color: theme.colors.text.secondary, fontSize: '13px' }}
+                          >
+                            {formatVolume(product.volume_ml)}
+                          </span>
+                        )}
                       </span>
                       <span
                         style={{
@@ -854,6 +901,20 @@ export function ProductsPage() {
                   <span data-testid={`products-table-cell-name-${product.id}`} style={{ fontWeight: '500' }}>
                     {getLocalizedName(product.names as Record<string, string>, i18n.language)}
                   </span>
+                  {/* The size, after the name rather than in a column of its
+                      own: ADR-0056's rule is that everything printing a product
+                      name prints the volume after it, which is how the terminal
+                      badge, the Deckelauszug and the exports all read. A column
+                      would be empty on most of a snacks list and would say
+                      something different from every other surface. */}
+                  {product.volume_ml != null && (
+                    <span
+                      data-testid={`products-table-cell-volume-${product.id}`}
+                      style={{ color: theme.colors.text.secondary, fontSize: '13px', whiteSpace: 'nowrap' }}
+                    >
+                      {formatVolume(product.volume_ml)}
+                    </span>
+                  )}
                   {product.requires_dispenser && (
                     <Badge
                       label={t('products.dispenserBadge')}
@@ -1067,6 +1128,50 @@ export function ProductsPage() {
                 requirement="optional"
               />
 
+              {/* The product's size (ADR-0056). Typed in litres, stored as
+                  whole millilitres, and shown to each reader in their own
+                  notation. The hint has to say where the size goes, because the
+                  habit this replaces is writing it into the name — a club with
+                  `Weizenbier (0,5l)` on its list has to be told to move it here
+                  and shorten the name, in one save. */}
+              <div style={{ marginBottom: isMobile ? '12px' : '20px' }}>
+                <FieldLabel
+                  htmlFor="products-form-volume-input"
+                  label={t('products.volume')}
+                  requirement="optional"
+                  testId="products-form-volume-label"
+                />
+                <VolumeField
+                  id="products-form-volume-input"
+                  testId="products-form-volume-input"
+                  value={formData.volumeMl}
+                  onChange={(volumeMl) => setFormData({ ...formData, volumeMl })}
+                  invalid={!isVolumeInRange(formData.volumeMl)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: `1px solid ${theme.colors.border.muted}`,
+                    borderRadius: '6px',
+                    backgroundColor: theme.colors.bg.inputAlt,
+                    color: tableColors.cellText,
+                    fontSize: '14px',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {!isMobile && (
+                  <p
+                    style={{
+                      marginTop: '6px',
+                      color: theme.colors.text.secondary,
+                      fontSize: '12px',
+                      lineHeight: '1.5',
+                    }}
+                  >
+                    {t('products.volumeHelp')}
+                  </p>
+                )}
+              </div>
+
               {/* Jugendschutz (ADR-0045): the legal age this drink requires.
                   The terminal compares it against the member's own age at
                   checkout, offline. Empty is the ordinary state of a drinks
@@ -1203,6 +1308,7 @@ export function ProductsPage() {
                 <ProductPreview
                   name={getLocalizedName(formData.names, i18n.language)}
                   price={formData.price}
+                  volumeMl={formData.volumeMl}
                   iconName={selectedIcon}
                 />
               </div>
