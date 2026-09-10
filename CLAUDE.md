@@ -322,6 +322,14 @@ with nothing looking broken.
   green refers to a main that no longer exists.
 - **To take one out of the queue**, label it `do-not-merge` (or
   `blocked-upstream`). To stop the queue, disable the workflow.
+- **The Flutter SDK is outside all of this.** `FLUTTER_VERSION` in
+  `build.yaml` is a workflow value, not a manifest entry, so no Dependabot
+  ecosystem moves it. `.github/workflows/flutter-sdk-lag.yaml` (policy and
+  tests in `e2etests/scripts/flutter-sdk-lag.mjs`) keeps **one** issue open
+  while the pin is behind the stable channel or below `pubspec.lock`'s
+  `flutter: ">=…"` floor, and closes it once the pin is current. An issue, not
+  a pull request: the bump is a one-line change whose review is reading the
+  release notes, which a bot cannot do for you.
 - **Who merges matters.** The queue uses the best identity configured: a
   **GitHub App** (`MERGE_QUEUE_APP_ID` + `MERGE_QUEUE_PRIVATE_KEY`, minted by
   `e2etests/scripts/app-token.mjs`), else a PAT (`MERGE_QUEUE_TOKEN`), else

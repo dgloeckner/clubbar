@@ -308,6 +308,12 @@ updates:
   # pairs, which break apart — `drift_dev` generates against `drift`'s runtime,
   # `chopper_generator` against `chopper`, `json_serializable` against
   # `json_annotation`. `build_runner` drives all of them.
+  #
+  # What this entry cannot move is the Flutter SDK itself: `FLUTTER_VERSION`
+  # in build.yaml is a workflow value, not a manifest entry, and no Dependabot
+  # ecosystem tracks it. `.github/workflows/flutter-sdk-lag.yaml` covers that
+  # gap with an issue rather than a pull request — the pin is bumped by hand,
+  # with the release notes read, because it changes what the binary is.
   # ---------------------------------------------------------------------------
   - package-ecosystem: "pub"
     directory: "/terminal-frontend"
