@@ -27,14 +27,17 @@ Three targets, from the request that opened this plan:
 ### The conflict with `fontSizes`
 
 `fontSizes.xxxl` in `config.json` is a deployment setting a club has already
-tuned (the production terminal runs 31). An adaptive size that overruled it
-would silently undo that. Resolution chosen (option 2 of three discussed):
+tuned (the production terminal runs 31), and it doubled as the product-name
+size. An adaptive size that overruled it would silently undo that; a step that
+also sets the checkout title cannot say which of its readers a club is tuning.
+Resolution, after review: **the name gets its own two keys.**
 
-- **`xxxl` is the floor.** It keeps its meaning as the size the club wants at
+- **`fontSizes.productNameMin` is the floor** — the size the club wants at
   minimum; the layout only ever *grows* from it when the category has room.
-- **The ceiling is `fontSizes.productNameMax`**, new and optional, defaulting
-  to 1.5 × `xxxl` so an untouched config gets a ceiling that follows the scale
-  it already set.
+  Absent, it falls back to `xxxl`, which is what the name was set at before
+  the key existed, so a terminal whose config predates it keeps its size
+  across the auto-update (ADR-0054).
+- **`fontSizes.productNameMax` is the ceiling**, defaulting to 1.5 × the floor.
 - **Below the floor only to keep a word whole**, after fewer columns have been
   tried first, and never below `xxl` — the name stays at least as large as
   the price (`product_card_test`).
@@ -89,10 +92,11 @@ from the names, the grid's real viewport and the type scale:
   scale tests and the two-rows-whole kiosk tests stay green. A widget test
   proves, through the rendered paragraph's line metrics, that every line
   break in a name falls on a space.
-- [x] **3. `fontSizes.productNameMax`.** `AppFontSizes.productNameMax` (nullable,
-  `productNameCeiling` getter defaults to 1.5 × `xxxl`), read by `applyConfig`;
-  documented in `INSTALL.md`, whose `fontSizes` table also gets its stale
-  rows fixed (`lg` is no longer the product name, `xxxl` is).
+- [x] **3. `fontSizes.productNameMin` / `productNameMax`.** Nullable tokens on
+  `AppFontSizes`; `productNameFloor` falls back to `xxxl`, `productNameCeiling`
+  to 1.5 × the floor; both read by `applyConfig`; documented in `INSTALL.md`,
+  whose `fontSizes` table also gets its stale rows fixed (`lg` is no longer
+  the product name; `xxxl` no longer is either).
 - [x] **4. Full terminal suite green, plan and index updated.**
 
 ### Deferred, deliberately
@@ -109,10 +113,10 @@ from the names, the grid's real viewport and the type scale:
 
 - `product_grid_layout_test.dart`: 21/21.
 - `product_selection_screen_test.dart` 65 + `product_card_test.dart` 5 +
-  `contrast_test.dart` 42: 128/128. The three "a word is never split" tests
+  `contrast_test.dart` 44: 131/131. The three "a word is never split" tests
   were mutation-checked: with the solver's measurements zeroed, two of them
   fail on an ellipsised "Alkoholfreies Bier (0,5l)".
-- Full terminal suite: 1135/1135.
+- Full terminal suite: 1138/1138.
 - `dart analyze`: 18 issues before and after, none in the touched files.
 
 ```bash

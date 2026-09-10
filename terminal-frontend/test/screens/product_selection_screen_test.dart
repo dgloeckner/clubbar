@@ -546,8 +546,8 @@ void main() {
         await pumpCatalog(tester, 40, name: (i) => 'Bier $i');
 
         final card = tester.widget<ProductCard>(find.byType(ProductCard).first);
-        expect(card.nameFontSize, AppFontSizes.xxxl,
-            reason: 'xxxl is the floor: a club that tuned it gets it');
+        expect(card.nameFontSize, AppFontSizes.productNameFloor,
+            reason: 'the floor is the size a club asked for at minimum');
         final tile = tester.getSize(find.byType(ProductCard).first);
         expect(tile.height, greaterThan(160));
       });
@@ -569,6 +569,26 @@ void main() {
         // Readable, not screen-tall: three snacks must not become giant cards.
         expect(sparseTile.height, lessThan(320));
         expect(sparseTile.width, lessThanOrEqualTo(420));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a configured productNameMin is the floor, not xxxl',
+          (WidgetTester tester) async {
+        addTearDown(() {
+          AppFontSizes.productNameMin = null;
+          AppFontSizes.productNameMax = null;
+        });
+        AppFontSizes.applyConfig(
+            const {'productNameMin': 30, 'productNameMax': 34});
+        await pumpCatalog(tester, 40, name: (i) => 'Bier $i');
+        final full = tester.widget<ProductCard>(find.byType(ProductCard).first);
+        expect(full.nameFontSize, 30);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await pumpCatalog(tester, 3, name: (i) => ['Cola', 'Bier', 'Wein'][i]);
+        final sparse =
+            tester.widget<ProductCard>(find.byType(ProductCard).first);
+        expect(sparse.nameFontSize, 34);
         expect(tester.takeException(), isNull);
       });
 

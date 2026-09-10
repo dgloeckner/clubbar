@@ -191,19 +191,28 @@ class AppFontSizes {
   /// way every other step does (#303).
   static double display = 55.0;
 
-  /// Upper bound for a product name on the grid, when set in config.
+  /// The product name on the grid has its own two keys, `productNameMin` and
+  /// `productNameMax`, rather than borrowing a step of the scale: the name is
+  /// sized per category between them (`ProductGridLayout`), and a step that
+  /// also meant "the checkout title" or "the member bar" could not say which
+  /// of its readers a club was tuning.
   ///
-  /// The name is sized per category from [xxxl] — the floor, the size the
-  /// club wants at minimum — up to this ceiling, as far as the category's
-  /// longest word and the screen allow (`ProductGridLayout`). `null` means
-  /// "follow the scale": see [productNameCeiling].
+  /// `null` means "not in config". [productNameFloor] then falls back to
+  /// [xxxl], which is what the name was set at before the keys existed, so a
+  /// terminal whose config predates them keeps the size it had.
+  static double? productNameMin;
+
+  /// Upper bound for a product name on the grid, when set in config.
+  /// `null` falls back to 1.5 x [productNameFloor]; see [productNameCeiling].
   static double? productNameMax;
 
-  /// The ceiling the grid actually uses: [productNameMax] when a club set
-  /// one, else 1.5 x [xxxl], so an untouched config gets a ceiling that
-  /// moves with the floor it already tuned rather than a second number to
-  /// keep in step.
-  static double get productNameCeiling => productNameMax ?? xxxl * 1.5;
+  /// The smallest a product name is set at — the size a club wants at
+  /// minimum. A category grows from here when it has the room.
+  static double get productNameFloor => productNameMin ?? xxxl;
+
+  /// The largest a product name is set at.
+  static double get productNameCeiling =>
+      productNameMax ?? productNameFloor * 1.5;
 
   /// Apply font size overrides from config (e.g. from config.json `fontSizes` key).
   /// Only non-null values are applied; omitted keys keep their defaults.
@@ -218,6 +227,9 @@ class AppFontSizes {
     if (fontSizes['xxxl'] is num) xxxl = (fontSizes['xxxl'] as num).toDouble();
     if (fontSizes['display'] is num) {
       display = (fontSizes['display'] as num).toDouble();
+    }
+    if (fontSizes['productNameMin'] is num) {
+      productNameMin = (fontSizes['productNameMin'] as num).toDouble();
     }
     if (fontSizes['productNameMax'] is num) {
       productNameMax = (fontSizes['productNameMax'] as num).toDouble();

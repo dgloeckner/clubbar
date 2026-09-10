@@ -829,7 +829,9 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
     "xl":      20,
     "xxl":     22,
     "xxxl":    26,
-    "display": 55
+    "display": 55,
+    "productNameMin": 26,
+    "productNameMax": 39
   },
 
   "dispenser": {
@@ -871,8 +873,9 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `fontSizes.lg` | number | `18` | Large font size — button labels, banners, the member name in the cart, the total in the summary bar. |
 | `fontSizes.xl` | number | `20` | Extra-large — quantity badges, line totals, "Neuer Kontostand" in cart. |
 | `fontSizes.xxl` | number | `22` | The price on a product tile, the "Gesamt" label in the cart footer, the checkout confirmation's amounts. |
-| `fontSizes.xxxl` | number | `26` | The **floor** for a product name on the grid, the member name in the member bar, and the base of the checkout confirmation title. A product name is sized per category from this floor upwards (see `productNameMax`), so raising it raises the smallest a name can be. |
-| `fontSizes.productNameMax` | number | 1.5 × `xxxl` | The **ceiling** for a product name on the grid. Each category is set at one size, the largest between the floor and this ceiling at which every name of the category fits its tile with every word whole; a sparse category grows into the room it has, a full one stays at the floor and scrolls. Omit it to let the ceiling follow `xxxl`. |
+| `fontSizes.xxxl` | number | `26` | The member name in the member bar and the base of the checkout confirmation title. |
+| `fontSizes.productNameMin` | number | `xxxl` | The **smallest** a product name on the grid is set at. Each category is set at one size, the largest between this and `productNameMax` at which every name of the category fits its tile with every word whole: a full category sits at this floor and scrolls; a sparse one grows. Falls back to `xxxl` when absent, which is what the name was set at before this key existed. |
+| `fontSizes.productNameMax` | number | 1.5 × `productNameMin` | The **largest** a product name on the grid is set at, so three snacks do not become billboards. |
 | `fontSizes.display` | number | `55` | Idle screen headline ("Durstig?" / reader-offline title) — the one display-size string in the app. |
 | `dispenser.enabled` | bool | `false` | Enable the sauna token dispenser integration. |
 | `dispenser.baseUrl` | string | — | Base URL of the dispenser hardware API, e.g. `http://192.168.1.50`. |

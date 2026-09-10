@@ -32,9 +32,10 @@ class ProductCard extends StatefulWidget {
   /// Chosen by `ProductSelectionScreen` for the whole category, not by the
   /// card: one size for every tile the member is looking at, the largest at
   /// which every name of the category fits its tile with every word whole,
-  /// between the configured `xxxl` (the floor) and
-  /// [AppFontSizes.productNameCeiling]. See `ProductGridLayout`. Defaults to
-  /// the floor so a card on its own still looks like a card.
+  /// between [AppFontSizes.productNameFloor] and
+  /// [AppFontSizes.productNameCeiling] (`fontSizes.productNameMin` / `Max` in
+  /// config.json). See `ProductGridLayout`. Defaults to the floor so a card
+  /// on its own still looks like a card.
   final double nameFontSize;
 
   /// Edge of the product icon — 52 at the floor, growing with whatever room
@@ -73,10 +74,10 @@ class ProductCard extends StatefulWidget {
     this.unavailableNote,
     double? nameFontSize,
     double? iconSize,
-  })  : nameFontSize = nameFontSize ?? AppFontSizes.xxxl,
+  })  : nameFontSize = nameFontSize ?? AppFontSizes.productNameFloor,
         iconSize = iconSize ??
-            metrics.iconSize(
-                nameFontSize ?? AppFontSizes.xxxl, AppFontSizes.xxxl);
+            metrics.iconSize(nameFontSize ?? AppFontSizes.productNameFloor,
+                AppFontSizes.productNameFloor);
 
   @override
   State<ProductCard> createState() => _ProductCardState();

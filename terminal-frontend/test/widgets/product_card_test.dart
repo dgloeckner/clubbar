@@ -114,7 +114,7 @@ void main() {
 
       // On its own the card sets the floor; the grid hands it the size it
       // solved for the category.
-      expect(name.fontSize, AppFontSizes.xxxl);
+      expect(name.fontSize, AppFontSizes.productNameFloor);
       expect(name.fontSize!, greaterThanOrEqualTo(price.fontSize!),
           reason: 'a member picks by name; the price is read second');
       expect(name.fontWeight, FontWeight.w700);

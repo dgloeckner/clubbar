@@ -62,11 +62,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   //    the category and chooses a column count and size at which every name
   //    wraps at spaces into two lines with every word whole.
   //  * One size per category: the largest at which *every* name fits.
-  //  * The configured `xxxl` is the floor — it keeps its meaning as the size
-  //    the club wants at minimum — and `AppFontSizes.productNameCeiling` the
-  //    ceiling. A sparse category grows into the room it has; a full one stays
-  //    at the floor and scrolls. Below the floor only to keep a word whole,
-  //    after fewer columns have been tried, and never below the price size.
+  //  * `fontSizes.productNameMin` is the floor — the size the club wants at
+  //    minimum — and `fontSizes.productNameMax` the ceiling. A sparse
+  //    category grows into the room it has; a full one stays at the floor
+  //    and scrolls. Below the floor only to keep a word whole, after fewer
+  //    columns have been tried, and never below the price size.
   //
   // The tile height is derived, not pinned (#41): the scale is a deployment
   // setting, so a constant is only right for the scale it was measured at. The
@@ -350,7 +350,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           wordWidth: _wordWidthIn(context),
-          floor: AppFontSizes.xxxl,
+          floor: AppFontSizes.productNameFloor,
           ceiling: AppFontSizes.productNameCeiling,
           minimum: AppFontSizes.xxl,
           priceFontSize: AppFontSizes.xxl,

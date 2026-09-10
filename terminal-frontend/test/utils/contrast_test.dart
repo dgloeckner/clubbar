@@ -330,21 +330,34 @@ void main() {
       expect(AppFontSizes.xxxl, 26.0);
     });
 
-    // The product name is sized per category between `xxxl` — the floor a
-    // club already tuned — and a ceiling. Without a configured ceiling the
-    // ceiling follows the floor, so raising `xxxl` alone still moves both.
-    test('the product-name ceiling follows xxxl unless configured', () {
-      expect(AppFontSizes.productNameMax, isNull);
-      expect(AppFontSizes.productNameCeiling, 39.0);
+    // The product name has its own two keys. A config written before they
+    // existed falls back to `xxxl` for the floor, so a terminal that tuned
+    // that step keeps the size it had; the ceiling follows the floor.
+    group('the product-name range', () {
+      test('falls back to xxxl and 1.5 x that when not configured', () {
+        expect(AppFontSizes.productNameMin, isNull);
+        expect(AppFontSizes.productNameMax, isNull);
+        expect(AppFontSizes.productNameFloor, 26.0);
+        expect(AppFontSizes.productNameCeiling, 39.0);
 
-      AppFontSizes.applyConfig(const {'xxxl': 31});
-      expect(AppFontSizes.productNameCeiling, 46.5);
+        AppFontSizes.applyConfig(const {'xxxl': 31});
+        expect(AppFontSizes.productNameFloor, 31.0);
+        expect(AppFontSizes.productNameCeiling, 46.5);
+      });
 
-      AppFontSizes.applyConfig(const {'productNameMax': 36});
-      expect(AppFontSizes.productNameMax, 36.0);
-      expect(AppFontSizes.productNameCeiling, 36.0);
-      // Untouched keys keep what they had.
-      expect(AppFontSizes.xxxl, 31.0);
+      test('productNameMin is the floor once set, whatever xxxl is', () {
+        AppFontSizes.applyConfig(const {'xxxl': 31, 'productNameMin': 28});
+        expect(AppFontSizes.productNameFloor, 28.0);
+        expect(AppFontSizes.productNameCeiling, 42.0);
+        // Untouched keys keep what they had.
+        expect(AppFontSizes.xxxl, 31.0);
+      });
+
+      test('productNameMax is the ceiling once set', () {
+        AppFontSizes.applyConfig(const {'productNameMin': 28, 'productNameMax': 36});
+        expect(AppFontSizes.productNameFloor, 28.0);
+        expect(AppFontSizes.productNameCeiling, 36.0);
+      });
     });
   });
 }
@@ -360,6 +373,7 @@ void _resetFontSizes() {
   AppFontSizes.xxl = 22.0;
   AppFontSizes.xxxl = 26.0;
   AppFontSizes.display = 55.0;
+  AppFontSizes.productNameMin = null;
   AppFontSizes.productNameMax = null;
 }
 
