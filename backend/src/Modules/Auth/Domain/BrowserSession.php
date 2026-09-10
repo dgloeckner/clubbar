@@ -47,11 +47,69 @@ final class BrowserSession
             session_start();
         }
 
+        // A browser that arrived just after a periodic rotation is holding the
+        // tombstone, not the session (#340 follow-up). Destroying only what the
+        // cookie names would leave the real session alive and reachable — which
+        // is the bug this method exists to prevent, back again through a door
+        // that opens for a minute after every rotation.
+        self::destroyRotationSuccessor();
+
         $_SESSION = [];
         session_destroy();
         self::expireCookie($cookieName);
 
         return true;
+    }
+
+    /**
+     * Destroy the session a tombstone forwards to, before the tombstone itself.
+     *
+     * Walks the chain rather than following one link: with a short rotation
+     * interval a tombstone can point at a tombstone, and stopping at the first
+     * would leave the real session standing — which is the whole failure this
+     * guards against. Bounded, and refusing an ID it has already visited, so a
+     * cycle no code here can write but a hand-edited session file could cannot
+     * spin.
+     *
+     * Ends where it began: the session the browser's cookie actually names is
+     * re-opened, because {@see endIfPresent()} still has to destroy that one and
+     * expire the cookie for it.
+     */
+    private static function destroyRotationSuccessor(): void
+    {
+        $originalId = session_id();
+        $currentId  = $originalId;
+        $pointer    = $_SESSION;
+        $visited    = [$originalId => true];
+
+        for ($hop = 0; $hop < SessionRotation::MAX_HOPS; $hop++) {
+            $successor = SessionRotation::successorWithinGrace($pointer);
+            if ($successor === null || isset($visited[$successor])) {
+                break;
+            }
+
+            session_write_close();
+            session_id($successor);
+            session_start();
+
+            $visited[$successor] = true;
+            $currentId = $successor;
+            // Read before clearing: the successor may itself be a tombstone.
+            $pointer = $_SESSION;
+
+            $_SESSION = [];
+            session_destroy();
+        }
+
+        if ($currentId === $originalId) {
+            return;
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+        session_id($originalId);
+        session_start();
     }
 
     /**

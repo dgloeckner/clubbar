@@ -1335,6 +1335,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminUsersRepository(),
             $this->config,
             $this->getAdminUserRolesRepository(),
+            $this->getLogger(),
         ));
     }
 

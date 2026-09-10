@@ -47,6 +47,66 @@ The one-line fix is placed between credential verification and `$_SESSION` write
 
 ---
 
+## Amendment (2026-09-10): periodic rotation forwards, it does not delete
+
+**Status**: Accepted — amends the Decision above for one case it did not cover.
+
+This ADR is about the *login* transition, and for that its reasoning is
+unchanged: `session_regenerate_id(true)` still runs at login, at the MFA
+upgrade, and when an account changes its own credentials. In all three the old
+ID belongs to a session nobody should be able to resume, the browser is making
+exactly one request, and deleting the old file immediately is exactly right.
+
+[#340](https://github.com/dgloeckner/clubbar/issues/340) later added a *fourth*
+call site with none of those properties: `AdminSessionAuth` rotating the ID of a
+**live, authenticated** session every `SESSION_REGEN_INTERVAL` seconds, as
+defence in depth against a leaked cookie. Reusing the same `true` there turned
+a hardening measure into a way to sign admins out.
+
+The failure needs no attacker and no unusual deployment. `session.use_strict_mode`
+(ADR-0016) refuses to adopt an ID with no file behind it, so a request arriving
+on the just-deleted ID is not merely rejected — PHP mints a **fresh empty
+session** and its `Set-Cookie` writes that into the browser. The tab is then
+pinned to a session that will never authenticate, so reloading lands on the
+login form. Two entirely ordinary things produce such a request:
+
+- **Concurrency.** Opening any list page in the panel fires several requests at
+  once. PHP serialises them on the session lock; whichever rotates deletes the
+  file out from under the rest.
+- **A cancelled request.** The panel aborts superseded requests. PHP completes
+  the rotation regardless, but the browser never receives the new cookie.
+
+**Decision**: the periodic rotation leaves a **tombstone** rather than a hole.
+The old session is overwritten with a forwarding record — the successor's ID and
+the moment of rotation, and nothing else — and a request arriving on the old ID
+within a 60-second grace window is carried across to the real session, with the
+cookie re-sent as it goes. After the window the old ID is refused like any other
+unauthenticated session.
+
+Mechanically it is `session_regenerate_id(false)` followed by re-opening the old
+session to overwrite it, rather than the `session_create_id()` + `ini_set()`
+sequence PHP's manual suggests. `ini_set()` is refused on a session directive
+while a session is active, so the manual's sequence cannot restore
+`use_strict_mode` afterwards — it would leave the hardening off for the rest of
+the request, which `/api/admin/security-check` reads live and would report as
+missing.
+
+**Consequences**
+
+- A rotated-away session ID stays exchangeable for its successor for 60 seconds.
+  That is the cost, and it is bounded: the tombstone holds no `admin_user_id`,
+  no `csrf_token` and none of `SessionTimeout`'s stamps, so it is not a login —
+  the most a leaked pre-rotation ID buys is the successor it was already one
+  response away from, and only for a minute out of every rotation interval.
+- The window is sized for what it has to cover: requests already in flight
+  (milliseconds) and the browser's next request after a cancelled one (a page
+  navigation). It is not a session lifetime and must not grow into one.
+- `BrowserSession::endIfPresent()` follows the pointer before destroying, or
+  ending the browser's session would leave the successor alive — the failure
+  [#798](https://github.com/dgloeckner/clubbar/issues/798) exists to prevent.
+
+---
+
 ## References
 
 - OWASP Session Management Cheat Sheet — Session Fixation

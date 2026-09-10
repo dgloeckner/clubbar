@@ -508,7 +508,48 @@ CREATE TABLE admin_users (
 session_regenerate_id(true);  // Delete old session file, regenerate new ID
 ```
 
-Prevents attacker from creating session before user logs in.
+Prevents attacker from creating session before user logs in. The same `true` is
+right at the MFA upgrade and when an account changes its own credentials: all
+three are authentication transitions, the old ID belongs to a session nobody
+should resume, and the browser is making exactly one request.
+
+### 1a. Periodic rotation — forwards, never deletes
+
+`AdminSessionAuth` also rotates the ID of a *live* session every
+`SESSION_REGEN_INTERVAL` seconds (#340), and there the `true` is wrong. A live
+session has company: the panel opens pages with several requests at once, and it
+cancels superseded ones. Delete the old file and any request still carrying that
+ID is not merely refused — `session.use_strict_mode` refuses to adopt it, so PHP
+mints a **fresh empty session** and its `Set-Cookie` writes that into the
+browser. The tab is then pinned to a session that can never authenticate, and a
+reload lands on the login form.
+
+So the periodic rotation leaves a **tombstone** instead:
+
+| | |
+|---|---|
+| The old session becomes | `SessionRotation::tombstone()` — the successor's ID and the moment of rotation, and nothing else |
+| A request on the old ID | is carried across to the successor, and the cookie is re-sent as it goes |
+| For how long | `SessionRotation::GRACE_SECONDS` (60s) — long enough for a request in flight and for the browser's next request after a cancelled one |
+| After that | refused as `admin_not_authenticated`, like any other session with no admin on it |
+
+A tombstone is not a login: it holds no `admin_user_id`, no `csrf_token` and
+none of `SessionTimeout`'s stamps, so the most a leaked pre-rotation ID buys is
+the successor it was already one response away from.
+
+**The sequence matters.** PHP's manual suggests `session_create_id()` plus
+`ini_set('session.use_strict_mode', 0)` around the `session_start()` that adopts
+it. Do not: `ini_set()` is refused on a session directive while a session is
+active, so the restore afterwards silently does nothing and the hardening stays
+off for the rest of the request — which `/api/admin/security-check` reads live
+and would report as missing. `session_regenerate_id(false)` mints the successor
+instead, PHP writes its file, and every `session_start()` then names an ID that
+exists.
+
+**Keep `GRACE_SECONDS` below `SESSION_REGEN_INTERVAL`.** Above it, tombstones
+chain — a forwarded request lands on a session that has itself already rotated.
+The chain is walked (`SessionRotation::MAX_HOPS`), so nothing breaks, but an old
+ID then stays exchangeable far longer than the window suggests.
 
 ### 2–4. Cookie attributes (XSS, MITM, CSRF)
 
