@@ -41,6 +41,10 @@ class FakeBuildContext extends Fake implements BuildContext {}
 class FakeMembersCacheData extends Fake implements MembersCacheData {}
 
 void main() {
+  // The grid sizing groups below are about fit, so they must measure with
+  // the font the panel draws — see loadRealFonts.
+  setUpAll(loadRealFonts);
+
   setUpAll(() {
     registerFallbackValue(FakeBuildContext());
     registerFallbackValue(FakeMembersCacheData());
@@ -527,6 +531,21 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
+      // Member feedback: product names were too small. The name is now set
+      // at `xxxl`, where "Alkoholfreies" — the longest single word on a
+      // German drinks list — needs ~190 px; a sixth column on the kiosk
+      // (198 px tiles, 174 inside the padding) would break it mid-word.
+      // Five columns on 1280 give every tile 240 px. This pins that floor
+      // so a later tweak to the column bound cannot quietly cross it.
+      testWidgets('a kiosk tile is wide enough for the larger name',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 12, surface: const Size(1280, 800));
+        final tile = tester.getSize(find.byType(ProductCard).first);
+
+        expect(tile.width, greaterThanOrEqualTo(230));
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('column count follows the screen width, not a fixed 4',
           (WidgetTester tester) async {
         await pumpCatalog(tester, 12, surface: const Size(1920, 1080));
@@ -831,11 +850,10 @@ void main() {
     // actually gets. Modelling it as the surface keeps the test off
     // MainLayout's provider surface without understating the chrome.
     //
-    // Note the test font: flutter_test renders with a 1.0 line-height factor
-    // where production measures ~1.34, so this harness under-reports the
-    // font-driven chrome by a few px. There is ~39 px of real headroom behind
-    // these assertions — do not trim the layout down to what the test font
-    // says fits.
+    // Measured with Roboto (loadRealFonts above), not the test font: the
+    // placeholder font draws every glyph one em wide, which wraps the
+    // credit-limit banner onto three lines and fails a layout the panel
+    // shows whole. With the real font these numbers are the panel's.
     group('two full product rows fit on the kiosk (#369)', () {
       const kioskBody = Size(1280, 744);
 
@@ -980,6 +998,38 @@ void main() {
         expect(find.byKey(const Key('credit-limit-banner')), findsNothing);
         expect(find.byType(CartSummaryBar), findsOneWidget);
 
+        final gridBottom =
+            tester.getBottomLeft(find.byType(GridView)).dy;
+        expect(secondRowBottom(tester), lessThanOrEqualTo(gridBottom));
+        expect(tester.takeException(), isNull);
+      });
+
+      // The scale a production terminal actually runs — every step larger
+      // than the shipped default, `xxxl` at 31. Two rows never fit here with
+      // the banner up, before or after the name went to `xxxl`: the tile's
+      // text block was sized at the font's own ~1.34 line height, and at 31
+      // px that is 27 px per tile the row could not spare. The card now pins
+      // its line height, and this holds the floor at the scale that matters.
+      testWidgets('and at the scale a production terminal runs',
+          (WidgetTester tester) async {
+        final shipped = {
+          'xs': AppFontSizes.xs,
+          'sm': AppFontSizes.sm,
+          'base': AppFontSizes.base,
+          'lg': AppFontSizes.lg,
+          'xl': AppFontSizes.xl,
+          'xxl': AppFontSizes.xxl,
+          'xxxl': AppFontSizes.xxxl,
+        };
+        addTearDown(() => AppFontSizes.applyConfig(shipped));
+        AppFontSizes.applyConfig({
+          'xs': 20.0, 'sm': 23.0, 'base': 21.0,
+          'lg': 23.0, 'xl': 25.0, 'xxl': 27.0, 'xxxl': 31.0,
+        });
+
+        await pumpKiosk(tester, deckelCents: 8200);
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
         final gridBottom =
             tester.getBottomLeft(find.byType(GridView)).dy;
         expect(secondRowBottom(tester), lessThanOrEqualTo(gridBottom));

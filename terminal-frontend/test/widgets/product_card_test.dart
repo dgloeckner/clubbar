@@ -97,4 +97,24 @@ void main() {
       );
     });
   });
+
+  // Member feedback: product names were too small. The name was `xl` under a
+  // price at `xxl` — the amount louder than the thing it is the amount for —
+  // on a 7" panel read standing up.
+  group('ProductCard name is the tile\'s headline (member feedback)', () {
+    testWidgets('the name is set at least as large as the price',
+        (WidgetTester tester) async {
+      await pumpCard(tester, onTap: () {});
+
+      final name = tester.widget<Text>(find.text('Sauna-Token')).style!;
+      final price = tester
+          .widget<Text>(find.textContaining('2,00'))
+          .style!;
+
+      expect(name.fontSize, ProductCard.nameFontSize);
+      expect(name.fontSize!, greaterThanOrEqualTo(price.fontSize!),
+          reason: 'a member picks by name; the price is read second');
+      expect(name.fontWeight, FontWeight.w700);
+    });
+  });
 }

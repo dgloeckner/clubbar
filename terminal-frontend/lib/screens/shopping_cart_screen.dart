@@ -184,12 +184,18 @@ class ShoppingCartScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // The line's headline, a step above its
+                                // line total — the same reading order the
+                                // grid tile has since product names went up
+                                // there (member feedback: too small). The
+                                // row is not height-critical the way the
+                                // grid is; this list scrolls.
                                 Text(
                                   item.productName,
                                   style: TextStyle(
                                     color: AppColors.textPrimary,
-                                    fontSize: AppFontSizes.lg,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: AppFontSizes.xxl,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 const SizedBox(height: 2),

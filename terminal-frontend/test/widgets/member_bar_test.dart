@@ -46,9 +46,15 @@ void main() {
       home: ChangeNotifierProvider<SessionController>.value(
         value: session,
         child: Scaffold(
-          body: MemberBar(
-            member: _member.copyWith(balanceCents: balanceCents),
-            onLogoutPressed: onLogoutPressed,
+          // Top-aligned, as the screens lay it out: a body-sized bar would
+          // hide a height regression behind the Scaffold's own constraints.
+          body: Column(
+            children: [
+              MemberBar(
+                member: _member.copyWith(balanceCents: balanceCents),
+                onLogoutPressed: onLogoutPressed,
+              ),
+            ],
           ),
         ),
       ),
@@ -517,6 +523,42 @@ void main() {
       await tester.pump();
 
       expect(logoutTaps, 0);
+    });
+  });
+
+  // Member feedback: "hard to spot the user name who is logged in". The name
+  // was 18 px semi-bold — the same size as the balance under it, smaller than
+  // the club name in the header above it and than every product name below
+  // it, in a row whose two filled buttons win the eye anyway. The one string
+  // that tells a member the terminal has the right card was the quietest text
+  // in its own band.
+  group('MemberBar name is the loudest text in the bar (member feedback)', () {
+    Text nameText(WidgetTester tester) =>
+        tester.widget<Text>(find.text('John Doe'));
+
+    testWidgets('the name is set a full step above the balance',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
+
+      final name = nameText(tester).style!;
+      final balance = balanceText(tester, 'Offener Betrag: 14,80').style!;
+
+      expect(name.fontSize, MemberBar.nameFontSize);
+      expect(name.fontSize!, greaterThan(balance.fontSize!),
+          reason: 'who is logged in matters more than what they owe');
+      expect(name.fontWeight, FontWeight.w700);
+    });
+
+    testWidgets('the larger name does not grow the band above the grid',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
+
+      // #369 measured this band; the buttons set its height and the name
+      // column must keep fitting inside them. The test font renders a 1.0
+      // line-height where production measures ~1.34, so the widget pins the
+      // line heights explicitly — this holds either way.
+      final bar = tester.getSize(find.byType(MemberBar));
+      expect(bar.height, MemberBar.height);
     });
   });
 }

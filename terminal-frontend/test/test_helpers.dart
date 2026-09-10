@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
@@ -82,4 +85,45 @@ Widget createTestApp({
       child: child,
     ),
   );
+}
+
+/// Load Roboto and the Material icon font from the Flutter SDK's cache, so a
+/// test measures text the way the terminal renders it.
+///
+/// `flutter test` ships a placeholder font that draws every glyph one em
+/// wide and one em tall. That is fine for "is the text there", and wrong for
+/// any test about *how much room* text takes: at 21 px the credit-limit
+/// banner's amounts line is ~1260 px wide in that font and ~700 in Roboto,
+/// so a layout budget measured with it wraps a one-line banner onto three
+/// and fails a layout the panel shows whole. Call from `setUpAll` in a file
+/// whose assertions are about fit.
+///
+/// The fonts live under `bin/cache/artifacts/material_fonts`, a universal
+/// artifact every `flutter` command fetches; the path is resolved from
+/// `FLUTTER_ROOT`, which `flutter test` sets. Missing files fail loudly
+/// rather than silently measuring with the wrong font.
+Future<void> loadRealFonts() async {
+  final root = Platform.environment['FLUTTER_ROOT'];
+  if (root == null) {
+    throw StateError('FLUTTER_ROOT is unset — run this through `flutter test`.');
+  }
+  final fonts = '$root/bin/cache/artifacts/material_fonts';
+
+  Future<ByteData> read(String path) async {
+    final file = File(path);
+    if (!file.existsSync()) {
+      throw StateError('$path is missing — the Flutter cache is incomplete.');
+    }
+    return ByteData.view(Uint8List.fromList(await file.readAsBytes()).buffer);
+  }
+
+  final roboto = FontLoader('Roboto')
+    ..addFont(read('$fonts/Roboto-Regular.ttf'))
+    ..addFont(read('$fonts/Roboto-Medium.ttf'))
+    ..addFont(read('$fonts/Roboto-Bold.ttf'));
+  await roboto.load();
+
+  final icons = FontLoader('MaterialIcons')
+    ..addFont(read('$fonts/MaterialIcons-Regular.otf'));
+  await icons.load();
 }

@@ -294,15 +294,24 @@ class _ClubBarHeaderState extends State<ClubBarHeader> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left: deploying club's name (#297)
+          // Left: deploying club's name (#297).
+          //
+          // Secondary and a step down from where it was — `xxl`, semi-bold,
+          // primary white — because that made it the largest bold text on the
+          // screen, directly above a member name set smaller (member
+          // feedback: "hard to spot the user name who is logged in"). A
+          // member at the bar knows which club they are in; what they need
+          // confirmed is whose tab this is. The member bar's name is the
+          // loudest text now, and `MemberBar.nameFontSize` is what this must
+          // stay below.
           Flexible(
             child: Text(
               widget.displayName,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: AppFontSizes.xxl,
-                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+                fontSize: AppFontSizes.lg,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
