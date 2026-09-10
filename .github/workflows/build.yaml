@@ -62,6 +62,12 @@ env:
   #
   # Bump this deliberately, in its own pull request, and read the release
   # notes — it is the one input here that changes what the binary *is*.
+  #
+  # Nothing bumps it for you: it is a value in an `env:` block, not a
+  # dependency in any manifest, so Dependabot never sees it. What does watch
+  # it is `flutter-sdk-lag.yaml`, which opens one issue when this falls behind
+  # the stable channel or below the lockfile's floor, and closes it again once
+  # the pin is current.
   FLUTTER_VERSION: '3.47.1'
 
 # Superseded runs on the same branch are pointless — cancel them. main is

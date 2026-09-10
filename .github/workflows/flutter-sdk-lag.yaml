@@ -1,0 +1,91 @@
+name: Flutter SDK lag
+
+# Opens an issue when the pinned Flutter SDK falls behind the stable channel,
+# and closes it again once the pin is current.
+#
+# Why: `FLUTTER_VERSION` in build.yaml is the one input to the terminal build
+# that nothing updates. Dependabot's `pub` entry moves the packages, OSV-Scanner
+# reads `pubspec.lock` for advisories, but the SDK that compiles the binary a
+# club runs is a string in a workflow `env:` block — outside every ecosystem
+# Dependabot knows. Since #648 stopped it from cloning `stable`, that string
+# only moves when a person moves it, and a stale pin fails quietly: it caps
+# which package versions can resolve, so a pub bump just refuses `pub get`
+# with the cause on nobody's branch, and the lockfile's `flutter: ">=x.y.z"`
+# floor can walk past it on a bump, which turns `build-terminal` red for a
+# reason the diff does not show.
+#
+# An issue rather than a pull request, deliberately. The pin's own comment says
+# to bump it in a pull request of its own and read the release notes, because
+# it is the input that changes what the binary *is*. That reading is the
+# review; this only makes sure it is known to be due.
+#
+# The policy lives in `e2etests/scripts/flutter-sdk-lag.mjs` with the tests
+# that hold it: exactly one issue, told once per new stable release, closed by
+# the first run that finds the pin current — so an open one always means
+# "behind right now" (the same self-closing rule as scheduled-failure-issue).
+
+on:
+  # Weekly, after Dependabot's 07:00 Berlin `pub` slot has run: if a package
+  # bump moved the lockfile floor this morning, the check sees it today.
+  # Cron is UTC — 05:41 is 07:41 in summer and 06:41 in winter.
+  schedule:
+    - cron: '41 5 * * 1'
+  # Either input changed on main — close the issue the moment a bump lands,
+  # rather than a week later, and re-read the floor after a lockfile change.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build.yaml'
+      - '.github/workflows/flutter-sdk-lag.yaml'
+      - 'e2etests/scripts/flutter-sdk-lag.mjs'
+      - 'terminal-frontend/pubspec.lock'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Report what would be opened, commented or closed without touching the tracker.
+        type: boolean
+        default: false
+
+concurrency:
+  group: flutter-sdk-lag
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # No `npm ci`: the script imports nothing outside Node's standard library
+      # and talks to GitHub through `gh`, which is preinstalled on the runner —
+      # a workflow with `issues: write` should not execute a dependency tree it
+      # has not audited. The release feed is Flutter's own
+      # (storage.googleapis.com/flutter_infra_release), read over HTTPS.
+      - name: Compare the pin with the stable channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry-run || 'false' }}
+        run: node e2etests/scripts/flutter-sdk-lag.mjs
+
+  # The check itself has no pull request to turn red, so a failure (the feed
+  # unreachable, the pin unparseable) is invisible unless something says so.
+  # Only on the schedule — a manual or push run is being watched already.
+  report:
+    needs: [check]
+    if: always() && github.event_name == 'schedule'
+    uses: ./.github/workflows/scheduled-failure-issue.yaml
+    with:
+      workflow-name: Flutter SDK lag
+      succeeded: ${{ needs.check.result == 'success' }}
+    permissions:
+      issues: write
