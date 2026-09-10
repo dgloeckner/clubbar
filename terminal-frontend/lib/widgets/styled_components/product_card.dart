@@ -173,16 +173,33 @@ class _ProductCardState extends State<ProductCard>
                       SizedBox(height: ProductCard.metrics.gap),
 
                       // Product name — the headline; see [nameFontSize].
-                      Text(
-                        widget.productName,
-                        textAlign: TextAlign.center,
-                        maxLines: ProductCard.nameLines,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: widget.nameFontSize,
-                          fontWeight: FontWeight.w700,
-                          height: ProductCard.textLineHeight,
+                      //
+                      // Fixed to the full two-line box regardless of how many
+                      // lines this name actually needs, and bottom-aligned in
+                      // it: a one-line name ("Helles") would otherwise render
+                      // shorter than a two-line one ("Alkoholfreies Bier"),
+                      // and with the column centred that shifted the price
+                      // below it up or down tile to tile — misaligned across
+                      // a row. Anchoring every name's last line to the same
+                      // baseline puts every price at the same height too.
+                      SizedBox(
+                        height: ProductCard.textLineHeight *
+                            ProductCard.nameLines *
+                            widget.nameFontSize,
+                        child: Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Text(
+                            widget.productName,
+                            textAlign: TextAlign.center,
+                            maxLines: ProductCard.nameLines,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: widget.nameFontSize,
+                              fontWeight: FontWeight.w700,
+                              height: ProductCard.textLineHeight,
+                            ),
+                          ),
                         ),
                       ),
                       SizedBox(height: ProductCard.metrics.gap),
