@@ -52,9 +52,14 @@ const SESSION_COOKIE_NAME = API_BASE.startsWith('https://') ? '__Host-session' :
  * What the backend under test is configured with. Announced by the runner
  * rather than discovered, because nothing on the API reports it — and guessing
  * would mean waiting fifteen minutes to find out.
+ *
+ * The gate is written as a bare `process.env` comparison rather than anything
+ * computed: `no-data-dependent-skip` (#146) requires a skip condition to be
+ * statically decidable, and `Number(...)` is a call, which it rightly refuses.
+ * The parsed number below is only ever used to size a wait.
  */
+const ROTATES_QUICKLY = (process.env.E2E_SESSION_REGEN_INTERVAL ?? '') !== ''
 const REGEN_INTERVAL_SECONDS = Number(process.env.E2E_SESSION_REGEN_INTERVAL ?? '0')
-const ROTATES_QUICKLY = REGEN_INTERVAL_SECONDS > 0 && REGEN_INTERVAL_SECONDS <= 10
 
 /** The `name=value` pair from a response's Set-Cookie, or null when it sent none. */
 function sessionCookieFrom(headers: Record<string, string>): string | null {
