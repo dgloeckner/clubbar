@@ -25,6 +25,25 @@ return [
         'env' => 'production',
         'debug' => false,
         'url' => 'https://example.com',
+        // WHICH OTHER SITES MAY READ THIS API'S RESPONSES.
+        //
+        // Left alone — the ordinary case — the answer is "only this
+        // installation". The origin of `url` above is allowed and nothing else,
+        // which is exactly what an admin panel served from this same site
+        // needs: a page and an API on one origin never involves CORS at all.
+        //
+        // Set this only when the panel is served from somewhere else, and name
+        // that origin — scheme and host, no path:
+        //
+        //   'cors_origins' => ['https://panel.example.com'],
+        //
+        // `['*']` means *any* site may read a response from this API. It is
+        // never the default, and it is not a way to fix a login that will not
+        // work cross-origin: a browser refuses to send the session cookie to a
+        // wildcard, so a wildcard buys nothing an admin panel can use and gives
+        // every page on the internet whatever this API answers unauthenticated.
+        // 'cors_origins' => [],
+
         // The clock your club's books are stated in. Every time is stored in
         // UTC and converted back into this zone on every surface — the admin
         // panel, the CSV exports, the day and hour buckets behind the reports,

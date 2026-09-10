@@ -47,6 +47,23 @@ final class ConfigFile
         $_ENV['APP_DEBUG'] = ($config['app']['debug'] ?? false) ? 'true' : 'false';
         $_ENV['APP_URL'] = $config['app']['url'] ?? '';
 
+        // Which browser origins may read an API response (#875). Optional, and
+        // absent is the ordinary case: `AppConfig` then allows the app URL's
+        // own origin and nothing else, so a panel served from this
+        // installation works and no other site can read a response.
+        //
+        // Published even when empty, unlike the timezone above: an empty value
+        // here has a meaning — "derive it" — while an absent one would let a
+        // stray `CORS_ORIGINS` in the process environment decide instead. A
+        // package install's environment is this file, in full.
+        //
+        // A list in config.php (one origin per line reads better than a comma
+        // salad), flattened here because the environment is flat.
+        $corsOrigins = $config['app']['cors_origins'] ?? '';
+        $_ENV['CORS_ORIGINS'] = is_array($corsOrigins)
+            ? implode(',', array_map('strval', $corsOrigins))
+            : (string) $corsOrigins;
+
         // The zone the club reads in. Optional, and deliberately only set when
         // present: ClubTimeZone's own default (Europe/Berlin) is then what
         // applies, and an empty string here would look like a configured value.

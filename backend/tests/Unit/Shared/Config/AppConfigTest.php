@@ -16,10 +16,19 @@ class AppConfigTest extends TestCase
 {
     private array $serverBackup;
 
+    /**
+     * `Env::get()` falls back to the *process* environment, and the backend
+     * container sets `CORS_ORIGINS` — so a test that only clears `$_ENV` would
+     * read the container's value and pass or fail for reasons that have
+     * nothing to do with the code.
+     */
+    private string|false $corsBackup;
+
     protected function setUp(): void
     {
         Env::reset();
         $this->serverBackup = $_SERVER;
+        $this->corsBackup = getenv('CORS_ORIGINS');
         $this->clearEnv();
     }
 
@@ -28,6 +37,12 @@ class AppConfigTest extends TestCase
         Env::reset();
         $this->clearEnv();
         $_SERVER = $this->serverBackup;
+
+        if ($this->corsBackup === false) {
+            putenv('CORS_ORIGINS');
+        } else {
+            putenv('CORS_ORIGINS=' . $this->corsBackup);
+        }
     }
 
     private function clearEnv(): void
@@ -37,10 +52,13 @@ class AppConfigTest extends TestCase
             $_ENV['DATA_DIR'],
             $_ENV['SESSION_SAVE_PATH'],
             $_ENV['APP_URL'],
+            $_ENV['CORS_ORIGINS'],
             $_SERVER['HTTPS'],
             $_SERVER['HTTP_X_FORWARDED_PROTO'],
             $_SERVER['SERVER_PORT'],
         );
+
+        putenv('CORS_ORIGINS');
     }
 
     public function test_cookie_is_secure_when_app_url_is_https(): void
@@ -241,5 +259,94 @@ class AppConfigTest extends TestCase
         $_ENV['SESSION_SAVE_PATH'] = '/var/lib/clubbar-sessions';
 
         $this->assertSame('/var/lib/clubbar-sessions', (new AppConfig())->sessionSavePath);
+    }
+
+    // ---------------------------------------------------------------------
+    // Which origins may read an API response (#875)
+    // ---------------------------------------------------------------------
+
+    /**
+     * The bug this replaces: `CORS_ORIGINS` defaulted to `*`, and a package
+     * install had no key that could set it — so every self-hosted deployment
+     * answered `Access-Control-Allow-Origin: *` and could not stop.
+     */
+    public function test_saying_nothing_allows_this_installation_and_nobody_else(): void
+    {
+        $_ENV['APP_URL'] = 'https://bar.example.org';
+
+        $this->assertSame(['https://bar.example.org'], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    /**
+     * A default port is never in the `Origin` header a browser sends, so it
+     * must not be in what we compare against.
+     */
+    public function test_the_derived_origin_is_the_form_a_browser_sends(): void
+    {
+        $_ENV['APP_URL'] = 'HTTPS://Bar.Example.ORG:443/clubbar/';
+
+        $this->assertSame(['https://bar.example.org'], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    public function test_a_non_default_port_is_part_of_the_origin(): void
+    {
+        $_ENV['APP_URL'] = 'http://localhost:8080';
+
+        $this->assertSame(['http://localhost:8080'], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    /**
+     * Fail closed (ADR-0031 rule 3): a deployment that cannot say who it is
+     * does not get to answer for everyone.
+     */
+    public function test_an_unusable_app_url_allows_nothing_rather_than_everything(): void
+    {
+        $_ENV['APP_URL'] = 'not a url';
+
+        $this->assertSame([], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    public function test_a_configured_list_wins_and_is_split_on_commas(): void
+    {
+        $_ENV['APP_URL'] = 'https://bar.example.org';
+        $_ENV['CORS_ORIGINS'] = 'http://localhost:5173, http://localhost:5174';
+
+        $this->assertSame(
+            ['http://localhost:5173', 'http://localhost:5174'],
+            (new AppConfig())->corsAllowedOrigins
+        );
+    }
+
+    /**
+     * Hand-written config carries hand-written URLs. A trailing slash that
+     * matched nothing would be a CORS failure with no error anywhere on the
+     * server — the browser is the only participant that sees it.
+     */
+    public function test_a_configured_origin_is_normalised_like_the_derived_one(): void
+    {
+        $_ENV['CORS_ORIGINS'] = 'https://Panel.Club.de:443/admin/';
+
+        $this->assertSame(['https://panel.club.de'], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    public function test_a_deliberate_wildcard_is_still_possible(): void
+    {
+        $_ENV['APP_URL'] = 'https://bar.example.org';
+        $_ENV['CORS_ORIGINS'] = '*';
+
+        $this->assertSame(['*'], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    /**
+     * An empty value means "not configured", not "allow nothing" — a container
+     * that passes `CORS_ORIGINS=` through, and every package install, whose
+     * `ConfigFile` publishes the key whether or not `config.php` names it.
+     */
+    public function test_an_empty_value_falls_through_to_the_derived_origin(): void
+    {
+        $_ENV['APP_URL'] = 'https://bar.example.org';
+        $_ENV['CORS_ORIGINS'] = '  ,  ';
+
+        $this->assertSame(['https://bar.example.org'], (new AppConfig())->corsAllowedOrigins);
     }
 }
