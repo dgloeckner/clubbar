@@ -1,6 +1,7 @@
 # Product Volume: A Size Beside the Name
 
-**Status**: Not started — plan awaiting review
+**Issue**: [#878](https://github.com/dgloeckner/clubbar/issues/878)
+**Status**: Not started — ready for an agent
 **Design**: ADR-0056 (to be written in M1)
 **Branch**: stacked on `claude/terminal-product-card-layout-tr5rue`. M6 needs that branch's
 `ProductGridLayout` solver and its price-alignment change to `ProductCard`. One PR per
