@@ -4374,7 +4374,7 @@ class $$MembersCacheTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$MembersCacheTable, MembersCacheData>(table),
                   $$MembersCacheTableReferences(db, table, e),
                 ),
               )
@@ -4708,7 +4708,9 @@ class $$CategoriesCacheTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$CategoriesCacheTable, CategoriesCacheData>(
+                    table,
+                  ),
                   $$CategoriesCacheTableReferences(db, table, e),
                 ),
               )
@@ -5223,7 +5225,7 @@ class $$ProductsCacheTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ProductsCacheTable, ProductsCacheData>(table),
                   $$ProductsCacheTableReferences(db, table, e),
                 ),
               )
@@ -5862,7 +5864,9 @@ class $$TransactionsLocalTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$TransactionsLocalTable, TransactionsLocalData>(
+                    table,
+                  ),
                   $$TransactionsLocalTableReferences(db, table, e),
                 ),
               )
@@ -6058,7 +6062,16 @@ class $$SyncStateTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$SyncStateTable, SyncStateData>(table),
+                  BaseReferences<
+                    _$ClubBarDatabase,
+                    $SyncStateTable,
+                    SyncStateData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6207,7 +6220,18 @@ class $$DispenserConfigTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$DispenserConfigTable, DispenserConfigData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$ClubBarDatabase,
+                    $DispenserConfigTable,
+                    DispenserConfigData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6553,7 +6577,18 @@ class $$DispenserOperationsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$DispenserOperationsTable, DispenserOperation>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$ClubBarDatabase,
+                    $DispenserOperationsTable,
+                    DispenserOperation
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
