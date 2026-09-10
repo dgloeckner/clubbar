@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -147,6 +148,22 @@ void main() {
 
       expect(find.byType(ListView), findsOneWidget);
       expect(find.text('Bier'), findsOneWidget);
+    });
+
+    // Member feedback: product names were too small. The cart line follows
+    // the grid tile: the name is the headline, a step above its line total.
+    testWidgets('the item name is the line\'s largest text', (tester) async {
+      await tester.pumpWidget(buildTestWidget());
+
+      final name = tester.widget<Text>(find.text('Bier')).style!;
+      // The line total is the first "11,00 €" in tree order; the footer's
+      // grand total is the second.
+      final lineTotal =
+          tester.widget<Text>(find.textContaining('11,00').first).style!;
+
+      expect(name.fontSize, AppFontSizes.xxl);
+      expect(name.fontSize!, greaterThan(lineTotal.fontSize!));
+      expect(name.fontWeight, FontWeight.w700);
     });
 
     testWidgets('displays total price formatted correctly',

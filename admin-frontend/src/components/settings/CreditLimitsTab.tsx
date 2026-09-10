@@ -17,6 +17,8 @@
 
 import { useTranslation } from 'react-i18next'
 import { theme } from '../../styles/design-system'
+import { MoneyField } from '../forms/MoneyField'
+import { parseMoneyToCents } from '../../utils/money'
 
 export interface CreditLimitsTabProps {
   loading: boolean
@@ -54,10 +56,9 @@ export function warnAtCents(limitCents: number, warnPercent: number): number {
 
 /** A euro string as whole cents, or NaN when the field is not a number yet. */
 export function eurosToCents(value: string): number {
-  const normalised = value.trim().replace(',', '.')
-  if (normalised === '') return NaN
+  const cents = parseMoneyToCents(value)
 
-  return Math.round(Number(normalised) * 100)
+  return cents === null ? NaN : cents
 }
 
 export function centsToEuros(cents: number): string {
@@ -152,15 +153,12 @@ export function CreditLimitsTab({
           <label style={labelStyle} htmlFor="settings-limits-input-default">
             {t('settings.limits.label')}
           </label>
-          <input
+          <MoneyField
             id="settings-limits-input-default"
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="0.01"
+            testId="settings-limits-input-default"
             value={limitEuros}
-            onChange={(e) => onLimitChange(e.target.value)}
-            data-testid="settings-limits-input-default"
+            onChange={onLimitChange}
+            invalid={!!fieldErrors.default_limit_cents}
             style={inputStyle(!!fieldErrors.default_limit_cents)}
           />
           <p style={helperStyle} data-testid="settings-limits-helper-default">

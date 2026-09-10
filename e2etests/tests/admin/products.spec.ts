@@ -41,6 +41,16 @@ async function minAgeOf(page: import('@playwright/test').Page, productId: string
   return row.min_age ?? null
 }
 
+/** The product's price in cents as the API stores it, read through the list. */
+async function priceCentsOf(page: import('@playwright/test').Page, productId: string): Promise<number> {
+  const resp = await page.request.get(`${API_BASE}/admin/products`, { params: { per_page: 100 } })
+  expect(resp.status()).toBe(200)
+  const row = (await resp.json()).data.find((p: { id: string }) => p.id === productId)
+  expect(row, 'the product must be in the list').toBeTruthy()
+
+  return row.price_cents
+}
+
 /** Helper: create a product via API, returns full product object */
 async function createProductViaApi(
   page: import('@playwright/test').Page,
@@ -482,5 +492,89 @@ test.describe('Admin Products Page', () => {
     await authenticatedProductsPage.search(deOnlyName)
     const deOnlyId = await authenticatedProductsPage.getProductIdByName(deOnlyName)
     expect(deOnlyId).not.toBeNull()
+  })
+
+  /**
+   * A price typed the way German writes one (#863).
+   *
+   * The field used to be `<input type="number">`, which is not a locale-aware
+   * control: whatever language the panel is in, its value sanitisation accepts
+   * the dot and nothing else. A Getränkewart typing `3,50` — the notation the
+   * list beside them uses to *display* every price — handed the form an empty
+   * string, and the save was refused for a price plainly on screen. German is
+   * the panel's default language, so that was the default experience.
+   *
+   * This asserts the whole way through: what the field shows, what it will
+   * send, what the API stored, and what the list shows afterwards.
+   */
+  test('product price: a German comma is accepted, stored, and shown back as a comma', async ({
+    authenticatedProductsPage,
+    page,
+  }) => {
+    const ts = Date.now()
+    const prefix = `Loc${ts}`
+
+    const cat = await createCategoryViaApi(page, `${prefix}Kat`, `${prefix}Cat`)
+
+    // The panel's default language, pinned rather than assumed — the notation
+    // under test is the one this language writes.
+    await page.request.patch(`${API_BASE}/auth/profile`, {
+      data: { locale: 'de' },
+      headers: await csrfHeaders(page),
+    })
+    await page.evaluate(() => localStorage.setItem('locale', 'de'))
+    await authenticatedProductsPage.reloadPage()
+
+    // ── A comma is what a German admin types ────────────────────
+    const koelsch = `${prefix}Koelsch`
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+    await authenticatedProductsPage.fillProductForm(koelsch, '3,50')
+
+    expect(
+      await authenticatedProductsPage.getFormPriceText(),
+      'the field shows the amount the way the admin wrote it',
+    ).toBe('3,50')
+    expect(
+      await authenticatedProductsPage.getFormPriceValue(),
+      'and will send it as canonical cents-safe text',
+    ).toBe('3.50')
+
+    await authenticatedProductsPage.selectCategory(cat.id)
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    // ── Stored as the amount that was typed, to the cent ────────
+    await authenticatedProductsPage.search(koelsch)
+    const productId = await authenticatedProductsPage.getProductIdByName(koelsch)
+    expect(productId).not.toBeNull()
+    expect(await priceCentsOf(page, productId!)).toBe(350)
+
+    const row = await authenticatedProductsPage.getRowDataByProductId(productId)
+    expect(row!.price).toContain('3,50')
+
+    // ── The dot a numeric keypad emits is written back as a comma ─
+    await authenticatedProductsPage.clickEditButton(productId!)
+    await authenticatedProductsPage.expectFormModalVisible()
+    expect(
+      await authenticatedProductsPage.getFormPriceText(),
+      'a stored price comes back into the field in the admin’s notation',
+    ).toBe('3,50')
+
+    await authenticatedProductsPage.fillPrice('4.20')
+    expect(await authenticatedProductsPage.getFormPriceText()).toBe('4,20')
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    expect(await priceCentsOf(page, productId!)).toBe(420)
+
+    // ── Whole euros are completed to the cent on leaving the field ─
+    await authenticatedProductsPage.clickEditButton(productId!)
+    await authenticatedProductsPage.expectFormModalVisible()
+    await authenticatedProductsPage.fillPrice('5')
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    expect(await priceCentsOf(page, productId!)).toBe(500)
   })
 })

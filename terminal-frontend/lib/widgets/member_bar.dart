@@ -19,6 +19,37 @@ class MemberBar extends StatelessWidget {
   /// product grid had to give six pixels back.
   static const double _actionButtonSize = 52.0;
 
+  static const double _borderWidth = 1.0;
+
+  /// The bar's rendered height: the buttons, the bar's own padding and its
+  /// border. Pinned so a caller — and the test that holds #369's band — can
+  /// tell when the name column has quietly become the tallest thing in it.
+  static const double height =
+      _actionButtonSize + 2 * AppSpacing.sm + 2 * _borderWidth;
+
+  /// Size of the member's name.
+  ///
+  /// Member feedback: "hard to spot the user name who is logged in". The name
+  /// was `lg` — the same step as the balance under it, one step *below* the
+  /// club name in the header above it, and below every product name on the
+  /// grid. The one string that tells a member the terminal has read the right
+  /// card was the quietest text in its own band, in a row where two filled
+  /// buttons win the eye anyway. So the name is the largest text on the
+  /// screen, and the header's club name steps down to make that true.
+  ///
+  /// Exposed so the header can assert it stays below this, rather than the two
+  /// widgets agreeing by coincidence.
+  static double get nameFontSize => AppFontSizes.xxxl;
+
+  /// Line heights for the name and balance, pinned rather than left to the
+  /// font. At the default scale the two lines are 26 and 18 px; at Roboto's
+  /// natural ~1.34 they would be 59 px together and grow the bar past its
+  /// buttons — the band #369 measured to buy the grid its second row. At
+  /// these factors they are 30 + 22 = 52, exactly the button edge, so the
+  /// name gets its step up and the grid keeps its row.
+  static const double _nameLineHeight = 1.15;
+  static const double _balanceLineHeight = 1.2;
+
   const MemberBar({
     required this.member,
     this.deckelCents,
@@ -60,7 +91,10 @@ class MemberBar extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: const Color(0xcc1e293b),
-        border: Border.all(color: const Color(0x66475569), width: 1),
+        border: Border.all(
+          color: const Color(0x66475569),
+          width: _borderWidth,
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -84,9 +118,9 @@ class MemberBar extends StatelessWidget {
                 onTap: () => showMemberDetailsModal(context),
                 borderRadius: BorderRadius.circular(12),
                 // No vertical padding around this cluster (#369): the
-                // name/balance column is already two `lg` lines — ~48 px, over
-                // the 44 px touch minimum on its own — so the 4 px that used to
-                // wrap it only made the cluster the tallest thing in the row.
+                // name/balance column is pinned to the button edge — 52 px,
+                // over the 44 px touch minimum on its own — so any padding
+                // here would make the cluster the tallest thing in the row.
                 child: Semantics(
                   button: true,
                   label: l10n.viewDetails,
@@ -95,9 +129,14 @@ class MemberBar extends StatelessWidget {
                       // Avatar with initials — gradient keyed off the member
                       // id so the same member always gets the same colours
                       // across every surface that shows their avatar (#302).
+                      //
+                      // The same edge as the buttons beside it: the avatar is
+                      // the colour the eye lands on first, and at 43 px it sat
+                      // visibly smaller than the two controls it was
+                      // competing with.
                       Container(
-                        width: 43,
-                        height: 43,
+                        width: _actionButtonSize,
+                        height: _actionButtonSize,
                         decoration: BoxDecoration(
                           gradient: avatarGradientFor(member.id),
                           borderRadius: BorderRadius.circular(
@@ -109,13 +148,13 @@ class MemberBar extends StatelessWidget {
                             initials,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: AppFontSizes.base,
+                              fontSize: AppFontSizes.lg,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: AppSpacing.md),
                       // Member name and balance
                       Flexible(
                         child: Column(
@@ -124,12 +163,14 @@ class MemberBar extends StatelessWidget {
                           children: [
                             Text(
                               '$firstName $lastName',
+                              key: const Key('member-bar-name'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: AppFontSizes.lg,
-                                fontWeight: FontWeight.w600,
+                                fontSize: nameFontSize,
+                                fontWeight: FontWeight.w700,
+                                height: _nameLineHeight,
                               ),
                             ),
                             Text(
@@ -138,12 +179,15 @@ class MemberBar extends StatelessWidget {
                                 l10n,
                                 locale,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: balanceColor(
                                   deckelCents ?? member.balanceCents,
                                 ),
                                 fontSize: AppFontSizes.lg,
                                 fontWeight: FontWeight.w500,
+                                height: _balanceLineHeight,
                               ),
                             ),
                           ],

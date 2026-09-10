@@ -101,6 +101,25 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 
 ---
 
+### [Money Field Pattern](./money-field.md)
+**Purpose**: one amount control that speaks the panel's language
+
+- ✅ Why `<input type="number">` is gone for money (a comma reaches script as `''`)
+- ✅ Both separators accepted, the locale's written back, as you type
+- ✅ Canonical `12.34` on the wire, `12,34` on screen; hidden `{testId}-value` for E2E
+- ✅ `1.000` is a thousand euros, not one
+- ✅ Never format an amount by hand — `useFormatters().formatPrice`
+
+**When to use**: any time a page takes a euro amount
+
+**Quick Start**:
+```typescript
+<MoneyField testId="products-form-price-input" required
+  value={formData.price} onChange={(price) => setFormData({ ...formData, price })} />
+```
+
+---
+
 ### [Component Patterns](./components.md)
 **Purpose**: Reference for the reusable UI components available to pages
 
@@ -195,3 +214,4 @@ To add a new pattern:
 | [Data Fetching](./data-fetching.md) | 1.0 | Active | 2026-08-08 |
 | [Role-Aware Navigation](./role-visibility.md) | 1.0 | Active | 2026-08-19 |
 | [Date Field](./date-field.md) | 1.0 | Active | 2026-08-21 |
+| [Money Field](./money-field.md) | 1.0 | Active | 2026-09-09 |

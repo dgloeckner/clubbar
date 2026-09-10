@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/clubbar_header.dart';
+import 'package:clubbar_terminal/widgets/member_bar.dart';
 import '../test_helpers.dart';
 import '../utils/wcag.dart';
 
@@ -384,6 +386,26 @@ void main() {
 
       expect(clock.style?.fontFamily, 'JetBrains Mono');
     });
+
+    // Member feedback: "hard to spot the user name who is logged in". Part of
+    // why was this header — the club's own name, in the largest bold type on
+    // the screen, directly above a member name set smaller. A member standing
+    // at the bar does not need telling which club they are in.
+    group('the club name yields to the member (member feedback)', () {
+      testWidgets('is set quieter and smaller than the member name',
+          (tester) async {
+        await tester.pumpWidget(buildTestApp(
+          connectionStatus: ConnectionStatus.online,
+          displayName: 'TSV Musterstadt',
+        ));
+
+        final title = tester.widget<Text>(find.text('TSV Musterstadt')).style!;
+
+        expect(title.fontSize!, lessThan(MemberBar.nameFontSize));
+        expect(title.color, AppColors.textSecondary);
+        expect(title.fontWeight!.value, lessThan(FontWeight.w600.value));
+      });
+    });
   });
 
   /// Issue #760: the clock renders `HH:mm`, so a one-second tick repainted the
@@ -448,4 +470,5 @@ void main() {
       expect(find.text('20:16'), findsOneWidget);
     });
   });
+
 }

@@ -244,6 +244,11 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - ISO `YYYY-MM-DD` on the wire, locale order on screen; `min`/`max` enforced in the field
   - `mode="birthdate"` opens on the year view and shows the resulting age (ADR-0045)
   - Assert on `{testId}-value` in E2E, never on the visible (locale-formatted) input
+- **Money Field Pattern**: one amount control that speaks the panel's language — `<input type="number">` is not used for money
+  - `<input type="number">` reports a comma as `''`, so a German admin typing `3,50` handed the form nothing (#863)
+  - Both separators accepted whichever language is on; the locale's is written back as you type
+  - Canonical `12.34` on the wire, `12,34` on screen; assert on `{testId}-value` in E2E
+  - Never format an amount by hand — `useFormatters().formatPrice()` goes through `Intl`
 - **API Error Messages Pattern**: show an admin *why* an action failed, in their language
   - `useApiError()` — never render `err.response.data.message`, which the backend always writes in English
   - Reason codes resolve to `errors.reasons.<code>`; cents and dates are formatted for the reader

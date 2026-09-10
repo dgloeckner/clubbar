@@ -6,7 +6,8 @@
 
 import { useTranslation } from 'react-i18next'
 import { getProductIcon } from '../icons/IconRegistry'
-import { parsePriceToCents } from '../../utils/price'
+import { parseMoneyToCents } from '../../utils/money'
+import { useFormatters } from '../../hooks/useFormatters'
 import { theme } from '../../styles/design-system'
 import { tableColors } from '../../styles/tableTokens'
 
@@ -18,18 +19,21 @@ interface ProductPreviewProps {
 
 export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
   const { t } = useTranslation()
+  // The terminal shows a price in the *member's* language, so the preview of
+  // it shows one in the admin's — through `Intl`, like every other amount in
+  // the panel. It used to hardcode the German comma, which was right for the
+  // default language and wrong for the other one.
+  const { formatPrice } = useFormatters()
 
-  // Format price like terminal: "3,50 €"
-  const formatPrice = (priceStr: string) => {
-    const cents = parsePriceToCents(priceStr)
-    if (cents === null) return '0,00 €'
-    return (cents / 100).toFixed(2).replace('.', ',') + ' €'
+  const previewPrice = (priceStr: string) => {
+    const cents = parseMoneyToCents(priceStr)
+    return formatPrice(cents ?? 0)
   }
 
   // Get icon component
   const IconComponent = getProductIcon(iconName)
   const displayName = name.trim() || t('products.previewNamePlaceholder')
-  const displayPrice = formatPrice(price)
+  const displayPrice = previewPrice(price)
 
   return (
     <div
