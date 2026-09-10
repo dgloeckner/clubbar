@@ -171,7 +171,7 @@ Read-only cache of product catalog synced from backend.
 |--------|------|-------------|-------------|
 | `id` | TEXT | PRIMARY KEY | UUID from backend |
 | `category_id` | TEXT | NOT NULL, FK | Reference to `categories_cache.id` |
-| `names` | TEXT | NOT NULL | JSON string: `{"de": "Bier 0,5L", "en": "Beer 0.5L"}` |
+| `names` | TEXT | NOT NULL | JSON string: `{"de": "Bier", "en": "Beer"}`. The size lives in `volume_ml`, not in the name (ADR-0056) |
 | `descriptions` | TEXT | NULL | JSON string: Multilingual descriptions (optional) |
 | `price_cents` | INTEGER | NOT NULL | Price in cents (350 = 3.50 EUR) |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | 1=available, 0=unavailable |

@@ -12,6 +12,7 @@ What someone has to *do*, on what rhythm, to keep the system lawful and the book
 | Annually | [Data-protection review](#annually-data-protection-review) | Vorstand |
 | Annually | [The backup restore drill](#annually-the-backup-restore-drill) | Admin |
 | Quarterly | [The offline copy](#quarterly-the-offline-copy) | Admin |
+| Once, after upgrading | [Moving product sizes out of their names](#once-after-upgrading-moving-product-sizes-out-of-their-names) | Getränkewart |
 
 ---
 
@@ -124,6 +125,44 @@ No decryption needed — an unopened `.cbb` is still a backup, and opening it
 outside the drill only spreads the plaintext around.
 
 ---
+
+## Once, after upgrading: moving product sizes out of their names
+
+A product's size used to have nowhere to go but its name — `Weizenbier (0,5l)`,
+`Pils 0,5L`, `Bier 0,5 l`. Since [ADR-0056](../adr/0056-product-volume.md) it has
+a field of its own, and **nothing was moved automatically**: a rule that guessed
+would mangle a minority of names silently, on a screen members read. So it is a
+one-off pass through the product list, by hand.
+
+**Per product, one save:**
+
+1. Open the product in *Produkte*.
+2. Delete the size from the name, **in every language tab** — `Weizenbier (0,5l)`
+   becomes `Weizenbier`, `Wheat beer (0.5l)` becomes `Wheat beer`.
+3. Type the size into **Größe**, in litres: `0,5`. Either decimal separator is
+   accepted; the field writes back the one your language uses.
+4. Save.
+
+Doing both in one save is what keeps a product from being left half-renamed.
+
+**What to expect afterwards**
+
+- The terminal picks the change up on its next delta sync — no restart, no
+  redeploy. The tile then shows the name on one line with the size as a badge
+  under it, and the price gets the room that frees.
+- Every surface that prints the product prints the size after it — the
+  Deckelauszug, settlement mail, the journal, reports and the CSV exports — each
+  in its reader's own notation.
+- **Leave the size empty for anything that has none.** A Sauna-Token, a Kaffee, a
+  Portion Nüsse. Empty is not the same as `0`, and `0` is refused.
+- Something that is not a volume — a Portion, a Stück — stays in the name. This
+  field is millilitres only.
+- Editing a size changes how *past* bookings read, exactly as renaming a product
+  already does. That is worth knowing before you edit a product with a long
+  history; it is not new behaviour.
+
+⚠️ Do the pass before a settlement run rather than during one, so a member
+comparing a Deckelauszug against the mail beside it sees the same names on both.
 
 ## Why these are written down
 

@@ -62,10 +62,26 @@ Only **active products in active categories** are shown.
 
 | State | Display |
 |-------|---------|
-| Not in cart | Product name, price |
-| In cart (qty > 0) | Product name, price, quantity badge |
+| Not in cart | Product name (one line), size badge, price |
+| In cart (qty > 0) | The same, plus a quantity badge |
 | Inactive product | Hidden |
 | Product in inactive category | Hidden |
+
+#### The Tile's Three Parts ([ADR-0056](../../adr/0056-product-volume.md))
+
+1. **The name, on one line.** The grid picks one size for the whole category —
+   the largest at which every name fits its tile with every word whole. One line
+   is affordable because the size is no longer inside the name; a name still too
+   wide for its tile is ellipsised, never broken mid-word.
+2. **The size, as a badge beneath it**, in the member's own notation — `0,5 l`
+   in German, `0.5 l` in English, `20 ml` below 100 ml. A product with no size
+   draws no badge, **but the row keeps its height**: that is what holds every
+   price on a grid row at the same height.
+3. **The price, in a pill**, and it is the most prominent number on the tile.
+   The member picks by name and then checks the price.
+
+The cart, the checkout receipt and the terminal's own booking history print the
+same string the tile does — the name, then the size.
 
 ### Navigation Elements
 | Element | Action |
@@ -230,6 +246,13 @@ are about to spend without leaving the grid.
 - Timeout without checkout: add items, wait for timeout, verify no transactions
 - Balance preview: add items, verify preview = current balance + cart total
 - Product language: verify names display in member's preferred language
+- Size badge: a product with a volume shows it under its name, in the member's
+  notation; one without shows no badge
+- Prices stay level: a row mixing sized and unsized products has every price at
+  the same height
+- The cart and the receipt name a booking the way the tile did — name, then size
+- History: a booked line reads the same whether it came from the local cache or
+  back from the server
 - No mandate: scan card of a member with no active mandate, verify the message names the remedy and no product view opens
 - IBAN alone is not enough: a member with an IBAN but no signed mandate must be refused — this is the case the old predicate wrongly admitted
 - Inactive category: deactivate category, verify tab hidden on terminal

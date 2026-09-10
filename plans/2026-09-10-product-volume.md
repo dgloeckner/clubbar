@@ -1,7 +1,7 @@
 # Product Volume: A Size Beside the Name
 
 **Issue**: [#878](https://github.com/dgloeckner/clubbar/issues/878)
-**Status**: Not started — ready for an agent
+**Status**: Implemented — M1–M8 complete, each verified (see `plans/INDEX.md` for the suite counts)
 **Design**: ADR-0056 (to be written in M1)
 **Branch**: stacked on `claude/terminal-product-card-layout-tr5rue`. M6 needs that branch's
 `ProductGridLayout` solver and its price-alignment change to `ProductCard`. One PR per
@@ -60,33 +60,33 @@ Ordered by dependency. `[ ]` not started · `[~]` in progress · `[x]` passed (t
 
 No production code.
 
-- [ ] `adr/0056-product-volume.md` — decisions 1–5, the alternatives rejected (a free-text
+- [x] `adr/0056-product-volume.md` — decisions 1–5, the alternatives rejected (a free-text
       label, amount + unit, a snapshot on the booking), and the rule that everything printing a
       name also prints the volume
-- [ ] `adr/README.md` — the 0056 row
-- [ ] `CONTEXT.md` — the **Volume** term, and the ADR-0002 sentence it extends (the product's
+- [x] `adr/README.md` — the 0056 row
+- [x] `CONTEXT.md` — the **Volume** term, and the ADR-0002 sentence it extends (the product's
       size is language-neutral data, not part of its translated name)
-- [ ] `api/fixtures/volume-format.json` — the formatting vectors (`de`, `en`, the edge cases
+- [x] `api/fixtures/volume-format.json` — the formatting vectors (`de`, `en`, the edge cases
       1 / 999 / 1000 / 1005 / 10000)
 
 **Verified by**: review. There is nothing to run.
 
 ### M2 — Backend: the column and the contract
 
-- [ ] `backend/db/migrations/067_product_volume.sql` +
+- [x] `backend/db/migrations/067_product_volume.sql` +
       `backend/db/rollback/067_product_volume.down.sql`. Pattern: `049_age_restrictions.sql:48-51`
       (`ADD COLUMN … NULL COMMENT … AFTER`)
-- [ ] `ProductDto` — `fromRow` / `toArray` carry `volume_ml`, nullable like `min_age`
-- [ ] `ProductsRepository` — the INSERT column list **and** the update allowlist `$allowed`
+- [x] `ProductDto` — `fromRow` / `toArray` carry `volume_ml`, nullable like `min_age`
+- [x] `ProductsRepository` — the INSERT column list **and** the update allowlist `$allowed`
       (`:82`); a column missing from the allowlist is dropped without any error
-- [ ] `AdminController` validation (Pattern 001) for create and update: `nullable|integer|min:1|max:10000`.
+- [x] `AdminController` validation (Pattern 001) for create and update: `nullable|integer|min:1|max:10000`.
       Update checks with `array_key_exists`, so an explicit `null` clears the value. First
       confirm which of the two rule sets (`:45-66` or `:167-207`) is actually used
-- [ ] `ProductsService` — volume in the create/update audit values
-- [ ] `api/admin.yaml` — `Product`, `ProductCreateRequest`, `ProductUpdateRequest`.
+- [x] `ProductsService` — volume in the create/update audit values
+- [x] `api/admin.yaml` — `Product`, `ProductCreateRequest`, `ProductUpdateRequest`.
       `api/terminal.yaml` — `Product`. Replace the `"Pils 0,5L"` example names with a short name
       plus `volume_ml`
-- [ ] `docs/erm-master.md` (mermaid block and products table) and `docs/erm-frontend.md`
+- [x] `docs/erm-master.md` (mermaid block and products table) and `docs/erm-frontend.md`
       (`products_cache`)
 
 **Verified by**:
@@ -101,9 +101,9 @@ No production code.
 
 ### M3 — The formatter, three times
 
-- [ ] PHP `Shared\Format\VolumeFormatter::format(int $ml, string $lang): string`
-- [ ] TypeScript: `formatVolume` on `useFormatters()`, next to `formatPrice`, using `Intl`
-- [ ] Dart: `formatVolume(int ml, String locale)` in `terminal-frontend/lib/utils/formatters.dart`,
+- [x] PHP `Shared\Format\VolumeFormatter::format(int $ml, string $lang): string`
+- [x] TypeScript: `formatVolume` on `useFormatters()`, next to `formatPrice`, using `Intl`
+- [x] Dart: `formatVolume(int ml, String locale)` in `terminal-frontend/lib/utils/formatters.dart`,
       next to `formatPrice`
 
 **Verified by**: each language's suite reading `api/fixtures/volume-format.json`. The fixture is
@@ -111,15 +111,15 @@ the single source of the formatting rule; the three implementations are checked 
 
 ### M4 — Admin: setting it
 
-- [ ] `VolumeField` — entry in **litres** with either decimal separator, as the Money Field pattern
+- [x] `VolumeField` — entry in **litres** with either decimal separator, as the Money Field pattern
       does (#863: `<input type="number">` reports `0,5` as empty). Canonical millilitres on the
       wire, and `{testId}-value` for E2E tests to assert on
-- [ ] `ProductsPage` — the field in the create/edit form, a volume column in the list, and the
+- [x] `ProductsPage` — the field in the create/edit form, a volume column in the list, and the
       create/update payloads (`:276-278`, `:333-340`)
-- [ ] `ProductPreview` — the badge, drawn the same way the terminal draws it
-- [ ] `public/locales/de.json` / `en.json` — the label and a hint saying the size goes here,
+- [x] `ProductPreview` — the badge, drawn the same way the terminal draws it
+- [x] `public/locales/de.json` / `en.json` — the label and a hint saying the size goes here,
       not in the name
-- [ ] `admin-frontend/patterns/` — the volume-field entry in the component index
+- [x] `admin-frontend/patterns/` — the volume-field entry in the component index
 
 **Verified by**:
 
@@ -132,11 +132,11 @@ the single source of the formatting rule; the three implementations are checked 
 
 ### M5 — Terminal: carrying it
 
-- [ ] `products_cache.dart` — the nullable `volumeMl` column
-- [ ] `database.dart` — `schemaVersion` 12 → 13, plus an `if (from < 13)` step using
+- [x] `products_cache.dart` — the nullable `volumeMl` column
+- [x] `database.dart` — `schemaVersion` 12 → 13, plus an `if (from < 13)` step using
       `_addColumnIfNotExists`. Regenerate `database.g.dart` and commit it (it is tracked)
-- [ ] `products_repository.dart:91-104` — the DTO → Companion mapping
-- [ ] Regenerate the swagger client (`build_runner`)
+- [x] `products_repository.dart:91-104` — the DTO → Companion mapping
+- [x] Regenerate the swagger client (`build_runner`)
 
 **Verified by**:
 
@@ -145,24 +145,24 @@ the single source of the formatting rule; the three implementations are checked 
 
 ### M6 — Terminal: the card from the prototype
 
-- [ ] `ProductTileMetrics` — `nameLines` 2 → 1, and a fixed **volume row** whose height is
+- [x] `ProductTileMetrics` — `nameLines` 2 → 1, and a fixed **volume row** whose height is
       reserved whether or not the product has a volume. The row is what keeps prices level
       across tiles, as the name box did before. Update `tileHeight` and its inverse
       `nameFontSizeFor` together, since they are one equation
-- [ ] `ProductGridLayout` — the name "fits" when it fits on **one** line. The ellipsis remains
+- [x] `ProductGridLayout` — the name "fits" when it fits on **one** line. The ellipsis remains
       only as a fallback for a name wider than the whole tile at the lower bound (`xxl`)
-- [ ] `ProductCard`:
+- [x] `ProductCard`:
   - a one-line name;
   - a volume badge in `textSecondary` on a faint fill;
   - the price in a pill, `semanticInfo` on a fill of about 28 %, with a 1 px border.
 
   Its contrast is checked in `contrast_test.dart`
-- [ ] **Price size — open, decide at review.** The prototype makes the price larger than the
-      name. The solver can set a name anywhere up to `productNameMax` (46.5 in the production
-      config), while the price sits at a fixed `xxl` (27). The recommendation is to take the
-      height the dropped second name line frees and give it to the price, set at the larger of
-      `xxl` and `0.9 × name`. That avoids adding a new config key.
-- [ ] Cart, checkout confirmation and the failed-sales banner — name + volume
+- [x] **Price size — decided: `max(xxl, 0.9 × name)`**, the recommendation above.
+      `ProductTileMetrics.priceScale` states it once; `tileHeight` and its inverse both
+      account for it, which is why the inverse now has two branches. The price stays loud
+      through its *pill* rather than by outgrowing the name, so #369's finding (a member
+      picks by name) still holds and its test passes unchanged.
+- [x] Cart, checkout confirmation and the failed-sales banner — name + volume
       (`cart_provider.dart:54,73` carries the display string)
 
 **Verified by**:
@@ -183,14 +183,14 @@ the single source of the formatting rule; the three implementations are checked 
 Every surface currently joins `p.names` live, so each gets `volume_ml` from the same join and
 formats it with M3's formatter:
 
-- [ ] `TransactionsRepository.php:236` — the admin transaction list and terminal history
+- [x] `TransactionsRepository.php:236` — the admin transaction list and terminal history
       (`product_name`; add `product_volume_ml` so clients format it themselves)
-- [ ] `SettlementsRepository.php:64` → `SettlementItemDto`
-- [ ] `DeckelStatementRepository.php:55,94` → `DeckelStatementService.php:191,201`
-- [ ] `SettlementMailBuilder.php:167`
-- [ ] `JugendschutzViolationMailBuilder.php:113`
-- [ ] `ReportsRepository`, `DashboardRepository`, `UnsettledTransactions`, and the CSV exports
-- [ ] Terminal `transaction_history_service.dart:165`
+- [x] `SettlementsRepository.php:64` → `SettlementItemDto`
+- [x] `DeckelStatementRepository.php:55,94` → `DeckelStatementService.php:191,201`
+- [x] `SettlementMailBuilder.php:167`
+- [x] `JugendschutzViolationMailBuilder.php:113`
+- [x] `ReportsRepository`, `DashboardRepository`, `UnsettledTransactions`, and the CSV exports
+- [x] Terminal `transaction_history_service.dart:165`
 
 **Verified by**:
 
@@ -201,15 +201,58 @@ formats it with M3's formatter:
 
 ### M8 — Documentation and close-out
 
-- [ ] `UC-A41` / `UC-A42` — acceptance criteria for the volume field; `UC-T01` — the badge
-- [ ] `docs/` — any operator-facing text that shows a name with a suffix
-- [ ] A short "renaming your products" note for admins: set the volume, shorten the name, one
+- [x] `UC-A41` / `UC-A42` — acceptance criteria for the volume field; `UC-T01` — the badge
+- [x] `docs/` — any operator-facing text that shows a name with a suffix
+- [x] A short "renaming your products" note for admins: set the volume, shorten the name, one
       save
-- [ ] `plans/INDEX.md` — the status
+- [x] `plans/INDEX.md` — the status
 
 **Verified by**: every suite named above green on the stacked branch, and CI green on each PR.
 
 ---
+
+## As implemented — where the result differs from this plan
+
+Five things were decided during the work rather than before it. Each is a
+deliberate choice with its reason, not a slip.
+
+1. **The formatting rule has two units, not one.** Litres from 100 ml up;
+   whole millilitres below it. The plan's rule — litres, two decimals — renders
+   `1 ml` as `0 l` and `20 ml` as `0,02 l`, and 1 is one of the edge cases the
+   plan itself asked the fixture to carry. 100 ml is where the litre value gains
+   a non-zero first decimal. Both units, and the threshold, are in
+   `api/fixtures/volume-format.json`, so the choice cannot be quietly moved in
+   one language.
+
+2. **An unknown language falls back to the decimal comma**, in all three
+   implementations. Dart's `formatPrice` falls back the other way; the volume
+   formatter deliberately does not follow it, because the fallback is part of a
+   rule three surfaces share and the other two are German-first.
+
+3. **The admin list prints the size after the name rather than in a column of
+   its own.** The plan asked for a column. ADR-0056's own rule is that
+   everything printing a product name prints the volume after it — a column
+   would say something different from every other surface, and would be empty on
+   most of a snacks list. The cell still carries
+   `products-table-cell-volume-{id}`, so it is addressable exactly as a column
+   would have been.
+
+4. **The price pill's fill is 22 %, not the prototype's 28 %.** At 28 % it
+   measures 4.3:1 against the price text over `bgCard` — passing AA only under
+   the large-text allowance, and under the flat 4.5:1 the rest of
+   `contrast_test.dart` holds text to. A new token, `infoOnTint` (`#38bdf8`),
+   exists for the same reason `dangerOnTint` does. A test fails if the 28 %
+   version is ever restored.
+
+5. **The failed-sales banner needed no change.** The plan lists it beside the
+   cart and the receipt; it names the *member*, not the product, so there was
+   nothing to append.
+
+One constraint the work surfaced: the plain-text Deckelauszug lays labels out in
+a fixed **34-character column**. A label is now name + size, so that column is a
+real constraint rather than a generous one — `Alkoholfreies Bier 0,5 l` is 24 and
+fits. It is not widened (that would rewrap every statement for every club); two
+tests pin it and ADR-0056 records it.
 
 ## Rollout
 

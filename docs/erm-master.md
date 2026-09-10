@@ -426,7 +426,7 @@ Product catalog with multilingual support.
 |--------|------|-------------|-------------|
 | id | BINARY(16) | PK | UUID, immutable |
 | category_id | BINARY(16) | FK → categories.id, NOT NULL | Product category |
-| names | JSON | NOT NULL | Multilingual names: `{"de": "Bier 0,5L", "en": "Beer 0.5L"}` |
+| names | JSON | NOT NULL | Multilingual names: `{"de": "Bier", "en": "Beer"}`. The size does **not** belong here — it is `volume_ml` (ADR-0056) |
 | descriptions | JSON | NULL | Multilingual descriptions |
 | price_cents | INT | NOT NULL | Price in cents (> 0; max 999999 = €9,999.99) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Available for purchase |
