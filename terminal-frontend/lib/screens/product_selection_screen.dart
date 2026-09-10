@@ -17,6 +17,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/product_grid_layout.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
@@ -44,58 +45,85 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     }
   }
 
-  // Grid layout constants
+  // Grid layout
   //
-  // Issue #29: the tile is a *constant*, not a function of how many products
-  // the club happens to sell. The grid used to squeeze every row into the
-  // available height, which made a 25-product category unreadable (and could
-  // compute a negative tile height), while three snacks became screen-tall
-  // cards. Now the column count follows the screen width and anything that
-  // does not fit scrolls — touch-drag is enabled globally in main.dart.
+  // Issue #29: the tile is not a function of how many products the club
+  // happens to sell *in the sense that mattered there*: a 25-product category
+  // never squeezes its rows into the available height (it scrolls), and three
+  // snacks never become screen-tall cards (the type has a ceiling and the tile
+  // a width cap). Within those bounds the grid now does adapt — measured, not
+  // guessed — and the reasons are in `plans/2026-09-10-terminal-product-card-
+  // layout.md`:
   //
-  // [_tileMaxWidth] is an upper bound: Flutter fits as many columns of at most
-  // this width as the row allows, so tiles stay finger-sized on a 1920 px
-  // screen instead of stretching. On the 1280 px kiosk that is five columns
-  // of exactly 240 — which matters since the name went up to `xxxl`: the
-  // longest single word on a German drinks list ("Alkoholfreies") needs
-  // ~190 px at that size, and a sixth column would break it mid-word. The
-  // grid sizing tests hold the floor.
-  static const double _tileMaxWidth = 240.0;
+  //  * A word is never split. The tile used to be capped at 240 px because
+  //    "Alkoholfreies" needs ~190 px at the shipped `xxxl`; at the scale a
+  //    production terminal runs it needs ~226 in a 208 px line, and Flutter
+  //    splits it mid-word with no hyphen. The solver measures every word of
+  //    the category and chooses a column count and size at which every name
+  //    wraps at spaces into two lines with every word whole.
+  //  * One size per category: the largest at which *every* name fits.
+  //  * The configured `xxxl` is the floor — it keeps its meaning as the size
+  //    the club wants at minimum — and `AppFontSizes.productNameCeiling` the
+  //    ceiling. A sparse category grows into the room it has; a full one stays
+  //    at the floor and scrolls. Below the floor only to keep a word whole,
+  //    after fewer columns have been tried, and never below the price size.
+  //
+  // The tile height is derived, not pinned (#41): the scale is a deployment
+  // setting, so a constant is only right for the scale it was measured at. The
+  // card and the solver share `ProductCard.metrics`, and the card pins the
+  // line height of name and price, so the height is exact rather than
+  // measured. The grid sizing tests in
+  // `test/screens/product_selection_screen_test.dart` hold this at four
+  // different scales.
+  static const ProductGridLayout _gridLayout = ProductGridLayout(
+    metrics: ProductCard.metrics,
+    spacing: _gridSpacing,
+    bottomPadding: AppSpacing.md,
+  );
 
-  // [_tileHeight] is what the card actually needs — the icon + two lines of
-  // name at `ProductCard.nameFontSize` + price at `xxl` + the card's padding
-  // — with a little slack.
-  //
-  // Computed, not a constant (#41): the type scale is a *deployment setting*
-  // (`AppFontSizes.applyConfig`, `fontSizes` in config.json), so a pinned
-  // height is only ever right for the scale it was measured against. It was
-  // 218, measured when `xl` was 18 — raising the kiosk default to 20 made the
-  // card 225 px and every tile overflowed by 7. A club dialling the scale up
-  // further would have hit the same wall.
-  //
-  // [_tileChrome] is everything that does not scale with type: the Card's
-  // default margin (2 x 4), the card's padding (2 x md), the icon and the two
-  // gaps under icon and name (sm each) — 8 + 24 + 52 + 8 + 8 = 100, exactly;
-  // [_tileSlack] is the only headroom over it. See the grid sizing tests in
-  // `test/screens/product_selection_screen_test.dart`, which pin the
-  // relationship at four different scales.
-  //
-  // The text block is exact rather than measured: ProductCard pins the line
-  // height of name and price to [ProductCard.textLineHeight], so two lines
-  // of name plus one of price occupy precisely that multiple of their sizes.
-  // Before that this carried a font-measured 1.34 and a chrome figure with
-  // ~7 px of slack folded in (143 -> 119 with #369, 119 -> 107 when the
-  // icon paid for the larger name) — which was fine at the shipped scale and
-  // 27 px too tall at the scale a production terminal runs, where the second
-  // row sat cut off behind the summary bar whenever the banner was up.
-  static const double _tileChrome = 100.0;
-  static const double _tileSlack = 4.0;
+  /// Width of each word of a name in em, in the name's own style — measured
+  /// once with a `TextPainter` and kept, since a glyph run's width scales
+  /// linearly with the size. A category switch costs one layout per word the
+  /// terminal has not seen yet, and nothing after that.
+  final Map<String, double> _wordWidths = {};
 
-  static double get _tileHeight =>
-      _tileChrome +
-      ProductCard.textLineHeight *
-          (2 * ProductCard.nameFontSize + AppFontSizes.xxl) +
-      _tileSlack;
+  /// The ambient style the cache was measured under. `Text` merges the
+  /// `DefaultTextStyle` — which is where the theme's font family comes from —
+  /// into the card's own style, so the measurement has to start from the
+  /// same base or it would measure a different font than the one drawn.
+  TextStyle? _measuredBase;
+  TextScaler _measuredScaler = TextScaler.noScaling;
+
+  /// The size at which a word is measured. Large, so the em figure carries
+  /// sub-pixel precision at the sizes the grid actually renders.
+  static const double _measureFontSize = 100.0;
+
+  WordWidth _wordWidthIn(BuildContext context) {
+    final base = DefaultTextStyle.of(context).style;
+    final scaler = MediaQuery.textScalerOf(context);
+    if (base != _measuredBase || scaler != _measuredScaler) {
+      _wordWidths.clear();
+      _measuredBase = base;
+      _measuredScaler = scaler;
+    }
+    final style = base.merge(TextStyle(
+      fontSize: _measureFontSize,
+      fontWeight: FontWeight.w700,
+      height: ProductCard.textLineHeight,
+    ));
+    return (String word) => _wordWidths.putIfAbsent(word, () {
+          final painter = TextPainter(
+            text: TextSpan(text: word, style: style),
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          final em = painter.width / _measureFontSize;
+          painter.dispose();
+          return em;
+        });
+  }
+
   static const double _gridSpacing = 12.0;
   static const double _horizontalPadding = 16.0;
 
@@ -310,80 +338,133 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       );
     }
 
-    return GridView.builder(
-      // A flat `md`, not `CartSummaryBar.height` (#369). #293 reserved a whole
-      // bar's worth of space here on the premise that the bar was "sticky
-      // below the grid, not part of its scroll extent" — but the bar is a
-      // plain Column sibling *after* the Expanded, so the grid's viewport
-      // already ends where the bar begins and the two can never overlap. The
-      // 93 px was dead scroll at the end of the list. What #293 actually
-      // wanted — the last row visibly clearing the bar's top border — is 12.
-      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: _tileMaxWidth,
-        // A pinned height, rather than an aspect ratio: the card's contents
-        // are fixed-size, so the space they need must not depend on how wide
-        // the row happens to be.
-        mainAxisExtent: _tileHeight,
-        crossAxisSpacing: _gridSpacing,
-        mainAxisSpacing: _gridSpacing,
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        final name = productsProvider.getTranslatedName(product, memberLang);
+    final names = [
+      for (final product in products)
+        productsProvider.getTranslatedName(product, memberLang),
+    ];
 
-        // Get quantity from cart if product is already there
-        final cartItem = cartProvider.items.firstWhereOrNull(
-          (item) => item.productId == product.id,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final geometry = _gridLayout.solve(
+          names: names,
+          width: constraints.maxWidth,
+          height: constraints.maxHeight,
+          wordWidth: _wordWidthIn(context),
+          floor: AppFontSizes.xxxl,
+          ceiling: AppFontSizes.productNameCeiling,
+          minimum: AppFontSizes.xxl,
+          priceFontSize: AppFontSizes.xxl,
         );
-        final quantity = cartItem?.quantity ?? 0;
 
-        // A configured but jammed or unplugged dispenser leaves the token on
-        // the grid — greyed out with the reason — instead of letting the
-        // member find out at checkout (issue #31).
-        final available = productsProvider.isProductAvailable(product);
+        final grid = GridView.builder(
+          // A flat `md`, not `CartSummaryBar.height` (#369). #293 reserved a
+          // whole bar's worth of space here on the premise that the bar was
+          // "sticky below the grid, not part of its scroll extent" — but the
+          // bar is a plain Column sibling *after* the Expanded, so the grid's
+          // viewport already ends where the bar begins and the two can never
+          // overlap. The 93 px was dead scroll at the end of the list. What
+          // #293 actually wanted — the last row visibly clearing the bar's
+          // top border — is 12.
+          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: geometry.columns,
+            // A pinned height, rather than an aspect ratio: the card's
+            // contents are fixed-size at the chosen type, so the space they
+            // need must not depend on how wide the row happens to be.
+            mainAxisExtent: geometry.tileHeight,
+            crossAxisSpacing: _gridSpacing,
+            mainAxisSpacing: _gridSpacing,
+          ),
+          itemCount: products.length,
+          itemBuilder: (context, index) => _buildTile(
+            context,
+            products[index],
+            names[index],
+            memberLang,
+            geometry,
+            productsProvider,
+            cartProvider,
+            selectedMember,
+            l10n,
+          ),
+        );
 
-        // Jugendschutz (ADR-0045, UC-T12 E7). Same treatment, same reason: a
-        // drink this member may not buy stays visible and greyed out with the
-        // age on it, rather than vanishing from a grid they have used before or
-        // refusing them only at checkout.
-        //
-        // This is a **courtesy**, not the control. `CartService` is the
-        // authority (rule 1), and it is what a bypassed tile still runs into.
-        // The note names the age the drink requires, never the member's own
-        // (rule 6) — the screen is read by whoever is at the bar.
-        final tooYoung = selectedMember != null &&
-            !mayBuyAtAge(
-                selectedMember.dateOfBirth, product.minAge, DateTime.now());
-        final sellable = available && !tooYoung;
+        // The tile cap bit: two products on a wide screen are two tiles of
+        // the capped width, centred, rather than two billboards.
+        final usedWidth = geometry.usedWidth(_gridSpacing);
+        if (usedWidth < constraints.maxWidth - 0.5) {
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(width: usedWidth, child: grid),
+          );
+        }
+        return grid;
+      },
+    );
+  }
 
-        return ProductCard(
-          product: product,
-          productName: name,
-          locale: memberLang,
-          quantity: quantity,
-          enabled: sellable,
-          unavailableNote: sellable
-              ? null
-              : tooYoung
-                  ? l10n.productAgeRestrictedNote(product.minAge!)
-                  : l10n.productUnavailableDispenserOffline,
-          onDecrement: quantity > 0
-            ? () => cartProvider.decreaseItem(product.id)
-            : null,
-          onTap: () {
-            cartProvider.addItem(
-              product.id,
-              name,
-              product.priceCents,
-              1,
-              memberLang,
-              iconName: product.iconName,
-              requiresDispenser: product.requiresDispenser == 1,
-              minAge: product.minAge,
-            );
-          },
+  Widget _buildTile(
+    BuildContext context,
+    ProductsCacheData product,
+    String name,
+    String memberLang,
+    ProductGridGeometry geometry,
+    ProductsProvider productsProvider,
+    CartProvider cartProvider,
+    MembersCacheData? selectedMember,
+    AppLocalizations l10n,
+  ) {
+    // Get quantity from cart if product is already there
+    final cartItem = cartProvider.items.firstWhereOrNull(
+      (item) => item.productId == product.id,
+    );
+    final quantity = cartItem?.quantity ?? 0;
+
+    // A configured but jammed or unplugged dispenser leaves the token on
+    // the grid — greyed out with the reason — instead of letting the
+    // member find out at checkout (issue #31).
+    final available = productsProvider.isProductAvailable(product);
+
+    // Jugendschutz (ADR-0045, UC-T12 E7). Same treatment, same reason: a
+    // drink this member may not buy stays visible and greyed out with the
+    // age on it, rather than vanishing from a grid they have used before or
+    // refusing them only at checkout.
+    //
+    // This is a **courtesy**, not the control. `CartService` is the
+    // authority (rule 1), and it is what a bypassed tile still runs into.
+    // The note names the age the drink requires, never the member's own
+    // (rule 6) — the screen is read by whoever is at the bar.
+    final tooYoung = selectedMember != null &&
+        !mayBuyAtAge(
+            selectedMember.dateOfBirth, product.minAge, DateTime.now());
+    final sellable = available && !tooYoung;
+
+    return ProductCard(
+      product: product,
+      productName: name,
+      locale: memberLang,
+      nameFontSize: geometry.nameFontSize,
+      iconSize: geometry.iconSize,
+      quantity: quantity,
+      enabled: sellable,
+      unavailableNote: sellable
+          ? null
+          : tooYoung
+              ? l10n.productAgeRestrictedNote(product.minAge!)
+              : l10n.productUnavailableDispenserOffline,
+      onDecrement: quantity > 0
+        ? () => cartProvider.decreaseItem(product.id)
+        : null,
+      onTap: () {
+        cartProvider.addItem(
+          product.id,
+          name,
+          product.priceCents,
+          1,
+          memberLang,
+          iconName: product.iconName,
+          requiresDispenser: product.requiresDispenser == 1,
+          minAge: product.minAge,
         );
       },
     );

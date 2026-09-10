@@ -1,6 +1,6 @@
 # Terminal Product Card Layout: Measured Type, Whole Words
 
-**Status**: In progress
+**Status**: Implemented (M1–M4 done and each verified; Flutter suite green)
 **Branch**: `claude/terminal-product-card-layout-tr5rue`
 **Scope**: `terminal-frontend/` only
 
@@ -54,26 +54,32 @@ from the names, the grid's real viewport and the type scale:
 - **Width before type.** For every column count from one up to what the screen
   allows, the solver computes the size the tile *width* allows (longest word
   and two-line fit) and the size the tile *height* allows (all rows visible).
-  It keeps the count that yields the largest name; ties go to fewer columns
-  when nothing scrolls (wider tiles, no empty columns) and to more columns
-  when it must scroll (fewer rows to scroll past). A category that cannot
-  reach the floor without scrolling scrolls at the floor.
-- **Tile height follows the size**, with the icon at 2 × the name size (52 at
-  the shipped 26, unchanged) so the tile scales as one thing:
-  `tileHeight = 52 + 1.2·price + 4.4·name`.
+  It keeps the count that yields the largest name. Ties among layouts that
+  show every row go to the fewest empty slots in the last row (three in a row
+  over a 2 + 1 orphan), then to fewer columns (wide tiles that fill the
+  screen) unless the tile cap is what would make them wide, then to more;
+  ties among scrolling layouts go to more columns (fewer rows to scroll
+  past). A category that cannot reach the floor without scrolling scrolls at
+  the floor.
+- **Tile height follows the size.** The icon is the 52 px that #369 settled
+  *at the floor*, whatever the scale — a club that raised `xxxl` to 31 raised
+  the text, and 10 px more icon per tile is exactly what pushes the kiosk's
+  second row under the summary bar again — and grows 2 px per px the name has
+  over the floor, so a category with room scales as one thing:
+  `tileHeight = 52 + 52 + 2·(name − floor) + 1.2·(2·name + price)`.
 - **Tile width is capped at 420** so two products on a 1920 px screen do not
   become billboards; the grid is centred when the cap bites.
 
 ## Milestones
 
-- [ ] **1. `ProductGridLayout` solver + unit tests.** `lib/utils/product_grid_layout.dart`
+- [x] **1. `ProductGridLayout` solver + unit tests.** `lib/utils/product_grid_layout.dart`
   with an injected word-width function; `test/utils/product_grid_layout_test.dart`
   covers: one size per category; floor and ceiling honoured; fewer columns
   chosen before shrinking below the floor; scrolling fallback at the floor for
   a full category; no word wider than the line for "Alkoholfreies Bier (0,5l)"
   and "Weizenbier (0,5l)"; tile-width cap; degenerate inputs (empty names, a
   word wider than the whole screen).
-- [ ] **2. Wire into `ProductSelectionScreen`, size the card from it.** A
+- [x] **2. Wire into `ProductSelectionScreen`, size the card from it.** A
   `LayoutBuilder` around the grid feeds the viewport to the solver; word widths
   are cached in the screen state. `ProductCard` takes `nameFontSize` and
   `iconSize`. Grid switches to a fixed column count with the solved tile
@@ -83,11 +89,11 @@ from the names, the grid's real viewport and the type scale:
   scale tests and the two-rows-whole kiosk tests stay green. A widget test
   proves, through the rendered paragraph's line metrics, that every line
   break in a name falls on a space.
-- [ ] **3. `fontSizes.productNameMax`.** `AppFontSizes.productNameMax` (nullable,
-  `nameCeiling` getter defaults to 1.5 × `xxxl`), read by `applyConfig`;
+- [x] **3. `fontSizes.productNameMax`.** `AppFontSizes.productNameMax` (nullable,
+  `productNameCeiling` getter defaults to 1.5 × `xxxl`), read by `applyConfig`;
   documented in `INSTALL.md`, whose `fontSizes` table also gets its stale
   rows fixed (`lg` is no longer the product name, `xxxl` is).
-- [ ] **4. Full terminal suite green, plan and index updated.**
+- [x] **4. Full terminal suite green, plan and index updated.**
 
 ### Deferred, deliberately
 
@@ -100,6 +106,14 @@ from the names, the grid's real viewport and the type scale:
   it is a separate issue, not this branch.
 
 ## Verification
+
+- `product_grid_layout_test.dart`: 21/21.
+- `product_selection_screen_test.dart` 65 + `product_card_test.dart` 5 +
+  `contrast_test.dart` 42: 128/128. The three "a word is never split" tests
+  were mutation-checked: with the solver's measurements zeroed, two of them
+  fail on an ellipsised "Alkoholfreies Bier (0,5l)".
+- Full terminal suite: 1135/1135.
+- `dart analyze`: 18 issues before and after, none in the touched files.
 
 ```bash
 export PATH=/home/user/sdk/flutter/bin:$PATH

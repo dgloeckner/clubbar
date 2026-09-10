@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import '../test_helpers.dart';
 
@@ -111,7 +112,9 @@ void main() {
           .widget<Text>(find.textContaining('2,00'))
           .style!;
 
-      expect(name.fontSize, ProductCard.nameFontSize);
+      // On its own the card sets the floor; the grid hands it the size it
+      // solved for the category.
+      expect(name.fontSize, AppFontSizes.xxxl);
       expect(name.fontSize!, greaterThanOrEqualTo(price.fontSize!),
           reason: 'a member picks by name; the price is read second');
       expect(name.fontWeight, FontWeight.w700);

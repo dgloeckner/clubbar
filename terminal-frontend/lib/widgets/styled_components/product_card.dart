@@ -3,6 +3,7 @@ import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/utils/product_grid_layout.dart';
 
 class ProductCard extends StatefulWidget {
   final ProductsCacheData product;
@@ -26,17 +27,23 @@ class ProductCard extends StatefulWidget {
   /// Member feedback: product names were too small. The name was `xl` under a
   /// price at `xxl`: the amount louder than the thing it is the amount for, on
   /// a 7" panel read standing up. A member picks by name and reads the price
-  /// second, so the name is now the larger of the two. The icon gives back
-  /// the height this costs (60 -> 52, and the gap under it `md` -> `sm`), so
-  /// the tile grows by the type alone and the kiosk keeps its two whole rows
-  /// (#369).
+  /// second, so the name is the larger of the two (#369).
   ///
-  /// Exposed because `ProductSelectionScreen` sizes the tile from it.
-  static double get nameFontSize => AppFontSizes.xxxl;
+  /// Chosen by `ProductSelectionScreen` for the whole category, not by the
+  /// card: one size for every tile the member is looking at, the largest at
+  /// which every name of the category fits its tile with every word whole,
+  /// between the configured `xxxl` (the floor) and
+  /// [AppFontSizes.productNameCeiling]. See `ProductGridLayout`. Defaults to
+  /// the floor so a card on its own still looks like a card.
+  final double nameFontSize;
 
-  /// Edge of the product icon. Any change here must move
-  /// `ProductSelectionScreen._tileChrome` by the same amount.
-  static const double iconSize = 52.0;
+  /// Edge of the product icon — 52 at the floor, growing with whatever room
+  /// the category's name size has over it, so the tile scales as one thing.
+  final double iconSize;
+
+  /// The geometry the card draws with and the grid sizes with, shared so the
+  /// two cannot drift apart.
+  static const ProductTileMetrics metrics = ProductTileMetrics();
 
   /// Line height of the name and the price, as a multiple of the font size.
   ///
@@ -46,12 +53,15 @@ class ProductCard extends StatefulWidget {
   /// could not spare — the second row sat cut off behind the summary bar
   /// whenever the credit-limit banner was up. 1.2 is ordinary leading for a
   /// bold two-line headline, and it makes the tile's text block *exactly*
-  /// `textLineHeight * (2 * name + price)`, which is what
-  /// `ProductSelectionScreen` sizes the tile from — no longer a measured
-  /// figure that has to be re-measured when a font changes.
-  static const double textLineHeight = 1.2;
+  /// `textLineHeight * (2 * name + price)`, which is what the grid sizes the
+  /// tile from — no longer a measured figure that has to be re-measured when
+  /// a font changes.
+  static double get textLineHeight => metrics.lineHeight;
 
-  const ProductCard({
+  /// Number of lines the name may take before it is ellipsised.
+  static int get nameLines => metrics.nameLines;
+
+  ProductCard({
     super.key,
     required this.product,
     required this.productName,
@@ -61,7 +71,12 @@ class ProductCard extends StatefulWidget {
     this.onDecrement,
     this.enabled = true,
     this.unavailableNote,
-  });
+    double? nameFontSize,
+    double? iconSize,
+  })  : nameFontSize = nameFontSize ?? AppFontSizes.xxxl,
+        iconSize = iconSize ??
+            metrics.iconSize(
+                nameFontSize ?? AppFontSizes.xxxl, AppFontSizes.xxxl);
 
   @override
   State<ProductCard> createState() => _ProductCardState();
@@ -138,10 +153,10 @@ class _ProductCardState extends State<ProductCard>
                 child: Container(
                   // `md`, not `lg` (#369). Together with the smaller icon
                   // below this takes 24 px off every tile, which is what buys
-                  // the grid a whole second row on a 1280x800 kiosk. Any
-                  // change here must move `_tileChrome` in
-                  // ProductSelectionScreen by the same amount.
-                  padding: const EdgeInsets.all(AppSpacing.md),
+                  // the grid a whole second row on a 1280x800 kiosk. The grid
+                  // sizes the tile from [metrics], which carries the same
+                  // number.
+                  padding: EdgeInsets.all(ProductCard.metrics.padding),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(AppBorderRadius.lg),
                     boxShadow: const [],
@@ -150,25 +165,26 @@ class _ProductCardState extends State<ProductCard>
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Icon — 52, and `sm` under it: the 12 px this gives
-                      // back is what pays for the larger name below.
-                      getProductIcon(widget.product.iconName, size: ProductCard.iconSize),
-                      const SizedBox(height: AppSpacing.sm),
+                      // Icon — 52 at the floor, and `sm` under it: the 12 px
+                      // this gave back is what paid for the larger name.
+                      getProductIcon(widget.product.iconName,
+                          size: widget.iconSize),
+                      SizedBox(height: ProductCard.metrics.gap),
 
                       // Product name — the headline; see [nameFontSize].
                       Text(
                         widget.productName,
                         textAlign: TextAlign.center,
-                        maxLines: 2,
+                        maxLines: ProductCard.nameLines,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: ProductCard.nameFontSize,
+                          fontSize: widget.nameFontSize,
                           fontWeight: FontWeight.w700,
                           height: ProductCard.textLineHeight,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
+                      SizedBox(height: ProductCard.metrics.gap),
 
                       // Price (cyan, bold) — one step under the name.
                       Text(

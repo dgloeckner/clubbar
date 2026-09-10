@@ -19,6 +19,7 @@ class ProductTileMetrics {
     this.padding = 12.0,
     this.gap = 8.0,
     this.lineHeight = 1.2,
+    this.baseIconSize = 52.0,
     this.iconScale = 2.0,
     this.slack = 4.0,
     this.nameLines = 2,
@@ -41,8 +42,16 @@ class ProductTileMetrics {
   /// the text block *exactly* `lineHeight * (nameLines * name + price)`.
   final double lineHeight;
 
-  /// Icon edge as a multiple of the name size — 2.0 keeps the shipped 52 px
-  /// icon at the shipped 26 px name and lets the tile scale as one thing.
+  /// Icon edge when the name is at the floor — the 52 that #369 settled,
+  /// which is what keeps two whole rows on the kiosk at the scale a
+  /// production terminal runs. Deliberately *not* a multiple of the type
+  /// scale: a club that raised `xxxl` to 31 raised the text, and 10 px more
+  /// icon per tile would push the second row under the summary bar again.
+  final double baseIconSize;
+
+  /// How much the icon grows per pixel the name grows past the floor, so a
+  /// category with room scales as one thing rather than as a bigger caption
+  /// under the same small picture.
   final double iconScale;
 
   /// Headroom over the computed height.
@@ -57,21 +66,27 @@ class ProductTileMetrics {
   /// Vertical room that does not scale with the type.
   double get fixedHeight => 2 * cardMargin + 2 * padding + 2 * gap + slack;
 
-  double iconSize(double nameFontSize) => iconScale * nameFontSize;
+  /// Icon edge for a name at [nameFontSize] when the floor is [floor].
+  double iconSize(double nameFontSize, double floor) =>
+      baseIconSize + iconScale * (nameFontSize - floor);
 
   /// Width the name may occupy inside a tile of [tileWidth].
   double innerWidth(double tileWidth) => tileWidth - horizontalInset;
 
   /// Height a tile needs for a name at [nameFontSize] over a price at
-  /// [priceFontSize].
-  double tileHeight(double nameFontSize, double priceFontSize) =>
+  /// [priceFontSize], when the floor is [floor].
+  double tileHeight(double nameFontSize, double priceFontSize, double floor) =>
       fixedHeight +
-      iconSize(nameFontSize) +
+      iconSize(nameFontSize, floor) +
       lineHeight * (nameLines * nameFontSize + priceFontSize);
 
   /// The inverse of [tileHeight]: the name size a tile of [tileHeight] holds.
-  double nameFontSizeFor(double tileHeight, double priceFontSize) =>
-      (tileHeight - fixedHeight - lineHeight * priceFontSize) /
+  double nameFontSizeFor(double tileHeight, double priceFontSize, double floor) =>
+      (tileHeight -
+          fixedHeight -
+          baseIconSize +
+          iconScale * floor -
+          lineHeight * priceFontSize) /
       (iconScale + nameLines * lineHeight);
 }
 
@@ -179,6 +194,7 @@ class ProductGridLayout {
         tileWidth: math.min(maxTileWidth, math.max(width, 0)),
         nameFontSize: floor,
         priceFontSize: priceFontSize,
+        floor: floor,
         scrolls: false,
         wordsBroken: false,
       );
@@ -209,7 +225,7 @@ class ProductGridLayout {
       final byWidth =
           byWidthRaw.clamp(effectiveMinimum, effectiveCeiling).toDouble();
       final byHeight =
-          metrics.nameFontSizeFor(availableTileHeight, priceFontSize);
+          metrics.nameFontSizeFor(availableTileHeight, priceFontSize, floor);
 
       final double size;
       final bool scrolls;
@@ -239,6 +255,7 @@ class ProductGridLayout {
       tileWidth: chosen.tileWidth,
       nameFontSize: _snap(chosen.size),
       priceFontSize: priceFontSize,
+      floor: floor,
       scrolls: chosen.scrolls,
       wordsBroken: chosen.wordsBroken,
     );
@@ -249,15 +266,16 @@ class ProductGridLayout {
     required double tileWidth,
     required double nameFontSize,
     required double priceFontSize,
+    required double floor,
     required bool scrolls,
     required bool wordsBroken,
   }) =>
       ProductGridGeometry(
         columns: columns,
         tileWidth: tileWidth,
-        tileHeight: metrics.tileHeight(nameFontSize, priceFontSize),
+        tileHeight: metrics.tileHeight(nameFontSize, priceFontSize, floor),
         nameFontSize: nameFontSize,
-        iconSize: metrics.iconSize(nameFontSize),
+        iconSize: metrics.iconSize(nameFontSize, floor),
         scrolls: scrolls,
         wordsBroken: wordsBroken,
       );

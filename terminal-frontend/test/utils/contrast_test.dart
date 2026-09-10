@@ -329,6 +329,23 @@ void main() {
       // Untouched keys keep the shipped default.
       expect(AppFontSizes.xxxl, 26.0);
     });
+
+    // The product name is sized per category between `xxxl` — the floor a
+    // club already tuned — and a ceiling. Without a configured ceiling the
+    // ceiling follows the floor, so raising `xxxl` alone still moves both.
+    test('the product-name ceiling follows xxxl unless configured', () {
+      expect(AppFontSizes.productNameMax, isNull);
+      expect(AppFontSizes.productNameCeiling, 39.0);
+
+      AppFontSizes.applyConfig(const {'xxxl': 31});
+      expect(AppFontSizes.productNameCeiling, 46.5);
+
+      AppFontSizes.applyConfig(const {'productNameMax': 36});
+      expect(AppFontSizes.productNameMax, 36.0);
+      expect(AppFontSizes.productNameCeiling, 36.0);
+      // Untouched keys keep what they had.
+      expect(AppFontSizes.xxxl, 31.0);
+    });
   });
 }
 
@@ -343,6 +360,7 @@ void _resetFontSizes() {
   AppFontSizes.xxl = 22.0;
   AppFontSizes.xxxl = 26.0;
   AppFontSizes.display = 55.0;
+  AppFontSizes.productNameMax = null;
 }
 
 Color _c(String hex) => hexToColor(hex);

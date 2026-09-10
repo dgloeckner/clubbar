@@ -191,6 +191,20 @@ class AppFontSizes {
   /// way every other step does (#303).
   static double display = 55.0;
 
+  /// Upper bound for a product name on the grid, when set in config.
+  ///
+  /// The name is sized per category from [xxxl] — the floor, the size the
+  /// club wants at minimum — up to this ceiling, as far as the category's
+  /// longest word and the screen allow (`ProductGridLayout`). `null` means
+  /// "follow the scale": see [productNameCeiling].
+  static double? productNameMax;
+
+  /// The ceiling the grid actually uses: [productNameMax] when a club set
+  /// one, else 1.5 x [xxxl], so an untouched config gets a ceiling that
+  /// moves with the floor it already tuned rather than a second number to
+  /// keep in step.
+  static double get productNameCeiling => productNameMax ?? xxxl * 1.5;
+
   /// Apply font size overrides from config (e.g. from config.json `fontSizes` key).
   /// Only non-null values are applied; omitted keys keep their defaults.
   static void applyConfig(Map<String, dynamic>? fontSizes) {
@@ -204,6 +218,9 @@ class AppFontSizes {
     if (fontSizes['xxxl'] is num) xxxl = (fontSizes['xxxl'] as num).toDouble();
     if (fontSizes['display'] is num) {
       display = (fontSizes['display'] as num).toDouble();
+    }
+    if (fontSizes['productNameMax'] is num) {
+      productNameMax = (fontSizes['productNameMax'] as num).toDouble();
     }
   }
 }

@@ -77,15 +77,33 @@ void main() {
       // 8 + 24 + 8 + 8 + 4 of chrome, a 52 px icon at the shipped 26, and
       // the pinned 1.2 line height over two lines of name and one of price.
       expect(metrics.fixedHeight, 52);
-      expect(metrics.iconSize(26), 52);
+      expect(metrics.iconSize(26, 26), 52);
       expect(metrics.horizontalInset, 32);
-      expect(metrics.tileHeight(26, 22), closeTo(52 + 52 + 1.2 * (52 + 22), 1e-9));
+      expect(metrics.tileHeight(26, 22, 26),
+          closeTo(52 + 52 + 1.2 * (52 + 22), 1e-9));
+    });
+
+    test('at the floor the icon is 52 whatever the scale (#369)', () {
+      // A club that raised `xxxl` raised the text. The icon growing with it
+      // is what would push the kiosk's second row under the summary bar.
+      expect(metrics.iconSize(31, 31), 52);
+      expect(metrics.tileHeight(31, 27, 31), closeTo(52 + 52 + 1.2 * (62 + 27), 1e-9));
+    });
+
+    test('the icon grows with the room a category has', () {
+      expect(metrics.iconSize(39, 26), 78);
+      expect(metrics.iconSize(23, 26), 46);
     });
 
     test('the height and its inverse agree', () {
-      for (final size in [22.0, 26.0, 31.0, 39.0]) {
-        expect(metrics.nameFontSizeFor(metrics.tileHeight(size, 22), 22),
-            closeTo(size, 1e-9));
+      for (final floor in [26.0, 31.0]) {
+        for (final size in [22.0, 26.0, 31.0, 39.0]) {
+          expect(
+              metrics.nameFontSizeFor(
+                  metrics.tileHeight(size, 22, floor), 22, floor),
+              closeTo(size, 1e-9),
+              reason: 'size $size at floor $floor');
+        }
       }
     });
   });
@@ -126,7 +144,7 @@ void main() {
       expect(g.nameFontSize, 39);
       expect(g.scrolls, isFalse);
       expect(g.iconSize, 78);
-      expect(g.tileHeight, closeTo(metrics.tileHeight(39, 22), 1e-9));
+      expect(g.tileHeight, closeTo(metrics.tileHeight(39, 22, 26), 1e-9));
     });
 
     test('three products share one row rather than leaving an orphan', () {
@@ -242,8 +260,9 @@ void main() {
     test('the tile height is the height the card draws at that size', () {
       final g = solve(drinks, floor: 31, ceiling: 46.5, minimum: 27, price: 27);
 
-      expect(g.tileHeight, closeTo(metrics.tileHeight(g.nameFontSize, 27), 1e-9));
-      expect(g.iconSize, 2 * g.nameFontSize);
+      expect(g.tileHeight,
+          closeTo(metrics.tileHeight(g.nameFontSize, 27, 31), 1e-9));
+      expect(g.iconSize, metrics.iconSize(g.nameFontSize, 31));
     });
   });
 }
