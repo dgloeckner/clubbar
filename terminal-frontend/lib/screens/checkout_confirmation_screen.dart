@@ -70,12 +70,20 @@ class CheckoutConfirmationScreen extends StatefulWidget {
 
 /// Hero sizes for the receipt, read standing up from across a bar counter.
 ///
-/// Fixed rather than token-driven, like the idle headline and the cart's grand
-/// total (docs/font-sizes.md): they are the receipt's visual identity, and the
-/// three of them are sized against each other, not against the type scale.
-const double _receiptTitleSize = 40.0;
-const double _receiptTotalSize = 34.0;
-const double _receiptBalanceSize = 48.0;
+/// Multiples of the configured scale rather than fixed numbers, so a terminal
+/// that raises `fontSizes` in its config.json (a production terminal runs
+/// `xxxl` at 31, not the compiled-in 26) keeps the same hierarchy: the title a
+/// step above the lines, the total a clear step above them, the balance — the
+/// number the member walks away with — above everything. On the production
+/// scale these come to 40, 36 and 48 (docs/font-sizes.md).
+double get _receiptTitleSize => AppFontSizes.xxxl * 1.3;
+double get _receiptTotalSize => AppFontSizes.xxl * 1.35;
+double get _receiptBalanceSize => AppFontSizes.xxxl * 1.55;
+
+/// Above this many lines the rows tighten up, so a table's round still fits a
+/// 1280×800 terminal at the production scale without scrolling — a receipt a
+/// member has to scroll is one they do not read.
+const int _compactAbove = 4;
 
 class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
@@ -219,6 +227,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             ? AppConfig.receiptAttentionDwell
             : AppConfig.receiptAutoReturnDelay);
 
+        final compact = receipt.lines.length > _compactAbove;
         return _receiptFrame(
           children: [
             ..._receiptHeader(
@@ -231,19 +240,20 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               title: receipt.isPartial
                   ? l10n.checkoutPartialSuccess(receipt.dispensedCount ?? 0)
                   : l10n.checkoutSuccess,
+              compact: compact,
             ),
 
             // What was booked — the lines the member put in the cart, so the
             // receipt reads like the cart they just confirmed.
-            for (final line in receipt.lines) _lineRow(line),
+            for (final line in receipt.lines) _lineRow(line, compact: compact),
             _totalRow(
               l10n,
               billedCents: receipt.billedCents,
               originalTotalCents: receipt.originalTotalCents,
             ),
-            const SizedBox(height: AppSpacing.xxl),
+            SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
 
-            ..._balanceBlock(l10n),
+            ..._balanceBlock(l10n, compact: compact),
           ],
         );
       },
@@ -295,17 +305,21 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   }
 
   /// Icon, headline and member name — the top of every receipt variant.
+  ///
+  /// [compact] gives a long receipt's lines the room: a smaller icon and less
+  /// air under the name, the type itself unchanged.
   List<Widget> _receiptHeader({
     required IconData icon,
     required Color iconColor,
     required String title,
+    bool compact = false,
   }) {
     return [
-      Icon(icon, size: 64, color: iconColor),
+      Icon(icon, size: compact ? 48 : 64, color: iconColor),
       const SizedBox(height: AppSpacing.md),
       Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.textPrimary,
           fontSize: _receiptTitleSize,
           fontWeight: FontWeight.w700,
@@ -321,17 +335,22 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: AppSpacing.xxl),
+      SizedBox(height: compact ? AppSpacing.md : AppSpacing.xxl),
     ];
   }
 
   /// One booked line: icon, "2 ×", name, what it came to.
-  Widget _lineRow(ReceiptLine line) {
+  ///
+  /// [compact] is the long-receipt row: less air and a smaller icon, the type
+  /// unchanged — a line is still read from across the counter.
+  Widget _lineRow(ReceiptLine line, {required bool compact}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      padding: EdgeInsets.symmetric(
+        vertical: compact ? AppSpacing.xs : AppSpacing.md,
+      ),
       child: Row(
         children: [
-          getProductIcon(line.iconName, size: 44),
+          getProductIcon(line.iconName, size: compact ? 32 : 44),
           const SizedBox(width: AppSpacing.lg),
           SizedBox(
             width: 52,
@@ -411,11 +430,11 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           Text(
             formatPrice(billedCents, _locale),
             key: const Key('receipt-total'),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.semanticInfo,
               fontSize: _receiptTotalSize,
               fontWeight: FontWeight.w700,
-              fontFeatures: [FontFeature.tabularFigures()],
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -429,7 +448,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   /// No session reference here (#25): a raw UUID means nothing to the member
   /// it is shown to, and the transaction is looked up from the local database
   /// or the backend when staff actually need it.
-  List<Widget> _balanceBlock(AppLocalizations l10n) {
+  List<Widget> _balanceBlock(AppLocalizations l10n, {bool compact = false}) {
     return [
       Text(
         l10n.receiptBalanceLabel,
@@ -450,7 +469,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ),
         textAlign: TextAlign.center,
       ),
-      const SizedBox(height: AppSpacing.xxl),
+      SizedBox(height: compact ? AppSpacing.md : AppSpacing.xxl),
       _DwellBar(
         fraction: _dwell.inSeconds == 0 ? 0 : _secondsRemaining / _dwell.inSeconds,
       ),

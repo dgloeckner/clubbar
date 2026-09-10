@@ -27,9 +27,18 @@ are not intended to be operator-configurable.
 | `IdleWaitingScreen` | Main title ("Karte scannen") | 42 | Hero display size |
 | `ShoppingCartScreen` | Grand total price | 48 | Hero display size |
 | `ShoppingCartScreen` | Quantity stepper ＋ / − touch targets | 24 | Touch-target size, same as xxxl |
-| `CheckoutConfirmationScreen` | Receipt title ("Buchung erfolgreich!") | 40 | Hero display size — read standing up, from across the counter |
-| `CheckoutConfirmationScreen` | Receipt total | 34 | Hero display size, sized against the balance below it |
-| `CheckoutConfirmationScreen` | Resulting balance ("Offener Betrag: 26,80 €") | 48 | Hero display size, the same as the cart's grand total — the number the member walks away with |
+
+## Derived sizes (multiples of a token)
+
+The checkout receipt's three hero sizes are multiples of the configured scale
+rather than fixed numbers, so a terminal that raises `fontSizes` keeps the
+receipt's hierarchy instead of having the lines catch up with the title.
+
+| Screen / widget | Element | Size | On the production scale (`xxl` 27, `xxxl` 31) |
+|-----------------|---------|------|-------------------|
+| `CheckoutConfirmationScreen` | Receipt title ("Buchung erfolgreich!") | `xxxl` × 1.3 | 40 |
+| `CheckoutConfirmationScreen` | Receipt total | `xxl` × 1.35 | 36 |
+| `CheckoutConfirmationScreen` | Resulting balance ("Offener Betrag: 26,80 €") | `xxxl` × 1.55 | 48 — the number the member walks away with |
 
 ## StatusInfoModal (developer overlay)
 

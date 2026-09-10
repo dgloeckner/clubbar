@@ -40,6 +40,7 @@ import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
 import 'package:clubbar_terminal/screens/idle_waiting_screen.dart';
 import 'package:clubbar_terminal/screens/product_selection_screen.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/widgets/main_layout.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -83,6 +84,30 @@ class FailingLookupRepository extends TransactionsRepository {
 }
 
 const _seededAt = '2025-02-01T10:00:00Z';
+
+/// The `fontSizes` block from a production terminal's config.json.
+const _productionFontSizes = <String, dynamic>{
+  'xs': 20,
+  'sm': 23,
+  'base': 21,
+  'lg': 23,
+  'xl': 25,
+  'xxl': 27,
+  'xxxl': 31,
+};
+
+/// The compiled-in defaults (design_tokens.dart), restored after the run so
+/// nothing else in the same process inherits the override.
+const _defaultFontSizes = <String, dynamic>{
+  'xs': 13,
+  'sm': 14,
+  'base': 16,
+  'lg': 18,
+  'xl': 20,
+  'xxl': 22,
+  'xxxl': 26,
+  'display': 55,
+};
 
 /// A bar with a Friday-evening spread: drinks, a snack, sauna tokens. Two
 /// members — one German-speaking with a tab already open, one
@@ -202,6 +227,12 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
+      // The type scale a production terminal actually runs — `fontSizes` in
+      // its config.json — not the compiled-in defaults, which are a phone's.
+      // The receipt has to be judged at the size it is read at.
+      AppFontSizes.applyConfig(_productionFontSizes);
+      addTearDown(() => AppFontSizes.applyConfig(_defaultFontSizes));
+
       final db = await seedDatabase();
       addTearDown(() => db.close());
       final repo = FailingLookupRepository(db);
@@ -294,7 +325,23 @@ void main() {
       expect(find.byType(CheckoutConfirmationScreen), findsOneWidget);
       await capture('partial');
 
-      // -- 4: the receipt whose details could not be read back (#16) --
+      // -- 4: a table's round — six lines, the rows tighten so it still fits --
+      await scan('receipt-card-jana');
+      cart.addItem('prod-pils', 'Pils 0,5l', 350, 3, 'de', iconName: 'beer-pils');
+      cart.addItem('prod-weizen', 'Weizen 0,5l', 380, 2, 'de',
+          iconName: 'beer-weizen');
+      cart.addItem('prod-water', 'Wasser 0,33l', 150, 1, 'de',
+          iconName: 'water-small');
+      cart.addItem('prod-pretzel', 'Brezel', 250, 4, 'de',
+          iconName: 'food-bretzel');
+      cart.addItem('prod-sauna', 'Sauna-Session', 500, 2, 'de',
+          iconName: 'sauna-session');
+      cart.addItem('prod-token', 'Sauna-Token', 200, 1, 'de',
+          iconName: 'sauna-token');
+      await checkout();
+      await capture('long');
+
+      // -- 5: the receipt whose details could not be read back (#16) --
       await scan('receipt-card-tom');
       fillCart('en');
       repo.failSessionLookups = true;
