@@ -20,6 +20,33 @@ class AppConfig
     public readonly string $installKey;
     public readonly string $appUrl;
     /**
+     * Which browser origins may read an API response, as a list — and `['*']`
+     * when an operator has deliberately said "anyone" (#875).
+     *
+     * **The default is this installation's own origin, never `*`.** A wildcard
+     * default is wrong for an API that serves one SPA, and on a package install
+     * it was also unreachable: `config.php` is the whole environment there, and
+     * nothing mapped a key to `CORS_ORIGINS`, so every self-hosted deployment
+     * answered `Access-Control-Allow-Origin: *` with no way to change it. What
+     * that leaks is bounded — {@see \App\Shared\Middleware\CorsMiddleware}
+     * omits `Access-Control-Allow-Credentials` for a wildcard, so no browser
+     * sends the session cookie cross-origin — but it makes every unauthenticated
+     * response readable by any page on the internet, and it made the documented
+     * hardening story untrue.
+     *
+     * Derived rather than written into `config.php` by the installer: the app
+     * URL is already stated once, and a copy of it under a second key is a copy
+     * that goes stale the day a club moves domain. An SPA served from the app
+     * URL is same-origin and needs no entry at all; `app.cors_origins` exists
+     * for the deployment that serves the panel from somewhere else.
+     *
+     * Empty means *no* cross-origin request is answered, which is what an
+     * unusable `APP_URL` gets: fail closed (ADR-0031 rule 3).
+     *
+     * @var list<string>
+     */
+    public readonly array $corsAllowedOrigins;
+    /**
      * The one field that selects a mail transport (ADR-0038). It carries an
      * SMTP password, so it belongs with the DB password and the TOTP key in
      * config.php rather than in an admin-editable table. Absent disables mail
@@ -166,7 +193,8 @@ class AppConfig
         $this->backupRemoteRetentionDays = self::optionalInt('BACKUP_REMOTE_RETENTION_DAYS');
         $this->documentRoot         = self::resolveDocumentRoot();
 
-        // Resolved last — the default depends on $this->appUrl.
+        // Resolved last — the defaults depend on $this->appUrl.
+        $this->corsAllowedOrigins   = self::resolveCorsOrigins($this->appUrl);
         $this->sessionCookieSecure  = self::resolveSessionCookieSecure($this->appUrl);
         $this->sessionCookieName    = self::resolveSessionCookieName($this->sessionCookieSecure);
     }
@@ -183,6 +211,77 @@ class AppConfig
         $raw = trim(Env::get($key, ''));
 
         return $raw !== '' && ctype_digit($raw) ? (int) $raw : null;
+    }
+
+    /**
+     * The origins {@see $corsAllowedOrigins} publishes.
+     *
+     * `CORS_ORIGINS` wins when it names anything — a comma-separated list, or
+     * the single `*` that keeps a deliberate wildcard possible. Each entry is
+     * reduced to a bare origin (`https://panel.club.de`), so a value written by
+     * hand with a trailing slash or a default port on it still matches the
+     * `Origin` header a browser sends, instead of silently matching nothing.
+     *
+     * Absent, the answer is this installation's own origin. Absent *and*
+     * unusable — an `APP_URL` with no scheme or no host — the answer is no
+     * origin at all: a deployment that cannot say who it is does not get to
+     * answer for everyone.
+     *
+     * @return list<string>
+     */
+    private static function resolveCorsOrigins(string $appUrl): array
+    {
+        $configured = [];
+        foreach (explode(',', Env::get('CORS_ORIGINS', '')) as $candidate) {
+            $candidate = trim($candidate);
+            if ($candidate === '') {
+                continue;
+            }
+
+            // A wildcard is not a URL and must survive normalisation; anything
+            // unparseable is kept verbatim rather than dropped, so a
+            // misconfiguration fails to match instead of disappearing.
+            $configured[] = $candidate === '*' ? '*' : (self::originOf($candidate) ?? $candidate);
+        }
+
+        if ($configured !== []) {
+            return array_values(array_unique($configured));
+        }
+
+        $own = self::originOf($appUrl);
+
+        return $own === null ? [] : [$own];
+    }
+
+    /**
+     * The `scheme://host[:port]` of a URL, in the form a browser sends it.
+     *
+     * Lower-cased and with a default port dropped, because `Origin` is compared
+     * byte for byte: `https://Club.example.org:443` and `https://club.example.org`
+     * are the same origin and only one of them is ever in the header.
+     */
+    private static function originOf(string $url): ?string
+    {
+        $parts = parse_url(trim($url));
+        if (!is_array($parts)) {
+            return null;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        if ($scheme === '' || $host === '') {
+            return null;
+        }
+
+        $default = match ($scheme) {
+            'https' => 443,
+            'http' => 80,
+            default => null,
+        };
+        $port = $parts['port'] ?? null;
+        $suffix = $port !== null && $port !== $default ? ':' . $port : '';
+
+        return $scheme . '://' . $host . $suffix;
     }
 
     public function isProduction(): bool
