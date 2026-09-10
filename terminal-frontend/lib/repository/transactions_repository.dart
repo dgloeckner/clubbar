@@ -274,6 +274,9 @@ class TransactionsRepository {
         productId: key,
         namesJson: product?.names ?? '{}',
         iconName: product?.iconName,
+        // Read live from the join, like the name beside it: a receipt prints
+        // the product as it stands now (ADR-0056, decision 3).
+        volumeMl: product?.volumeMl,
         quantity: (previous?.quantity ?? 0) + 1,
         unitPriceCents: txn.unitPriceCents ?? txn.amountCents.abs(),
         totalCents: (previous?.totalCents ?? 0) + txn.amountCents.abs(),

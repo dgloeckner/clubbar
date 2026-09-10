@@ -58,6 +58,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     String? iconName,
     bool requiresDispenser = false,
     int? minAge,
+    int? volumeMl,
   }) {
     final existingIndex =
         _items.indexWhere((item) => item.productId == productId);
@@ -77,6 +78,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         iconName: iconName,
         requiresDispenser: requiresDispenser,
         minAge: minAge,
+        volumeMl: volumeMl,
       ));
     }
 

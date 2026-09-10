@@ -367,7 +367,9 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
-              line.name(_locale),
+              // Name, then size (ADR-0056) — a receipt has to name the same
+              // thing the tile the member tapped did.
+              line.label(_locale),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

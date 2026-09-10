@@ -38,6 +38,18 @@ class ProductCard extends StatefulWidget {
   /// on its own still looks like a card.
   final double nameFontSize;
 
+  /// Size of the price — the loudest number on the tile (#878).
+  ///
+  /// Derived from [nameFontSize] by [ProductTileMetrics.priceFontSize]: the
+  /// larger of `xxl` and 0.9 x the name. The height the dropped second name
+  /// line freed goes here, because a member picks by name and then checks the
+  /// price. Passed in rather than recomputed, so the card draws at the number
+  /// the grid solved the tile's height from.
+  final double priceFontSize;
+
+  /// Size of the volume badge's text, likewise derived from [nameFontSize].
+  final double volumeFontSize;
+
   /// Edge of the product icon — 52 at the floor, growing with whatever room
   /// the category's name size has over it, so the tile scales as one thing.
   final double iconSize;
@@ -73,8 +85,17 @@ class ProductCard extends StatefulWidget {
     this.enabled = true,
     this.unavailableNote,
     double? nameFontSize,
+    double? priceFontSize,
+    double? volumeFontSize,
     double? iconSize,
   })  : nameFontSize = nameFontSize ?? AppFontSizes.productNameFloor,
+        priceFontSize = priceFontSize ??
+            metrics.priceFontSize(
+                nameFontSize ?? AppFontSizes.productNameFloor,
+                AppFontSizes.xxl),
+        volumeFontSize = volumeFontSize ??
+            metrics.volumeFontSize(
+                nameFontSize ?? AppFontSizes.productNameFloor),
         iconSize = iconSize ??
             metrics.iconSize(nameFontSize ?? AppFontSizes.productNameFloor,
                 AppFontSizes.productNameFloor);
@@ -174,14 +195,12 @@ class _ProductCardState extends State<ProductCard>
 
                       // Product name — the headline; see [nameFontSize].
                       //
-                      // Fixed to the full two-line box regardless of how many
-                      // lines this name actually needs, and bottom-aligned in
-                      // it: a one-line name ("Helles") would otherwise render
-                      // shorter than a two-line one ("Alkoholfreies Bier"),
-                      // and with the column centred that shifted the price
-                      // below it up or down tile to tile — misaligned across
-                      // a row. Anchoring every name's last line to the same
-                      // baseline puts every price at the same height too.
+                      // One line since #878, and the box is still fixed and
+                      // bottom-aligned. Both matter for the same reason they
+                      // did when it held two: the name box is what anchors
+                      // everything below it to the same height across a row.
+                      // The ellipsis is now only the fallback for a name still
+                      // wider than the tile at the solver's minimum.
                       SizedBox(
                         height: ProductCard.textLineHeight *
                             ProductCard.nameLines *
@@ -202,17 +221,84 @@ class _ProductCardState extends State<ProductCard>
                           ),
                         ),
                       ),
+
+                      // Volume badge — the size the name no longer carries
+                      // (ADR-0056), in the member's own notation.
+                      //
+                      // The row keeps its height whether or not this product
+                      // has a volume. That is the invariant, not the badge: a
+                      // row that collapsed on a Sauna-Token would lift that
+                      // tile's price above its neighbours', which is exactly
+                      // the misalignment commit 2b4d50b5 fixed by pinning the
+                      // name box.
+                      SizedBox(
+                        height: ProductCard.metrics
+                            .volumeRowHeight(widget.nameFontSize),
+                        child: Center(
+                          child: widget.product.volumeMl == null
+                              ? const SizedBox.shrink()
+                              : Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.sm,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    // A faint slate wash — opacity-only, not a
+                                    // swept colour (#302).
+                                    color: AppColors.bgVolumeBadge,
+                                    borderRadius: BorderRadius.circular(
+                                        AppBorderRadius.full),
+                                  ),
+                                  child: Text(
+                                    formatVolume(widget.product.volumeMl!,
+                                        widget.locale),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: widget.volumeFontSize,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.4,
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                      ),
                       SizedBox(height: ProductCard.metrics.gap),
 
-                      // Price (cyan, bold) — one step under the name.
-                      Text(
-                        formatPrice(widget.product.priceCents, widget.locale),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.semanticInfo,
-                          fontSize: AppFontSizes.xxl,
-                          fontWeight: FontWeight.bold,
-                          height: ProductCard.textLineHeight,
+                      // Price — a pill, and the loudest thing on the tile.
+                      //
+                      // The member picks by name and then checks the price, so
+                      // once the name fits on one line the height that freed is
+                      // spent here. `semanticInfo` on a fill of its own with a
+                      // 1 px border: the contrast of that pairing is asserted
+                      // in `contrast_test.dart` rather than eyeballed.
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: ProductCard.metrics.pricePillPadding,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgPricePill,
+                          borderRadius:
+                              BorderRadius.circular(AppBorderRadius.full),
+                          border: Border.all(
+                            color: AppColors.borderPricePill,
+                            width: ProductCard.metrics.pricePillBorder,
+                          ),
+                        ),
+                        child: Text(
+                          formatPrice(widget.product.priceCents, widget.locale),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: AppColors.infoOnTint,
+                            fontSize: widget.priceFontSize,
+                            fontWeight: FontWeight.w900,
+                            height: ProductCard.textLineHeight,
+                          ),
                         ),
                       ),
                     ],

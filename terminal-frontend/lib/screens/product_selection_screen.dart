@@ -353,7 +353,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           floor: AppFontSizes.productNameFloor,
           ceiling: AppFontSizes.productNameCeiling,
           minimum: AppFontSizes.xxl,
-          priceFontSize: AppFontSizes.xxl,
+          priceFloor: AppFontSizes.xxl,
         );
 
         final grid = GridView.builder(
@@ -444,6 +444,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       productName: name,
       locale: memberLang,
       nameFontSize: geometry.nameFontSize,
+      // Both derived from the name size by ProductTileMetrics, and passed
+      // rather than recomputed: they are the numbers the tile's height was
+      // solved from, so the card has to draw at exactly them (ADR-0056).
+      priceFontSize: geometry.priceFontSize,
+      volumeFontSize: geometry.volumeFontSize,
       iconSize: geometry.iconSize,
       quantity: quantity,
       enabled: sellable,
@@ -465,6 +470,7 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
           iconName: product.iconName,
           requiresDispenser: product.requiresDispenser == 1,
           minAge: product.minAge,
+          volumeMl: product.volumeMl,
         );
       },
     );

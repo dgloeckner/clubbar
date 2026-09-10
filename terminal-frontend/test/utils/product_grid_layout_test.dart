@@ -57,10 +57,11 @@ void main() {
         floor: floor,
         ceiling: ceiling,
         minimum: minimum,
-        priceFontSize: price,
+        priceFloor: price,
       );
 
-  /// Every name of the category fits its tile whole at the chosen size.
+  /// Every name of the category fits its tile on one line at the chosen size,
+  /// with every word whole.
   void expectAllWhole(ProductGridGeometry g, List<String> names) {
     final inner = metrics.innerWidth(g.tileWidth);
     for (final name in names) {
@@ -72,22 +73,71 @@ void main() {
     }
   }
 
+  /// No word of the category is wider than its line — the failure the solver
+  /// exists to prevent, and the one that is *not* fixed by a shorter name.
+  void expectNoWordBroken(ProductGridGeometry g, List<String> names) {
+    final inner = metrics.innerWidth(g.tileWidth);
+    for (final name in names) {
+      expect(wrap(name, inner, g.nameFontSize).wordBroken, isFalse,
+          reason: '"$name" has a word wider than ${inner}px at ${g.nameFontSize}');
+    }
+  }
+
   group('ProductTileMetrics', () {
-    test('matches the card the grid used to size by hand', () {
-      // 8 + 24 + 8 + 8 + 4 of chrome, a 52 px icon at the shipped 26, and
-      // the pinned 1.2 line height over two lines of name and one of price.
-      expect(metrics.fixedHeight, 52);
+    test('matches the card the grid sizes by hand', () {
+      // 8 + 24 + 8 + 8 + 4 of chrome plus the price pill's own 10 (padding
+      // and border, top and bottom), a 52 px icon at the shipped 26, the
+      // reserved volume row, and the pinned 1.2 line height over ONE line of
+      // name and one of price (#878).
+      expect(metrics.fixedHeight, 62);
       expect(metrics.iconSize(26, 26), 52);
       expect(metrics.horizontalInset, 32);
-      expect(metrics.tileHeight(26, 22, 26),
-          closeTo(52 + 52 + 1.2 * (52 + 22), 1e-9));
+      expect(
+          metrics.tileHeight(26, 22, 26),
+          closeTo(
+              62 + 52 + metrics.volumeRowHeight(26) + 1.2 * (26 + 23.4), 1e-9));
+    });
+
+    test('the name takes one line, because the size has left it (#878)', () {
+      expect(metrics.nameLines, 1);
+    });
+
+    /// The row is reserved whether or not the product has a volume, and that
+    /// is what holds every price on a grid row at the same height — the
+    /// invariant the fixed two-line name box used to hold.
+    test('the volume row is in the height whether a product has one or not',
+        () {
+      // The metrics know nothing about any particular product: there is one
+      // tile height for the category, and it always includes the row.
+      expect(metrics.volumeRowHeight(31), closeTo(0.67 * 31, 1e-9));
+      expect(
+          metrics.tileHeight(31, 27, 31) - metrics.tileHeight(31, 27, 31),
+          0,
+          reason: 'the height cannot depend on a product at all');
+    });
+
+    /// The recommendation the plan makes and #878 left open: the height the
+    /// dropped second name line freed goes to the price, at the larger of the
+    /// price floor and 0.9 x the name — so the price is loud without a new
+    /// config key, and without being enormous at the bottom of the range or a
+    /// fixed 27 at the top.
+    test('the price is the larger of its floor and 0.9 x the name', () {
+      expect(metrics.priceFontSize(26, 27), 27, reason: 'below the knee');
+      expect(metrics.priceFontSize(30, 27), 27, reason: 'still below the knee');
+      expect(metrics.priceFontSize(46.5, 27), closeTo(41.85, 1e-9));
+      // At the production floor the price already matches the name closely,
+      // which is the prototype's proportion.
+      expect(metrics.priceFontSize(31, 27), closeTo(27.9, 1e-9));
     });
 
     test('at the floor the icon is 52 whatever the scale (#369)', () {
       // A club that raised `xxxl` raised the text. The icon growing with it
       // is what would push the kiosk's second row under the summary bar.
       expect(metrics.iconSize(31, 31), 52);
-      expect(metrics.tileHeight(31, 27, 31), closeTo(52 + 52 + 1.2 * (62 + 27), 1e-9));
+      expect(
+          metrics.tileHeight(31, 27, 31),
+          closeTo(
+              62 + 52 + metrics.volumeRowHeight(31) + 1.2 * (31 + 27.9), 1e-9));
     });
 
     test('the icon grows with the room a category has', () {
@@ -95,21 +145,44 @@ void main() {
       expect(metrics.iconSize(23, 26), 46);
     });
 
-    test('the height and its inverse agree', () {
+    /// The height is piecewise linear, because the price stops at its floor
+    /// below the knee. Both branches have to invert, or the solver would size
+    /// a tile it cannot fill.
+    test('the height and its inverse agree on both sides of the price knee',
+        () {
       for (final floor in [26.0, 31.0]) {
-        for (final size in [22.0, 26.0, 31.0, 39.0]) {
-          expect(
-              metrics.nameFontSizeFor(
-                  metrics.tileHeight(size, 22, floor), 22, floor),
-              closeTo(size, 1e-9),
-              reason: 'size $size at floor $floor');
+        for (final priceFloor in [22.0, 27.0]) {
+          for (final size in [20.0, 22.0, 26.0, 31.0, 39.0, 46.5]) {
+            expect(
+                metrics.nameFontSizeFor(
+                    metrics.tileHeight(size, priceFloor, floor),
+                    priceFloor,
+                    floor),
+                closeTo(size, 1e-9),
+                reason:
+                    'size $size at floor $floor, price floor $priceFloor');
+          }
         }
       }
     });
   });
 
   group('ProductGridLayout', () {
+    // Post-ADR-0056 names: the size has left them and lives in `volume_ml`,
+    // which is what makes one name line affordable. `Weizenbier (0,5l)` is now
+    // `Weizenbier` with a badge underneath.
     final drinks = [
+      'Weizenbier',
+      'Apfelschorle',
+      'Pils',
+      'Radler',
+      'Cola',
+      'Kaffee',
+    ];
+
+    /// The same list as it was written before the volume column — kept so the
+    /// tests can show what the suffix costs a one-line layout.
+    final drinksWithSuffixes = [
       'Weizenbier (0,5l)',
       'Alkoholfreies Bier (0,5l)',
       'Pils (0,33l)',
@@ -118,23 +191,51 @@ void main() {
       'Cola',
     ];
 
-    test('one size for every tile, and every word whole', () {
+    test('one size for every tile, on one line, every word whole', () {
       final g = solve(drinks);
 
       expectAllWhole(g, drinks);
       expect(g.wordsBroken, isFalse);
+      expect(g.namesEllipsized, isFalse);
       expect(g.nameFontSize, greaterThanOrEqualTo(26));
     });
 
+    /// The point of ADR-0056, measured. The same six drinks, with and without
+    /// the size in the name: taking the suffix out is what lets a one-line
+    /// layout keep the same columns at a larger name.
+    test('taking the size out of the name buys back name size', () {
+      final withSuffix = solve(drinksWithSuffixes);
+      final without = solve(drinks);
+
+      expect(without.nameFontSize, greaterThan(withSuffix.nameFontSize));
+      expect(without.columns, greaterThanOrEqualTo(withSuffix.columns));
+      expectAllWhole(without, drinks);
+    });
+
     test('a full category stays at the floor and scrolls (#29)', () {
-      final names = List.generate(40, (i) => 'Alkoholfreies Bier $i');
+      final names = List.generate(40, (i) => 'Weizenbier $i');
       final g = solve(names);
 
       expect(g.nameFontSize, 26);
       expect(g.scrolls, isTrue);
-      // Five columns of 240, as the kiosk has always had.
+      // Five columns of 240, as the kiosk has always had. Six would leave
+      // 165 px inside a tile for a name that needs 195 at the floor.
       expect(g.columns, 5);
       expect(g.tileWidth, closeTo(240, 1e-9));
+      expectAllWhole(g, names);
+    });
+
+    /// A two-word name on one line needs a wider tile than the same name over
+    /// two, so the solver spends columns on it. That is the trade #878 takes
+    /// deliberately: fewer, larger tiles beat a name split mid-word, and a club
+    /// whose names are this long shortens them (the *Alkoholfreie Getränke*
+    /// category in the issue's third screenshot is exactly that move).
+    test('a long two-word name costs columns rather than a mid-word split', () {
+      final names = List.generate(40, (i) => 'Alkoholfreies Bier $i');
+      final g = solve(names);
+
+      expect(g.wordsBroken, isFalse);
+      expect(g.columns, lessThan(5));
       expectAllWhole(g, names);
     });
 
@@ -145,6 +246,19 @@ void main() {
       expect(g.scrolls, isFalse);
       expect(g.iconSize, 78);
       expect(g.tileHeight, closeTo(metrics.tileHeight(39, 22, 26), 1e-9));
+    });
+
+    /// The price and badge sizes travel with the geometry rather than being
+    /// recomputed by the card, so the card cannot draw at a size the tile was
+    /// not solved for.
+    test('the geometry carries the price and badge sizes the card draws at',
+        () {
+      final g = solve(drinks, floor: 31, ceiling: 46.5, minimum: 27, price: 27);
+
+      expect(g.priceFontSize, metrics.priceFontSize(g.nameFontSize, 27));
+      expect(g.volumeFontSize, metrics.volumeFontSize(g.nameFontSize));
+      expect(g.priceFontSize, greaterThanOrEqualTo(27),
+          reason: 'never below the price floor');
     });
 
     test('three products share one row rather than leaving an orphan', () {
@@ -163,31 +277,41 @@ void main() {
       expect(g.nameFontSize, 39);
     });
 
-    test('at the production scale the kiosk drops to four columns '
-        'rather than splitting "Alkoholfreies"', () {
-      final names = List.generate(40, (i) => 'Alkoholfreies Bier (0,5l)');
+    test('at the production scale "Alkoholfreies" is never split', () {
+      // The failure in the first screenshot of
+      // docs/reviews/2026-09-10-product-card/: Flutter breaking a word with no
+      // hyphen. It stays prevented at the production font scale.
+      final names = List.generate(40, (i) => 'Alkoholfreies Bier');
       final g = solve(names, floor: 31, ceiling: 46.5, minimum: 27);
 
-      // Five columns leave 208 px for a 242 px word; four leave 271.
-      expect(g.columns, 4);
-      expect(g.nameFontSize, 31);
-      expect(g.scrolls, isTrue);
       expect(g.wordsBroken, isFalse);
-      expectAllWhole(g, names);
+      expect(g.scrolls, isTrue);
+      expectNoWordBroken(g, names);
     });
 
-    test('goes below the floor only when no column count keeps a word whole',
-        () {
+    test('goes below the floor only when no column count fits the name', () {
       final names = List.generate(40, (i) => 'Kaffeespezialitäten $i');
-      // A 300 px screen: one column, 267 px inside the tile, and the word
-      // needs 11.4 em.
+      // A 300 px screen: one column, 267 px inside the tile.
       final g = solve(names, width: 300);
 
       expect(g.columns, 1);
       expect(g.nameFontSize, lessThan(26));
       expect(g.nameFontSize, greaterThanOrEqualTo(22));
+      // The word itself still fits — only the whole name does not, so the
+      // fallback is an ellipsis rather than a break in the middle of a word.
       expect(g.wordsBroken, isFalse);
-      expectAllWhole(g, names);
+      expectNoWordBroken(g, names);
+    });
+
+    /// The two fallbacks are different failures with different remedies, and
+    /// the solver reports them separately (#878): a name that will be
+    /// ellipsised is answered by a shorter name, a word that will be split by a
+    /// wider tile.
+    test('an over-long name is ellipsised, not reported as a broken word', () {
+      final g = solve(['Kaffeespezialitäten mit Sahne'], width: 300, minimum: 22);
+
+      expect(g.namesEllipsized, isTrue);
+      expect(g.wordsBroken, isFalse);
     });
 
     test('never below the minimum: a word wider than the screen is reported',
@@ -197,6 +321,7 @@ void main() {
 
       expect(g.nameFontSize, 22);
       expect(g.wordsBroken, isTrue);
+      expect(g.namesEllipsized, isTrue);
     });
 
     test('the floor is the configured minimum, whatever the category', () {
@@ -228,7 +353,7 @@ void main() {
     });
 
     test('a category too tall at the floor scrolls with the most columns', () {
-      final names = List.generate(12, (i) => 'Alkoholfreies Bier $i');
+      final names = List.generate(30, (i) => 'Weizenbier $i');
       final g = solve(names);
 
       expect(g.scrolls, isTrue);
@@ -263,6 +388,20 @@ void main() {
       expect(g.tileHeight,
           closeTo(metrics.tileHeight(g.nameFontSize, 27, 31), 1e-9));
       expect(g.iconSize, metrics.iconSize(g.nameFontSize, 31));
+    });
+
+    /// The reserved volume row is part of every tile's height, whatever any
+    /// particular product carries. It is what keeps prices level across a row,
+    /// so it must not be something the solver can decide per category either.
+    test('the reserved volume row is in every tile height', () {
+      final g = solve(drinks, floor: 31, ceiling: 46.5, minimum: 27, price: 27);
+      final withoutRow = const ProductTileMetrics(volumeRowScale: 0);
+
+      expect(
+        g.tileHeight -
+            withoutRow.tileHeight(g.nameFontSize, 27, 31),
+        closeTo(metrics.volumeRowHeight(g.nameFontSize), 1e-9),
+      );
     });
   });
 }
