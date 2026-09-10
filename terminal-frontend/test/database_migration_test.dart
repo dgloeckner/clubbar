@@ -8,6 +8,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/utils/age.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
@@ -255,6 +256,139 @@ void main() {
       );
       expect(
         rows.firstWhere((m) => m.id == 'member-inherits').creditLimitCents,
+        isNull,
+      );
+      await db.close();
+    });
+  });
+
+  /// The product's size (#878 M5, ADR-0056).
+  ///
+  /// It lands nullable with no default, and unlike `min_age` the failure
+  /// direction barely matters: the size is a **label**, not a rule. A product
+  /// cached before the upgrade simply draws no badge until the next delta sync
+  /// delivers one, and nothing about what the terminal will sell changes.
+  group('schema 13: the product volume', () {
+    /// Seed one product at schema 12, so the next open runs the upgrade.
+    Future<void> seedProductAtSchema12() async {
+      final db = openDatabase();
+      await db.into(db.categoriesCache).insert(
+            CategoriesCacheCompanion(
+              id: const Value('cat-1'),
+              names: const Value('{"de":"Getränke","en":"Drinks"}'),
+              isActive: const Value(1),
+              updatedAt: const Value('2026-09-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.productsCache).insert(
+            ProductsCacheCompanion(
+              id: const Value('product-legacy'),
+              categoryId: const Value('cat-1'),
+              names: const Value('{"de":"Weizenbier (0,5l)","en":"Wheat beer (0.5l)"}'),
+              priceCents: const Value(420),
+              isActive: const Value(1),
+              updatedAt: const Value('2026-09-01T10:00:00Z'),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 12');
+      await db.close();
+    }
+
+    test('lands NULL on a product cached before the upgrade', () async {
+      await seedProductAtSchema12();
+
+      final db = openDatabase();
+      final stored = await db.select(db.productsCache).getSingle();
+
+      expect(stored.volumeMl, isNull);
+      // The row is otherwise untouched — the suffix is still in the name, and
+      // nothing here tries to parse it out (ADR-0056, decision 2).
+      expect(stored.names, contains('Weizenbier (0,5l)'));
+      expect(stored.priceCents, equals(420));
+      await db.close();
+    });
+
+    test('an upgrade preserves transactions this terminal has not uploaded',
+        () async {
+      await seedProductAtSchema12();
+      var db = openDatabase();
+      await db.into(db.membersCache).insert(
+            MembersCacheCompanion(
+              id: const Value('member-1'),
+              preferredLanguage: const Value('de'),
+              isActive: const Value(1),
+              isSepaValid: const Value(1),
+              updatedAt: const Value('2026-09-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.transactionsLocal).insert(
+            TransactionsLocalCompanion(
+              id: const Value('txn-unsynced-vol'),
+              memberId: const Value('member-1'),
+              productId: const Value('product-legacy'),
+              amountCents: const Value(420),
+              transactionType: const Value('purchase'),
+              createdAt: const Value('2026-09-09T19:00:00Z'),
+              synced: const Value(0),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 12');
+      await db.close();
+
+      db = openDatabase();
+      final unsynced = await TransactionsRepository(db).getUnsyncedTransactions();
+
+      expect(
+        unsynced.map((t) => t.id),
+        contains('txn-unsynced-vol'),
+        reason: 'a sale rung before the upgrade must still be uploadable after it',
+      );
+      await db.close();
+    });
+
+    test('a sync fills the column in, and a later null clears it', () async {
+      await seedProductAtSchema12();
+
+      var db = openDatabase();
+      final repo = ProductsRepository(db);
+
+      await repo.upsertProducts([
+        Product(
+          id: 'product-legacy',
+          categoryId: 'cat-1',
+          names: {'de': 'Weizenbier', 'en': 'Wheat beer'},
+          priceCents: 420,
+          isActive: true,
+          createdAt: DateTime.parse('2026-09-01T10:00:00Z'),
+          updatedAt: DateTime.parse('2026-09-10T10:00:00Z'),
+          volumeMl: 500,
+        ),
+      ]);
+
+      expect(
+        (await db.select(db.productsCache).getSingle()).volumeMl,
+        equals(500),
+      );
+
+      // An admin deciding the product has no size after all sends an explicit
+      // null. It has to overwrite the cached 500 rather than be skipped as an
+      // absent field, or the tile keeps yesterday's badge until some unrelated
+      // edit touches the row again.
+      await repo.upsertProducts([
+        Product(
+          id: 'product-legacy',
+          categoryId: 'cat-1',
+          names: {'de': 'Weizenbier', 'en': 'Wheat beer'},
+          priceCents: 420,
+          isActive: true,
+          createdAt: DateTime.parse('2026-09-01T10:00:00Z'),
+          updatedAt: DateTime.parse('2026-09-10T11:00:00Z'),
+          volumeMl: null,
+        ),
+      ]);
+
+      expect(
+        (await db.select(db.productsCache).getSingle()).volumeMl,
         isNull,
       );
       await db.close();

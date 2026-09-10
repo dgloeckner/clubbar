@@ -98,6 +98,13 @@ class ProductsRepository {
           requiresDispenser: Value(dto.requiresDispenser == true ? 1 : 0),
           // Null stays null: unrestricted, not "zero" (ADR-0045).
           minAge: Value(dto.minAge),
+          // Same reading, and the same reason nothing casts it: null is "this
+          // product has no size" (ADR-0056), not a size of zero. A cleared
+          // volume arrives as an explicit null and must overwrite the cached
+          // one — `Value(null)` writes, where `Value.absent()` would leave
+          // yesterday's badge on the tile until some unrelated edit touched the
+          // row again.
+          volumeMl: Value(dto.volumeMl),
           iconName: Value(dto.iconName),
           updatedAt: Value(dto.updatedAt.toIso8601String()),
           deletedAt: Value(dto.deletedAt?.toIso8601String()),
