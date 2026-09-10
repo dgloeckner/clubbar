@@ -64,41 +64,49 @@ pkill -f clubbar_terminal
 Write the answer down. It is worth more than the rest of this document, and
 today nobody has ever recorded it.
 
-## 2. What the app knows about a failed sound: nothing
+## 2. What the app knows about a failed sound
 
-Three facts, all verified in the sources, explain why this fault has produced
-no evidence so far:
+Until the player-renewal change, nothing — three facts, all verified in the
+sources, explained why this fault had produced no evidence:
 
-| Where | What it does |
-|-------|--------------|
-| `lib/services/sound_service.dart` (`play`) | Wraps the call in `try { … } catch (_) {}` with the comment *"Never let sound errors affect app functionality"*. Nothing is logged. |
-| `audioplayers` 6.6.0, `AudioPlayer` constructor | A GStreamer failure is **not thrown** by `play()` — the Linux plugin sends it over the event channel, and the Dart side hands it to `AudioLogger.error`, which `print`s it. So the `catch` above never sees it, and the message that *would* name the cause goes to stdout. |
-| `~/.config/autostart/clubbar-terminal.desktop` | Starts the kiosk with no redirection, so that stdout goes nowhere. |
+| Where | What it did |
+|-------|-------------|
+| `lib/services/sound_service.dart` (`play`) | Wrapped the call in `try { … } catch (_) {}` with the comment *"Never let sound errors affect app functionality"*. Nothing was logged. |
+| `audioplayers` 6.x, `AudioPlayer` constructor | A GStreamer failure is **not thrown** by `play()` — the Linux plugin sends it over the event channel, and the Dart side hands it to `AudioLogger.error`, which `print`s it. So the `catch` above never saw it, and the message that *would* name the cause went to stdout. |
+| The launcher | Started the kiosk with no redirection, so that stdout went nowhere. |
 
-The clip that fails, the GStreamer error domain, the ALSA message — all of it is
-produced and then dropped on the floor.
+Now `SoundService` subscribes to each player's event stream and logs both a
+thrown play error and a reported one through `AppLog` at warning level, so they
+land in `error.log` — the sink that survives on a kiosk. Each line names the
+event (`scanSuccess`, `productAdd`, …) and carries the plugin's message, which
+includes the GStreamer error domain (`gst-resource-error-quark` is the sound
+server or the card; `gst-stream-error-quark` is the clip or its decoder).
 
-### Fix this today, before the next occurrence
+The plugin's own `print` still goes to stdout. Under the systemd user unit that
+is the journal:
 
-Keep the app's output. Edit `~/.config/autostart/clubbar-terminal.desktop`:
-
-```ini
-[Desktop Entry]
-Type=Application
-Name=Club Bar Terminal
-Exec=sh -c 'exec env GST_AUDIO_SINK=alsasink GST_DEBUG=2 /opt/clubbar-terminal/clubbar_terminal >> "$HOME/.local/share/de.clubbar.clubbar_terminal/logs/stdout.log" 2>&1'
-Hidden=false
-X-GNOME-Autostart-enabled=true
+```bash
+journalctl --user -u clubbar-terminal.service -n 200 --no-pager | grep -i audioplayers
 ```
 
-`GST_DEBUG=2` adds GStreamer's own warnings and errors (level 2 is quiet enough
-to leave on permanently; `GST_DEBUG=alsa*:5,autodetect:5` is the loud version
-for a reproduction attempt). The next silence then leaves a line in
-`stdout.log` that names the failing element and the reason. The diagnose script
-already tails that file.
+### More detail for a reproduction attempt
 
-Rotate it if you leave it on: `logs/stdout.log` is not size-bounded the way
-`error.log` is by its error-level filter.
+Add GStreamer's own warnings and errors to that journal by setting `GST_DEBUG`
+in the unit — a per-Pi customisation the updater never overwrites (see
+*Supervised by systemd* in INSTALL.md):
+
+```bash
+systemctl --user edit clubbar-terminal.service
+```
+
+```ini
+[Service]
+Environment=GST_DEBUG=2
+```
+
+Level 2 is quiet enough to leave on permanently; `GST_DEBUG=alsa*:5,autodetect:5`
+is the loud version for a reproduction attempt. The next silence then leaves a
+line that names the failing element and the reason.
 
 ## 3. The candidates, ranked
 
@@ -122,11 +130,23 @@ document configures.
 That matters because:
 
 - If `wireplumber` / `pipewire-pulse` restarts (a crash, a session change, a
-  logind seat event), every pipeline in the long-running app keeps pointing at
-  a connection that no longer exists. It does not reconnect. A reboot restarts
-  the app together with the server, so the fault "fixes itself".
+  logind seat event), a pipeline that was open at that moment points at a
+  connection that no longer exists.
 - If the app wins the startup race against the sound server, the probe happens
-  with no server present, and the choice is different for that whole boot.
+  with no server present.
+
+**How far that actually reaches** (read from `audio_player.cc` at 4.3.0): the
+players use the default release mode, so after every clip's end-of-stream the
+plugin takes the pipeline back to `NULL`. `autoaudiosink` drops its chosen
+child on `READY → NULL` and probes again on the next `NULL → READY`, and
+`pulsesink` opens a new server connection each time it leaves `NULL`. A player
+that *finished* its last sound therefore reconnects on its next play by itself;
+a server restart between two sounds costs nothing. What does not recover is a
+pipeline that errored *before it prerolled* — the server down, or not up yet,
+at the moment a sound was asked for — because it never reaches end-of-stream
+and is never released. That is cause **C**, and it is the form both bullets
+above take in practice. Since the player-renewal change the app heals it at
+every login (see C).
 
 **Confirm from the capture:** section 1 shows what the process has open — a
 `/dev/snd/*` fd means ALSA directly, a `pipewire-0`/`pulse` socket means the
@@ -176,11 +196,21 @@ makes a sound again. One event class at a time goes quiet; the app restart in
 question 2 is what brings them all back.
 
 **Confirm:** this is the cause if — and only if — restarting the app alone
-restores sound. The `stdout.log` from §2 names it outright once enabled.
+restores sound. The `error.log` lines from §2 name it outright.
 
-**Fixes:** mix in software so concurrent opens cannot collide (`dmix`, or a
-sound server, rather than `plughw:`), and/or recreate a player after a failure
-instead of reusing it (see [Follow-ups](#4-follow-ups-in-the-app)).
+**Healed since the player-renewal change.** `SoundService` no longer keeps a
+player for life. Every login (`RfidProvider`, on a started session) marks all
+ten players stale, and a stale player is disposed and rebuilt by the next sound
+that needs it — the scan chime first, so a fresh pipeline is what greets the
+member. A player whose `play()` throws, or whose event stream reports a
+GStreamer error, is marked stale the same way, so a failure mid-evening costs
+one silent sound rather than the rest of the session. The rebuild is lazy on
+purpose: a login pays for one pipeline before its chime, not ten. A terminal
+that shows this cause after the change is a new fault — record what
+`error.log` says and reopen.
+
+**Still worth doing at the stack level:** mix in software so concurrent opens
+cannot collide (`dmix`, or a sound server, rather than `plughw:`).
 
 ### D. Another process is holding the card
 
@@ -264,24 +294,24 @@ again across a real reboot.
 
 ## 4. Follow-ups in the app
 
-None of this is implemented yet; it is what would turn the next occurrence into
-a one-line answer instead of another investigation. It follows the shape
+What would turn the next occurrence into a one-line answer instead of another
+investigation. It follows the shape
 [#370](https://github.com/dgloeckner/clubbar/issues/370) used for card taps
-(`ScanLog` + a status-modal section + `error.log`).
+(`ScanLog` + a status-modal section + `error.log`). Items 1 and 3 are done.
 
-1. **Stop swallowing the failure.** Subscribe to each player's `eventStream`
-   errors and `onLog` in `SoundService.init()` and log them through `AppLog` at
-   error level, so they land in `error.log` — the only sink that survives on a
-   kiosk. The bare `catch (_)` in `play()` should log too, even though it is not
-   where the interesting failures arrive.
+1. **Stop swallowing the failure — done.** `SoundService` subscribes to each
+   player's `eventStream` errors and logs them, and a throwing `play()`, through
+   `AppLog`, so they land in `error.log` — the only sink that survives on a
+   kiosk. Still open: the plugin's `onLog` lines, which go to stdout (the
+   journal) only.
 2. **A `SoundLog`, mirroring `ScanLog`.** Last play per event, last failure
    with its GStreamer message, and a count — surfaced in the status modal next
    to *Letzte Chip-Erkennungen*, so staff can read out "no sound since 19:12,
    last error …" without a shell.
-3. **Heal instead of wedging.** On a play error, dispose the player and build a
-   new one before the next attempt, which sidesteps the `SetSourceUrl`
-   short-circuit above. A terminal that recovers by itself is worth more than
-   one that explains why it did not.
+3. **Heal instead of wedging — done.** Players are renewed at every login and
+   after any reported error (cause C above), which sidesteps the
+   `SetSourceUrl` short-circuit. A terminal that recovers by itself is worth
+   more than one that explains why it did not.
 4. **Fewer pipelines.** Ten players for eight clips is ten devices to open. One
    player per priority tier, or a single player, would make concurrent-open
    failures structurally rare.
