@@ -97,6 +97,35 @@ class StepUpAuthServiceTest extends TestCase
         $this->assertFalse($result);
     }
 
+    /**
+     * #886: behind a configured trusted proxy, the failure is recorded against
+     * the address X-Forwarded-For names, not the proxy that relayed it.
+     */
+    public function test_wrong_password_behind_a_trusted_proxy_is_recorded_against_the_forwarded_address(): void
+    {
+        $service = new StepUpAuthService(
+            $this->adminUsersService,
+            $this->totpService,
+            $this->auditService,
+            $this->loginAttempts,
+            $this->adminUsersRepository,
+            '10.0.0.5',
+        );
+
+        $this->adminUsersService->method('verifyCurrentPassword')->willReturn(false);
+
+        $this->loginAttempts->expects($this->once())
+            ->method('record')
+            ->with('198.51.100.1', 'admin@example.com');
+
+        $request = (new ServerRequestFactory())->createServerRequest('POST', '/api/auth/2fa/reset', [
+            'REMOTE_ADDR' => '10.0.0.5',
+            'HTTP_X_FORWARDED_FOR' => '198.51.100.1',
+        ]);
+
+        $service->verify($this->caller(), ['current_password' => 'wrong'], $request);
+    }
+
     public function test_missing_password_field_fails_without_calling_the_verifier_with_null(): void
     {
         $this->adminUsersService->expects($this->once())
@@ -264,6 +293,7 @@ class StepUpAuthServiceTest extends TestCase
             $this->auditService,
             $this->loginAttempts,
             $this->adminUsersRepository,
+            '',
             true,
         );
 
@@ -291,6 +321,7 @@ class StepUpAuthServiceTest extends TestCase
             $this->auditService,
             $this->loginAttempts,
             $this->adminUsersRepository,
+            '',
             true,
         );
 

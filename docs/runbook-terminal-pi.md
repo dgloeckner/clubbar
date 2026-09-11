@@ -259,3 +259,34 @@ Almost none of the above is reachable from the touchscreen — §4's System heal
 section is the first slice, and only the first. A staff-facing service screen —
 SSID, IP, backend reachability, unsynced count, exit-to-desktop, behind a PIN —
 would remove the need for most of §3. Not yet filed.
+
+## 8. Handling `config.json` off a Pi you have shell on
+
+§3 gets you a root shell on a terminal that would otherwise be a locked kiosk.
+Once you have it, **`config.json` is not a generic settings file — treat it as
+the member database.** `apiToken` is a device credential with no user scoping:
+whoever holds it can pull every member's name, date of birth, balance and
+purchase history from the backend, and write bookings against any of them
+(issue #885). The dispenser's `apiKey` lives in the same file.
+
+- **Never `cat`, `scp`, paste, or screen-share this file.** Pulling it for a
+  diagnosis is pulling the club's membership roster off the premises.
+- If you do need to move it — replacing a dead SD card with a fresh one, say —
+  copy it over `ssh` directly (`scp` is fine; a pastebin or chat upload is not)
+  and delete the source copy once the new Pi is confirmed working.
+- **A leaked token is rotated, not just re-hidden.** Generate a new terminal
+  token in the Admin Panel under *Terminals* and update `config.json`; the
+  overlap window means the old token keeps working until you do, so this is
+  not a race. ADR-0041's anomaly detection is a backstop for a shared token
+  going unnoticed, not a reason to skip rotating one you know about.
+- The app checks the file's permissions on every start and re-tightens it to
+  `600` if it finds it group- or world-readable, logging a warning to stderr
+  when it does (§4's log-tail commands will show it). That is a safety net for
+  a slipped `chmod`, not a reason to hand-edit the file with looser
+  permissions and rely on the app to fix it after the fact.
+- The synced credit ceiling lives in a sibling `policy.json` in the same
+  directory, not in `config.json` — the app rewrites that one on every config
+  sync, which is exactly why the credential file itself is never touched after
+  provisioning. `policy.json` is a cache and carries no credentials; it is fine
+  to delete it (the app re-seeds it from the shipped defaults, then the next
+  sync) if you suspect it is corrupt.

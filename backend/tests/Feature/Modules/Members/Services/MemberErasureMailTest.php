@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Members\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Members\Repositories\MembersRepository;
@@ -70,6 +71,7 @@ class MemberErasureMailTest extends DatabaseTestCase
                 $auditService,
                 new AdminUsersRepository($this->db, $this->logger),
                 new SettlementAnnouncementsRepository($this->db, $this->logger),
+                new AdminInvitationsRepository($this->db, $this->logger),
                 $this->logger,
             ),
             $this->db,

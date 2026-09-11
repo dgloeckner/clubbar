@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Middleware;
 
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
+use App\Shared\Http\ClientIp;
 use Closure;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -37,6 +38,8 @@ class RateLimitMiddleware implements MiddlewareInterface
         private int $windowMinutes = 15,
         private bool $disabled = false,
         private ?Closure $accountResolver = null,
+        /** @see \App\Shared\Config\AppConfig::$trustedProxies */
+        private string $trustedProxies = '',
     ) {}
 
     public function process(Request $request, RequestHandlerInterface $handler): Response
@@ -45,7 +48,7 @@ class RateLimitMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
+        $ip = ClientIp::resolve($request->getServerParams(), $this->trustedProxies) ?: '127.0.0.1';
 
         if ($this->attempts->countRecentByIp($ip, $this->windowMinutes) >= $this->maxAttempts) {
             return $this->tooManyAttempts();

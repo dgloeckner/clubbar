@@ -1,8 +1,11 @@
 /**
  * Session utilities — side effects that wrap generated API functions.
  *
- * The generated authentication functions handle HTTP. This file handles
- * the localStorage + CSRF + i18n side effects that happen around them.
+ * The generated authentication functions handle HTTP. This file handles the
+ * CSRF + i18n side effects that happen around them. `locale` is the only
+ * field persisted to localStorage (#896) — it has a reader (`i18n/config.ts`)
+ * and remembering the UI language across sessions is a legitimate use; the
+ * rest of the admin's profile lives only in React state (`AuthContext`).
  */
 
 import axios from 'axios'
@@ -40,10 +43,6 @@ export async function checkSession(): Promise<SessionCheckResult | null> {
   try {
     const r = await getAuthentication().getProfile()
     if (r.csrf_token) setCsrfToken(r.csrf_token)
-    localStorage.setItem('admin_id', r.admin.id)
-    localStorage.setItem('email', r.admin.email)
-    localStorage.setItem('display_name', r.admin.display_name)
-    localStorage.setItem('locale', r.admin.locale)
     changeLanguage(r.admin.locale)
     return {
       admin_id: r.admin.id,
@@ -59,9 +58,6 @@ export async function checkSession(): Promise<SessionCheckResult | null> {
 }
 
 export function clearStoredSession(): void {
-  localStorage.removeItem('admin_id')
-  localStorage.removeItem('email')
-  localStorage.removeItem('display_name')
   localStorage.removeItem('locale')
   setCsrfToken(null)
 }
@@ -106,10 +102,6 @@ function toFailure(error: unknown, fallbackKey: string): LoginSessionResult {
 }
 
 function storeAdmin(admin: AdminProfile, csrfToken?: string): void {
-  localStorage.setItem('admin_id', admin.id)
-  localStorage.setItem('email', admin.email)
-  localStorage.setItem('display_name', admin.display_name)
-  localStorage.setItem('locale', admin.locale)
   if (csrfToken) setCsrfToken(csrfToken)
   changeLanguage(admin.locale)
 }
@@ -189,7 +181,7 @@ export async function setupTotpWithSession(): Promise<{ qrCode: string; secret: 
 
 /**
  * Confirm enrollment with the first TOTP code.
- * On success, writes admin data to localStorage and sets the language.
+ * On success, sets the language.
  */
 export async function confirmTotpWithSession(
   code: string,
@@ -198,10 +190,6 @@ export async function confirmTotpWithSession(
   try {
     await getAuthentication().confirmTotp({ code })
 
-    localStorage.setItem('admin_id', adminData.admin_id)
-    localStorage.setItem('email', adminData.email)
-    localStorage.setItem('display_name', adminData.display_name)
-    localStorage.setItem('locale', adminData.locale)
     changeLanguage(adminData.locale)
 
     return { success: true, message: '' }
@@ -232,15 +220,13 @@ export async function logoutWithSession(): Promise<void> {
 // ─── Profile update ───────────────────────────────────────────────────────────
 
 /**
- * Wraps generated updateProfile(). Writes email/display_name/locale back to localStorage on success.
+ * Wraps generated updateProfile(). Writes locale back to localStorage on success.
  * Throws on API error — callers must handle exceptions.
  */
 export async function updateProfileWithSession(
   data: UpdateProfileRequest
 ): Promise<AdminProfile> {
   const { admin } = await getAuthentication().updateProfile(data)
-  localStorage.setItem('email', admin.email)
-  localStorage.setItem('display_name', admin.display_name)
   localStorage.setItem('locale', admin.locale)
   return admin
 }

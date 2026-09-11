@@ -9,6 +9,7 @@ use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Http\ClientIp;
 use App\Shared\Services\AuditService;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -33,6 +34,8 @@ class StepUpAuthService
         private AuditService $auditService,
         private LoginAttemptsRepository $loginAttempts,
         private AdminUsersRepository $adminUsersRepository,
+        /** @see \App\Shared\Config\AppConfig::$trustedProxies */
+        private string $trustedProxies = '',
         private bool $replayProtectionDisabled = false,
     ) {}
 
@@ -117,7 +120,7 @@ class StepUpAuthService
 
     private function recordFailure(array $caller, Request $request): void
     {
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
+        $ip = ClientIp::resolve($request->getServerParams(), $this->trustedProxies) ?: '127.0.0.1';
         $this->loginAttempts->record($ip, $caller['email']);
 
         $this->auditService->log(

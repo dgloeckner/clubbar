@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\MailRequestDto;
@@ -38,6 +39,7 @@ class NotificationsServiceTest extends TestCase
     private AuditService $audit;
     private AdminUsersRepository $admins;
     private SettlementAnnouncementsRepository $announcements;
+    private AdminInvitationsRepository $invitations;
     private NotificationsService $service;
 
     private const SETTLEMENT = '11111111-1111-4111-8111-111111111111';
@@ -53,6 +55,7 @@ class NotificationsServiceTest extends TestCase
         $this->audit = $this->createMock(AuditService::class);
         $this->admins = $this->createMock(AdminUsersRepository::class);
         $this->announcements = $this->createMock(SettlementAnnouncementsRepository::class);
+        $this->invitations = $this->createMock(AdminInvitationsRepository::class);
 
         $this->service = new NotificationsService(
             $this->outbox,
@@ -60,6 +63,7 @@ class NotificationsServiceTest extends TestCase
             $this->audit,
             $this->admins,
             $this->announcements,
+            $this->invitations,
             $this->createMock(Logger::class),
         );
     }
@@ -524,6 +528,61 @@ class NotificationsServiceTest extends TestCase
     }
 
     /**
+     * The sealed token has no remaining purpose once the mail carrying its
+     * link is confirmed delivered (#891) — so a *sent* invitation message
+     * clears it, keyed by the dedup key, which is the invitation's own id
+     * (see `AdminSecurityMailBuilder::buildInvitation()`).
+     */
+    public function test_a_sent_invitation_clears_the_invitations_sealed_token(): void
+    {
+        $this->outbox->method('markSent')->willReturn('2026-08-15 10:00:00');
+
+        $this->invitations->expects($this->once())
+            ->method('clearTokenCipher')
+            ->with('invitation-7');
+
+        $this->service->recordResult(
+            $this->claimed([
+                'kind' => MailKind::ADMIN_INVITATION->value,
+                'member_id' => null,
+                'subject_id' => 'admin-9',
+                'dedup_key' => 'invitation-7',
+            ]),
+            MailSendResult::sent('mid-9'),
+            CronInterval::HOURLY,
+        );
+    }
+
+    /** A message that never sent leaves the invitation's link usable for a retry. */
+    public function test_a_failed_invitation_send_leaves_the_sealed_token_alone(): void
+    {
+        $this->outbox->method('attemptsFor')->willReturn(0);
+        $this->outbox->method('markFailed')->willReturn(MailStatus::PENDING);
+
+        $this->invitations->expects($this->never())->method('clearTokenCipher');
+
+        $this->service->recordResult(
+            $this->claimed([
+                'kind' => MailKind::ADMIN_INVITATION->value,
+                'member_id' => null,
+                'subject_id' => 'admin-9',
+                'dedup_key' => 'invitation-7',
+            ]),
+            MailSendResult::transientFailure('451 greylisted'),
+            CronInterval::HOURLY,
+        );
+    }
+
+    /** Every other kind's send is untouched — only an invitation carries a secret to clear. */
+    public function test_a_non_invitation_sent_message_never_touches_the_invitations_repository(): void
+    {
+        $this->outbox->method('markSent')->willReturn('2026-08-15 10:00:00');
+        $this->invitations->expects($this->never())->method('clearTokenCipher');
+
+        $this->service->recordResult($this->claimed(), MailSendResult::sent('mid-9'), CronInterval::HOURLY);
+    }
+
+    /**
      * Erasure withdraws before it clears, and both happen. The order is the
      * substance: clearing first would leave a `pending` row addressed to an
      * empty string for the drain to claim and report as a delivery failure.
@@ -693,5 +752,93 @@ class NotificationsServiceTest extends TestCase
             );
 
         $this->service->notifyFormerAddress(self::ADMIN, 'former@club.example', 'changed:1000', 'actor-1');
+    }
+
+    /* ─────────────── Credential notices (#892) ─────────────── */
+
+    public function test_notifyPasswordChanged_queues_one_row_to_the_address_given(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'en']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyPasswordChanged(self::ADMIN, 'admin@club.example', 'changed:1000', 'actor-1')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_PASSWORD_CHANGED, $queued[0]->kind);
+        $this->assertSame('admin@club.example', $queued[0]->recipient);
+        $this->assertSame(self::ADMIN, $queued[0]->subjectId);
+        $this->assertSame(self::ADMIN, $queued[0]->adminUserId);
+        $this->assertSame('actor-1', $queued[0]->actorAdminUserId);
+    }
+
+    public function test_notifyPasswordChanged_queues_nothing_without_an_address(): void
+    {
+        $this->outbox->expects($this->never())->method('enqueue');
+
+        $this->assertFalse($this->service->notifyPasswordChanged(self::ADMIN, '   ', 'changed:1000'));
+    }
+
+    public function test_notifyTotpEnrolled_queues_one_row_with_no_actor(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyTotpEnrolled(self::ADMIN, 'admin@club.example', 'enrolled:1000')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_TOTP_ENROLLED, $queued[0]->kind);
+        $this->assertNull($queued[0]->actorAdminUserId, 'enrollment always names its own account');
+    }
+
+    public function test_notifyTotpReset_queues_one_row_to_the_target_naming_the_actor(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyTotpReset(self::ADMIN, 'admin@club.example', 'reset:1000', 'actor-1')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_TOTP_RESET, $queued[0]->kind);
+        $this->assertSame(self::ADMIN, $queued[0]->subjectId);
+        $this->assertSame('actor-1', $queued[0]->actorAdminUserId);
+    }
+
+    public function test_credential_notices_audit_only_a_row_that_was_queued(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+        $this->outbox->method('enqueue')->willReturn(false);
+
+        $this->audit->expects($this->never())->method('log');
+
+        $this->assertFalse($this->service->notifyPasswordChanged(self::ADMIN, 'a@club.example', 'changed:1'));
+        $this->assertFalse($this->service->notifyTotpEnrolled(self::ADMIN, 'a@club.example', 'enrolled:1'));
+        $this->assertFalse($this->service->notifyTotpReset(self::ADMIN, 'a@club.example', 'reset:1'));
     }
 }

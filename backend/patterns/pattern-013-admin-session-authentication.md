@@ -530,7 +530,7 @@ So the periodic rotation leaves a **tombstone** instead:
 |---|---|
 | The old session becomes | `SessionRotation::tombstone()` — the successor's ID and the moment of rotation, and nothing else |
 | A request on the old ID | is carried across to the successor, and the cookie is re-sent as it goes |
-| For how long | `SessionRotation::GRACE_SECONDS` (60s) — long enough for a request in flight and for the browser's next request after a cancelled one |
+| For how long | `SessionRotation::GRACE_SECONDS` (10s) — long enough for a request in flight and for the browser's next request after a cancelled one |
 | After that | refused as `admin_not_authenticated`, like any other session with no admin on it |
 
 A tombstone is not a login: it holds no `admin_user_id`, no `csrf_token` and

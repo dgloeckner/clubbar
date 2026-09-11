@@ -35,6 +35,14 @@ class RateLimitMiddlewareTest extends TestCase
         return (new ServerRequestFactory())->createServerRequest('POST', '/api/auth/login', ['REMOTE_ADDR' => $ip]);
     }
 
+    private function proxiedRequest(string $remoteAddr, string $forwardedFor): ServerRequestInterface
+    {
+        return (new ServerRequestFactory())->createServerRequest('POST', '/api/auth/login', [
+            'REMOTE_ADDR' => $remoteAddr,
+            'HTTP_X_FORWARDED_FOR' => $forwardedFor,
+        ]);
+    }
+
     private function handler(): RequestHandlerInterface
     {
         $handler = $this->createMock(RequestHandlerInterface::class);
@@ -119,6 +127,45 @@ class RateLimitMiddlewareTest extends TestCase
         $middleware = new RateLimitMiddleware($this->attempts, 5, 15, false, $this->emailResolver(null));
 
         $this->assertSame(200, $middleware->process($this->request(), $this->handler())->getStatusCode());
+    }
+
+    /**
+     * #886: with no trusted proxies configured, the limiter keys on
+     * REMOTE_ADDR exactly as before — even when a client sends its own
+     * X-Forwarded-For header.
+     */
+    public function test_with_no_trusted_proxies_the_limiter_ignores_forwarded_for(): void
+    {
+        $this->attempts->expects($this->once())
+            ->method('countRecentByIp')
+            ->with('203.0.113.7', $this->anything())
+            ->willReturn(0);
+
+        $middleware = new RateLimitMiddleware($this->attempts, 5, 15);
+
+        $this->assertSame(
+            200,
+            $middleware->process($this->proxiedRequest('203.0.113.7', '198.51.100.1'), $this->handler())->getStatusCode()
+        );
+    }
+
+    /**
+     * A configured trusted proxy's forwarded header is believed, so the real
+     * client — not the proxy — is what gets counted.
+     */
+    public function test_a_trusted_proxys_forwarded_for_is_what_gets_counted(): void
+    {
+        $this->attempts->expects($this->once())
+            ->method('countRecentByIp')
+            ->with('198.51.100.1', $this->anything())
+            ->willReturn(0);
+
+        $middleware = new RateLimitMiddleware($this->attempts, 5, 15, false, null, '10.0.0.5');
+
+        $this->assertSame(
+            200,
+            $middleware->process($this->proxiedRequest('10.0.0.5', '198.51.100.1'), $this->handler())->getStatusCode()
+        );
     }
 
     public function test_disabled_middleware_queries_nothing(): void

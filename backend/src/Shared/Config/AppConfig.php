@@ -164,6 +164,31 @@ class AppConfig
      * question.
      */
     public readonly string $documentRoot;
+    /**
+     * Reverse-proxy addresses allowed to name the real client via
+     * `X-Forwarded-For` (#886) — a comma-separated list of IPs/CIDRs, e.g.
+     * `10.0.0.1,172.16.0.0/12`.
+     *
+     * Every IP-keyed decision in this application — the login/terminal rate
+     * limiters, `audit_log.ip_address`, ADR-0041 anomaly detection — reads
+     * {@see \App\Shared\Http\ClientIp::resolve()} rather than `REMOTE_ADDR`
+     * directly, and this is the one setting that changes what it answers.
+     *
+     * **Empty by default, and that reproduces today's behaviour exactly**:
+     * `REMOTE_ADDR` and nothing else. That is correct on the shared hosting
+     * ADR-0031 names as the reference target, where PHP sees the client
+     * directly — and it is the fail-closed choice (ADR-0031 rule 3) for
+     * every other deployment shape, because trusting `X-Forwarded-For` from
+     * an unconfigured source is worse than not trusting it at all: it is a
+     * plain request header, forgeable by anyone.
+     *
+     * A deployment that terminates TLS or otherwise proxies through Apache,
+     * nginx, Cloudflare or a host-level load balancer must set this to that
+     * proxy's own address, or every request collapses onto one IP — turning
+     * the per-IP rate limiter into a lockout for the whole admin team and
+     * making every audit row say "from the load balancer".
+     */
+    public readonly string $trustedProxies;
 
     public function __construct()
     {
@@ -192,6 +217,7 @@ class AppConfig
         $this->backupLocalMaxBytes  = self::optionalInt('BACKUP_LOCAL_MAX_BYTES');
         $this->backupRemoteRetentionDays = self::optionalInt('BACKUP_REMOTE_RETENTION_DAYS');
         $this->documentRoot         = self::resolveDocumentRoot();
+        $this->trustedProxies       = trim(Env::get('TRUSTED_PROXIES', ''));
 
         // Resolved last — the defaults depend on $this->appUrl.
         $this->corsAllowedOrigins   = self::resolveCorsOrigins($this->appUrl);

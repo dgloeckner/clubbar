@@ -162,6 +162,14 @@ else
   exit 1
 fi
 
+# vite.config.ts sets build.sourcemap to 'hidden' (#895): the build still
+# emits *.map files (kept as a CI artifact for symbolicating a reported
+# stack trace) but strips the `//# sourceMappingURL` comment, so nothing in
+# the shipped bundle ever asks a browser to fetch one. Nothing should serve
+# them from a production install either — the release ZIP does not carry
+# them at all.
+find "$PKG_DIR/assets" -name '*.map' -delete
+
 # ------------------------------------------------------------------
 # 7. Write package metadata
 # ------------------------------------------------------------------

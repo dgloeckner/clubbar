@@ -55,14 +55,9 @@ export class LoginPage extends BasePage {
     await this.loginBtn().click()
     if (waitForLogin) {
       await this.page.waitForURL('**/dashboard', { timeout: 5000 })
-      // Verify authentication succeeded
-      const adminId = await this.page.evaluate(() => {
-        return localStorage.getItem('admin_id')
-      })
-
-      if (!adminId) {
-        throw new Error('Admin login failed - no admin_id in localStorage')
-      }
+      // Login state lives in the session cookie, not localStorage (#896) —
+      // reaching the dashboard route is the UI-level signal that it worked.
+      await expect(this.page.getByTestId('dashboard-page')).toBeVisible()
     }
   }
 

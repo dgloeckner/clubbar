@@ -431,6 +431,7 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(RegistrationsPublicController::class, fn() => new RegistrationsPublicController(
             $this->getRegistrationsService(),
             $this->getValidator(),
+            $this->config->trustedProxies,
         ));
     }
 
@@ -584,7 +585,10 @@ class ServiceFactory implements ContainerInterface
 
     public function getAuditService(): AuditService
     {
-        return $this->resolve(AuditService::class, fn() => new AuditService($this->getAuditLogRepository()));
+        return $this->resolve(
+            AuditService::class,
+            fn() => new AuditService($this->getAuditLogRepository(), $this->config->trustedProxies),
+        );
     }
 
     public function getAuthService(): AuthService
@@ -658,6 +662,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAuditService(),
             $this->getLoginAttemptsRepository(),
             $this->getAdminUsersRepository(),
+            $this->config->trustedProxies,
             $this->totpReplayProtectionDisabled(),
         ));
     }
@@ -811,6 +816,7 @@ class ServiceFactory implements ContainerInterface
             $this->getAuditService(),
             $this->getAdminUsersRepository(),
             $this->getSettlementAnnouncementsRepository(),
+            $this->getAdminInvitationsRepository(),
             $this->logger,
         ));
     }
@@ -1362,6 +1368,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalTokenAuthenticator(),
             $this->getTerminalIpSightingsRepository(),
             $this->getLogger(),
+            $this->config->trustedProxies,
         ));
     }
 
@@ -1413,6 +1420,7 @@ class ServiceFactory implements ContainerInterface
                 $email = is_array($body) ? ($body['email'] ?? null) : null;
                 return is_string($email) ? $email : null;
             },
+            $this->config->trustedProxies,
         ));
     }
 
@@ -1435,6 +1443,7 @@ class ServiceFactory implements ContainerInterface
                 $email = $_SESSION['mfa_pending_email'] ?? null;
                 return is_string($email) ? $email : null;
             },
+            $this->config->trustedProxies,
         );
     }
 
@@ -1467,6 +1476,7 @@ class ServiceFactory implements ContainerInterface
                 $email = is_array($admin) ? ($admin['email'] ?? null) : null;
                 return is_string($email) ? $email : null;
             },
+            $this->config->trustedProxies,
         );
     }
 
@@ -1482,6 +1492,7 @@ class ServiceFactory implements ContainerInterface
             10,
             15,
             $disabled,
+            trustedProxies: $this->config->trustedProxies,
         );
     }
 

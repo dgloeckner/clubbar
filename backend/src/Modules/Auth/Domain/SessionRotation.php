@@ -39,6 +39,22 @@ namespace App\Modules\Auth\Domain;
  * — and only for the grace window, after which it is refused like any other
  * unauthenticated session.
  *
+ * The window is deliberately a **non-consuming bearer window**: it is not
+ * marked used on its first hop, and nothing binds a hop to who is presenting
+ * it (#898). Both are accepted rather than fixed. Binding to the User-Agent
+ * was considered and rejected outright — trivially replayed by anyone holding
+ * the cookie, and it breaks a legitimate browser update mid-session. Making
+ * the tombstone single-use was considered and rejected on evidence, not
+ * intuition: `e2etests/tests/api/session-rotation.spec.ts` ("serves every
+ * request of a burst that straddles a rotation") asserts that every request of
+ * a concurrent burst arriving on the same rotated-away ID is served, which is
+ * exactly the shape a page load produces (a list query and a profile read
+ * racing the dashboard poll) and exactly what single-use would refuse for
+ * every request but the one PHP's session lock lets through first. What is
+ * left, per the amendment to ADR-0025, is bounded: the hop only ever lands
+ * where the tombstone already pointed, for a window sized to milliseconds of
+ * in-flight requests, not a session lifetime.
+ *
  * The rules live here, over a plain array, so they can be checked without a
  * request, a cookie or a running session; the raw session calls they describe
  * are in {@see \App\Modules\Auth\Middleware\AdminSessionAuth}.
@@ -50,11 +66,14 @@ final class SessionRotation
      *
      * It only has to cover requests that were already in flight when the
      * rotation happened (milliseconds) and the browser's next request after a
-     * cancelled one (a page navigation, so well under a second). A minute is
-     * generous for both and short against the 15-minute rotation interval it
-     * sits inside.
+     * cancelled one (a page navigation, so well under a second). Ten seconds is
+     * generous for both — #898 tightened this down from the original 60,
+     * which cost nothing this window needs to cover but bought an attacker
+     * holding a leaked pre-rotation cookie six times as long a hop, renewed on
+     * every rotation for the life of the session. See the class docblock for
+     * why the window is not also made single-use.
      */
-    public const GRACE_SECONDS = 60;
+    public const GRACE_SECONDS = 10;
 
     /**
      * How far a chain of tombstones is followed before giving up.

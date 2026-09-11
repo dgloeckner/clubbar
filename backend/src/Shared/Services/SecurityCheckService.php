@@ -156,6 +156,9 @@ class SecurityCheckService
             // `README.txt` is the shared-hosting package's own file, and covers
             // an installation whose database is down.
             controlPaths: ['/api/health', '/README.txt'],
+            trustedProxies: $this->config->trustedProxies,
+            remoteAddr: isset($serverParams['REMOTE_ADDR']) ? (string) $serverParams['REMOTE_ADDR'] : null,
+            forwardedFor: isset($serverParams['HTTP_X_FORWARDED_FOR']) ? (string) $serverParams['HTTP_X_FORWARDED_FOR'] : null,
         );
     }
 

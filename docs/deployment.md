@@ -178,11 +178,13 @@ stat -c '%a %n' .                  # 755, in the document root — never 777
 `session.regeneration_interval` (default 900s) is separate from those: it is how
 often a signed-in admin's session ID is replaced, so that a leaked cookie stops
 working sooner than the session itself does. The previous ID keeps forwarding to
-its replacement for 60 seconds afterwards — without that, a request the browser
-had already sent, or one the panel cancelled, would arrive on an ID the server
-had just deleted and sign the admin out mid-session. Set it below 60 seconds and
-those forwarding records start chaining, which works but keeps an old ID usable
-for longer than the 60 seconds suggests; there is no reason to go near that.
+its replacement for 10 seconds afterwards (`SessionRotation::GRACE_SECONDS`,
+[ADR-0025](../adr/0025-session-fixation-protection.md)) — without that, a
+request the browser had already sent, or one the panel cancelled, would arrive
+on an ID the server had just deleted and sign the admin out mid-session. Set it
+below 10 seconds and those forwarding records start chaining, which works but
+keeps an old ID usable for longer than the 10 seconds suggests; there is no
+reason to go near that.
 
 Two consequences worth knowing about:
 
@@ -230,6 +232,14 @@ curl -I https://your-domain.com/api/health
 # Log in to the admin panel, then check the login response in the browser's
 # network tab: the _session Set-Cookie must carry Secure; HttpOnly; SameSite=Lax
 ```
+
+### Reverse Proxies
+
+Left alone, every IP-keyed decision — the login rate limiter, `audit_log.ip_address`, terminal anomaly detection (ADR-0041) — reads the address PHP sees directly. That is correct on the shared hosting this guide targets, where nothing sits between the visitor and PHP.
+
+If this installation is instead reached through a reverse proxy, a CDN, or a TLS-terminating load balancer (Cloudflare, an nginx front end, a host-level balancer), every request otherwise arrives from *that proxy's own address* — collapsing the per-IP rate limiter into one shared budget for your whole admin team, and writing the proxy's address into every audit-log row instead of the real one.
+
+Set `app.trusted_proxies` in `config.php` (or `TRUSTED_PROXIES` in `.env`) to the proxy's own address or network, and the real client address is read from the `X-Forwarded-For` header it sets instead — never trusted from anything not listed here. See the commented example in `config.sample.php`. The Security Self-Check (*Checking It Actually Applied*, above) reports which mode is active and what address it resolved for its own request, so a misconfigured proxy address shows up rather than silently collapsing every client onto one IP.
 
 ### Application Security
 

@@ -79,9 +79,6 @@ test.describe('Login (UI)', () => {
 
     await page.waitForURL('**/dashboard', { timeout: 10000 })
     await expect(page.getByTestId('dashboard-page')).toBeVisible()
-
-    const adminId = await page.evaluate(() => localStorage.getItem('admin_id'))
-    expect(adminId).toBeTruthy()
   })
 
   /**
@@ -190,9 +187,6 @@ test.describe('Login (UI)', () => {
 
     await page.waitForURL('**/dashboard', { timeout: 10000 })
     await expect(page.getByTestId('dashboard-page')).toBeVisible()
-
-    const adminId = await page.evaluate(() => localStorage.getItem('admin_id'))
-    expect(adminId).toBeTruthy()
   })
 
   test('shows an error for invalid credentials', async ({ loginPage, page }) => {

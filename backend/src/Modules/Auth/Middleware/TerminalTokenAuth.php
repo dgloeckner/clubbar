@@ -12,6 +12,7 @@ use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Terminals\Repositories\TerminalIpSightingsRepository;
 use App\Modules\Terminals\Repositories\TerminalsRepository;
 use App\Modules\Terminals\Services\TerminalTokenAuthenticator;
+use App\Shared\Http\ClientIp;
 use App\Shared\Logging\Logger;
 use App\Shared\Version\ReleaseVersion;
 use Slim\Psr7\Response;
@@ -43,6 +44,8 @@ class TerminalTokenAuth implements MiddlewareInterface
         private TerminalTokenAuthenticator $authenticator,
         private TerminalIpSightingsRepository $ipSightings,
         private Logger $logger,
+        /** @see \App\Shared\Config\AppConfig::$trustedProxies */
+        private string $trustedProxies = '',
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -99,7 +102,7 @@ class TerminalTokenAuth implements MiddlewareInterface
         try {
             $this->ipSightings->record(
                 $terminal['id'],
-                $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1',
+                ClientIp::resolve($request->getServerParams(), $this->trustedProxies) ?: '127.0.0.1',
                 time(),
             );
         } catch (\Throwable $e) {
@@ -134,7 +137,9 @@ class TerminalTokenAuth implements MiddlewareInterface
 
     private function unauthorized(ServerRequestInterface $request, string $code, string $message): ResponseInterface
     {
-        $this->authAttempts->record($request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1');
+        $this->authAttempts->record(
+            ClientIp::resolve($request->getServerParams(), $this->trustedProxies) ?: '127.0.0.1'
+        );
 
         $response = new Response(401);
         $response->getBody()->write(json_encode(['error' => $code, 'message' => $message]));

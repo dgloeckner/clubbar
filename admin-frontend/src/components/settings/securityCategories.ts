@@ -18,6 +18,7 @@ import type { SecurityFinding } from '../../api/generated/model'
 export const CATEGORY_ORDER = [
   'exposure',
   'data',
+  'network',
   'backup',
   'transport',
   'delivery',

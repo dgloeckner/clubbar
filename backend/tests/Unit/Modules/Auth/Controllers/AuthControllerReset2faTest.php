@@ -35,6 +35,7 @@ class AuthControllerReset2faTest extends TestCase
     private AdminUsersRepository $adminUsersRepository;
     private AuditService $auditService;
     private StepUpAuthService $stepUpAuthService;
+    private AdminUsersService $adminUsersService;
     private AuthController $controller;
 
     protected function setUp(): void
@@ -42,10 +43,11 @@ class AuthControllerReset2faTest extends TestCase
         $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
         $this->auditService = $this->createMock(AuditService::class);
         $this->stepUpAuthService = $this->createMock(StepUpAuthService::class);
+        $this->adminUsersService = $this->createMock(AdminUsersService::class);
 
         $this->controller = new AuthController(
             $this->createMock(AuthService::class),
-            $this->createMock(AdminUsersService::class),
+            $this->adminUsersService,
             $this->adminUsersRepository,
             $this->createMock(TotpService::class),
             $this->auditService,
@@ -210,5 +212,34 @@ class AuthControllerReset2faTest extends TestCase
         );
 
         $this->assertSame(404, $response->getStatusCode());
+    }
+
+    /* ─────────────── The out-of-band notice (#892) ─────────────── */
+
+    public function test_a_successful_reset_notifies_the_target_naming_the_caller(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(true);
+        $this->adminUsersRepository->method('findById')->willReturn(['id' => 'target-1', 'email' => 't@example.com']);
+
+        $this->adminUsersService->expects($this->once())
+            ->method('notifyTotpReset')
+            ->with('target-1', 'caller-1');
+
+        $this->controller->reset2fa(
+            $this->post(['userId' => 'target-1', 'current_password' => 'correct-horse']),
+            new Response(),
+        );
+    }
+
+    public function test_a_failed_step_up_never_notifies_anybody(): void
+    {
+        $this->stepUpAuthService->method('verify')->willReturn(false);
+
+        $this->adminUsersService->expects($this->never())->method('notifyTotpReset');
+
+        $this->controller->reset2fa(
+            $this->post(['userId' => 'target-1', 'current_password' => 'wrong']),
+            new Response(),
+        );
     }
 }

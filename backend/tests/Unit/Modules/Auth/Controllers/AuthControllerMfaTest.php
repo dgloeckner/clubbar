@@ -157,6 +157,51 @@ class AuthControllerMfaTest extends TestCase
         $this->assertSame('invalid_credentials', $this->decode($response)['error']);
     }
 
+    /**
+     * #886: behind a configured trusted proxy, the failure is recorded
+     * against the address X-Forwarded-For names, not the proxy itself.
+     */
+    public function test_failed_password_behind_a_trusted_proxy_is_recorded_against_the_forwarded_address(): void
+    {
+        $trustedProxiesBackup = $_ENV['TRUSTED_PROXIES'] ?? null;
+        $_ENV['TRUSTED_PROXIES'] = '10.0.0.5';
+
+        try {
+            $controller = new AuthController(
+                $this->authService,
+                $this->createMock(AdminUsersService::class),
+                $this->adminUsersRepository,
+                $this->totpService,
+                $this->auditService,
+                new Validator($this->createMock(PDO::class)),
+                $this->loginAttempts,
+                new AppConfig(),
+                $this->createMock(StepUpAuthService::class),
+            );
+
+            $this->authService->method('authenticate')->willReturn(null);
+
+            $this->loginAttempts->expects($this->once())
+                ->method('record')
+                ->with('198.51.100.1', 'admin@example.com');
+
+            $request = (new ServerRequestFactory())->createServerRequest('POST', '/api/auth/login', [
+                'REMOTE_ADDR' => '10.0.0.5',
+                'HTTP_X_FORWARDED_FOR' => '198.51.100.1',
+            ])->withParsedBody(['email' => 'admin@example.com', 'password' => 'wrong']);
+
+            $response = $controller->login($request, new Response());
+
+            $this->assertSame(401, $response->getStatusCode());
+        } finally {
+            if ($trustedProxiesBackup === null) {
+                unset($_ENV['TRUSTED_PROXIES']);
+            } else {
+                $_ENV['TRUSTED_PROXIES'] = $trustedProxiesBackup;
+            }
+        }
+    }
+
     public function test_correct_password_alone_does_not_clear_the_counter(): void
     {
         $this->authService->method('authenticate')->willReturn($this->admin());

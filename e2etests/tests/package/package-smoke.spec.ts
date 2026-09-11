@@ -656,6 +656,67 @@ test.describe('Package: Install Wizard', () => {
     expect(step8.status()).toBe(200);
     expect(await step8.text()).toContain('Installation Complete');
   });
+
+  /**
+   * #884: once the first admin exists, install.php must retire itself rather
+   * than staying a fully privileged surface a scanner can re-arm.
+   *
+   * A fresh `request` fixture is used throughout — no cookie, no key ever
+   * entered — because the whole point is that none of this needs solving the
+   * key gate first: before this fix, a bare visit would mint a brand new
+   * `.installer-data` key by itself, and `?step=4` would reach the
+   * admin-creation handler once that key was read (e.g. on a host that stops
+   * honouring `.htaccess`, ADR-0031's own threat model).
+   */
+  test('once installed, install.php refuses to re-arm itself', async ({ request }) => {
+    // Not assumed absent from the previous test's end state (Pattern 001) —
+    // the wizard run above legitimately re-mints this file the moment it
+    // touches a `&update=1` step with no key file present (e.g. step 6/7's
+    // own "still reachable after install" checks), so a stray one can be
+    // sitting here before this test's own requests run at all.
+    inPackageContainer('@unlink("/app/.installer-data");');
+
+    const bare = await request.get(`${PACKAGE_URL}/install.php`);
+    expect(await bare.text()).toContain('Already Installed');
+
+    const step2 = await request.get(`${PACKAGE_URL}/install.php?step=2`);
+    expect(await step2.text()).toContain('Already Installed');
+
+    const step4Get = await request.get(`${PACKAGE_URL}/install.php?step=4`);
+    expect(await step4Get.text()).toContain('Already Installed');
+
+    // Not just the landing page for GET — POSTing a full admin-creation
+    // payload at the handler directly must not reach it either.
+    const step4Post = await request.post(`${PACKAGE_URL}/install.php?step=4`, {
+      form: {
+        step: '4',
+        admin_email: 'second-admin@example.com',
+        admin_password: 'Password123',
+        admin_password_confirm: 'Password123',
+      },
+    });
+    expect(await step4Post.text()).toContain('Already Installed');
+    expect(queryInstallAdminRow('second-admin@example.com')).toBeNull();
+
+    // None of the above left a fresh install key behind for a later attempt
+    // to read — the installer is not merely refusing, it never re-armed.
+    expect(
+      inPackageContainer('echo file_exists("/app/.installer-data") ? "yes" : "no";'),
+      'a bare/step2/step4 request minted a new .installer-data key'
+    ).toBe('no');
+
+    // The documented `?update=1` route is the one door left open, and it
+    // still works — this is a closed door for anyone who has not opted into
+    // it, not a permanent lockout for a club that needs to run an update.
+    const update = await request.get(`${PACKAGE_URL}/install.php?step=2&update=1`);
+    expect(await update.text()).toContain('Install Key Required');
+    expect(
+      inPackageContainer('echo file_exists("/app/.installer-data") ? "yes" : "no";')
+    ).toBe('yes');
+
+    // Left as it was found, so no later test in this file sees a stray key.
+    inPackageContainer('@unlink("/app/.installer-data");');
+  });
 });
 
 test.describe('Package: API through front controller', () => {
@@ -976,8 +1037,12 @@ test.describe('Package: Runtime hardening', () => {
 test.describe('Package: .htaccess access rules', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 
-  test('config.php, a stray log file and a dotfile are all denied', async ({ request }) => {
-    for (const path of ['/config.php', '/test.log', '/.env']) {
+  test('config.php, a stray log file, a source map and a dotfile are all denied', async ({ request }) => {
+    // The map path stands in for a copy unpacked from an older release
+    // (#895) — the current build never ships one (see "Package: Data
+    // placement" below), so this asserts the rule holds even when the file
+    // is absent.
+    for (const path of ['/config.php', '/test.log', '/assets/index.js.map', '/.env']) {
       const response = await request.get(`${PACKAGE_URL}${path}`);
       expect([403, 404], `${path} returned ${response.status()}`).toContain(response.status());
     }
@@ -1244,6 +1309,18 @@ test.describe.serial('Package: Data placement', () => {
         true
       );
     }
+  });
+
+  /**
+   * #895: vite.config.ts sets `sourcemap: 'hidden'`, so a build still produces
+   * `.js.map` files next to the bundles it emits — build-package.sh is what
+   * has to strip them before assembling the release ZIP. This is the
+   * regression guard for that step, run against the package as built rather
+   * than trusting the script never regresses.
+   */
+  test('no JavaScript source maps ship in the release', () => {
+    const count = inContainer([`echo count(glob("${DOCUMENT_ROOT}/assets/*.map"));`]);
+    expect(Number(count), 'a *.map file shipped in assets/ (#895)').toBe(0);
   });
 
   /**

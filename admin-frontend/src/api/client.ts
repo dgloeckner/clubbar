@@ -151,9 +151,6 @@ axiosInstance.interceptors.response.use(
       insufficientRoleHandler?.()
     }
     if (error.response?.status === 401 && !isRejectedCredential(error)) {
-      localStorage.removeItem('admin_id')
-      localStorage.removeItem('email')
-      localStorage.removeItem('display_name')
       localStorage.removeItem('locale')
       setCsrfToken(null)
       if (!isSessionLessPath(window.location.pathname)) {

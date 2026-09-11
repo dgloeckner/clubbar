@@ -63,6 +63,12 @@ final class SecuritySelfCheck
     public const CATEGORY_BACKUP    = 'backup';
 
     /**
+     * Whether rate limiting, the audit log and terminal anomaly detection are
+     * keyed on the address a request actually came from (#886).
+     */
+    public const CATEGORY_NETWORK   = 'network';
+
+    /**
      * The `PHP_INI_ALL` directives this deployment depends on, and the state
      * they must be observed in.
      *
@@ -119,6 +125,7 @@ final class SecuritySelfCheck
             ...self::dataFindings($context),
             ...self::exposureFindings($context, $probe),
             ...self::transportFindings($context, $probe),
+            ...self::networkFindings($context),
         ];
     }
 
@@ -809,6 +816,194 @@ final class SecuritySelfCheck
             . 'plain-HTTP link, and the first request of that visit can be intercepted. Club Bar sets this header '
             . 'from application code on every response (ADR-0031 decision 1), not only from .htaccess, so this '
             . 'means something between PHP and the browser — a reverse proxy, a CDN, or a cache — is stripping it.');
+    }
+
+    // ------------------------------------------------------------------
+    // Network — is TRUSTED_PROXIES doing what an operator who set it expects?
+    // ------------------------------------------------------------------
+
+    /**
+     * Whether the address this very request resolves to matches what
+     * `TRUSTED_PROXIES` (#886) was configured for.
+     *
+     * Unlike the other rows in this class, "unconfigured" is itself a PASS:
+     * an empty setting reproduces the behaviour every installation has always
+     * had — `REMOTE_ADDR`, trusted at face value — which is correct on the
+     * shared hosting ADR-0031 names as the reference target. The row exists
+     * for the operator who *has* set it, so they can see whether it took:
+     * the classic failure is a proxy address that does not actually match
+     * the traffic reaching this process, which silently leaves every request
+     * keyed on the proxy instead of the client (see #886's report for what
+     * that breaks — the login rate limiter becomes a team-wide lockout, and
+     * every audit row says "from the load balancer").
+     *
+     * The matcher here is a deliberate duplicate of
+     * {@see \App\Shared\Http\ClientIp}, not a reuse of it: this class is
+     * loaded by path in `install.php`, before Composer's autoloader exists,
+     * the same reason {@see SecurityCheckContext::requestIsHttps()} duplicates
+     * {@see \App\Shared\Config\AppConfig::requestIsHttps()} instead of sharing
+     * it.
+     *
+     * @return list<SecurityFinding>
+     */
+    private static function networkFindings(SecurityCheckContext $context): array
+    {
+        $label = 'Rate limiting, the audit log and terminal anomaly detection are keyed on the request\'s real address';
+
+        if (trim($context->trustedProxies) === '') {
+            return [SecurityFinding::pass(
+                'client_ip_source',
+                self::CATEGORY_NETWORK,
+                $label,
+                'REMOTE_ADDR is used as-is (no TRUSTED_PROXIES configured)'
+            )];
+        }
+
+        $trustedCidrs = self::parseTrustedCidrs($context->trustedProxies);
+        $remoteAddr = $context->remoteAddr;
+
+        if ($remoteAddr === null || $remoteAddr === '' || @inet_pton($remoteAddr) === false) {
+            return [SecurityFinding::unknown(
+                'client_ip_source',
+                self::CATEGORY_NETWORK,
+                $label,
+                'could not be measured',
+                'This request carried no usable REMOTE_ADDR to check against TRUSTED_PROXIES.'
+            )];
+        }
+
+        if (!self::ipTrustedByAny($remoteAddr, $trustedCidrs)) {
+            return [SecurityFinding::warn(
+                'client_ip_source',
+                self::CATEGORY_NETWORK,
+                $label,
+                "TRUSTED_PROXIES is configured, but this request arrived from {$remoteAddr}, which is not in it",
+                'X-Forwarded-For is being ignored for this request and REMOTE_ADDR is used instead. That is only '
+                . 'correct when nothing in TRUSTED_PROXIES actually proxies traffic to this installation — if a '
+                . 'reverse proxy, CDN or load balancer sits in front of it, add its address to TRUSTED_PROXIES. '
+                . 'Until then every client behind it is counted as one, which collapses the per-IP rate limiter '
+                . 'into a single shared budget and writes the proxy\'s own address into every audit-log row.'
+            )];
+        }
+
+        $forwardedFor = trim((string) $context->forwardedFor);
+        if ($forwardedFor === '') {
+            return [SecurityFinding::warn(
+                'client_ip_source',
+                self::CATEGORY_NETWORK,
+                $label,
+                "this request came from a trusted proxy ({$remoteAddr}) but carried no X-Forwarded-For header",
+                'REMOTE_ADDR is the proxy\'s own address, and with no X-Forwarded-For to read there is nothing else '
+                . 'to resolve the real client from. Every request through this proxy is being counted as one client '
+                . 'until it is configured to forward the header.'
+            )];
+        }
+
+        $resolved = self::rightmostUntrustedHop($forwardedFor, $trustedCidrs);
+        if ($resolved === null) {
+            return [SecurityFinding::warn(
+                'client_ip_source',
+                self::CATEGORY_NETWORK,
+                $label,
+                "every address in this request's X-Forwarded-For ({$forwardedFor}) is itself trusted, or unparseable",
+                'No hop in the chain was left to name a real client, so REMOTE_ADDR — the innermost trusted proxy — '
+                . 'is used instead. This is more likely a malformed header than an attack; if it persists, check '
+                . 'what the proxy chain in front of this installation is actually sending.'
+            )];
+        }
+
+        return [SecurityFinding::pass(
+            'client_ip_source',
+            self::CATEGORY_NETWORK,
+            $label,
+            "resolved to {$resolved} via a trusted proxy ({$remoteAddr})"
+        )];
+    }
+
+    /**
+     * @return list<array{0:string,1:int}>
+     */
+    private static function parseTrustedCidrs(string $trustedProxies): array
+    {
+        $cidrs = [];
+
+        foreach (explode(',', $trustedProxies) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            [$address, $prefix] = array_pad(explode('/', $entry, 2), 2, null);
+            $packed = @inet_pton((string) $address);
+            if ($packed === false) {
+                continue;
+            }
+
+            $maxPrefix = strlen($packed) * 8;
+            $prefixLen = $prefix === null ? $maxPrefix : (int) $prefix;
+            if ($prefixLen < 0 || $prefixLen > $maxPrefix) {
+                continue;
+            }
+
+            $cidrs[] = [$packed, $prefixLen];
+        }
+
+        return $cidrs;
+    }
+
+    /**
+     * @param list<array{0:string,1:int}> $trustedCidrs
+     */
+    private static function ipTrustedByAny(string $ip, array $trustedCidrs): bool
+    {
+        $ipPacked = @inet_pton($ip);
+        if ($ipPacked === false) {
+            return false;
+        }
+
+        foreach ($trustedCidrs as [$network, $prefixLen]) {
+            if (strlen($ipPacked) !== strlen($network)) {
+                continue;
+            }
+
+            $wholeBytes = intdiv($prefixLen, 8);
+            if ($wholeBytes > 0 && strncmp($ipPacked, $network, $wholeBytes) !== 0) {
+                continue;
+            }
+
+            $remainderBits = $prefixLen % 8;
+            if ($remainderBits === 0) {
+                return true;
+            }
+
+            $mask = (~(0xFF >> $remainderBits)) & 0xFF;
+            if ((ord($ipPacked[$wholeBytes]) & $mask) === (ord($network[$wholeBytes]) & $mask)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{0:string,1:int}> $trustedCidrs
+     */
+    private static function rightmostUntrustedHop(string $forwardedFor, array $trustedCidrs): ?string
+    {
+        $hops = array_map('trim', explode(',', $forwardedFor));
+
+        for ($i = count($hops) - 1; $i >= 0; $i--) {
+            $candidate = $hops[$i];
+            if ($candidate === '' || @inet_pton($candidate) === false) {
+                return null;
+            }
+
+            if (!self::ipTrustedByAny($candidate, $trustedCidrs)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     // ------------------------------------------------------------------

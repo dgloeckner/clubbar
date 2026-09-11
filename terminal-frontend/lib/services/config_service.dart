@@ -23,6 +23,14 @@ class ConfigParseException implements Exception {
 /// - Linux: ~/.local/share/de.clubbar.clubbar_terminal/config.json
 /// - Windows: %APPDATA%\de.clubbar.clubbar_terminal\config.json
 ///
+/// `config.json` holds this terminal's credentials — the bearer token and the
+/// dispenser API key — and this service never writes it; an operator (or a
+/// provisioning script) does, once, and is expected to leave it `chmod 600`
+/// (see INSTALL.md). `load()` checks that on every start and tightens it
+/// back up if it finds the file group- or world-readable (issue #885). The
+/// synced credit policy (ADR-0047) lives in a sibling `policy.json` instead,
+/// which this service does rewrite on every sync — see [setCreditLimitPolicy].
+///
 /// Environment variables override file values:
 /// - TERMINAL_ID
 /// - TERMINAL_API_URL
@@ -41,6 +49,16 @@ class ConfigParseException implements Exception {
 /// - RFID_READER_UID_FORMAT
 class ConfigService {
   static const String _configFileName = 'config.json';
+
+  /// Sibling file for the synced credit policy (ADR-0047, issue #885).
+  ///
+  /// Kept out of `config.json` so the file holding this terminal's
+  /// credentials — the bearer token, the dispenser API key — is written once,
+  /// at provisioning, and never touched again by the running app. That is
+  /// what removes the file-mode-loss path this file used to have: every
+  /// rewrite of `config.json` risked recreating it with a umask-default mode
+  /// instead of the operator-set `0600`.
+  static const String _policyFileName = 'policy.json';
 
   /// Header title shown when `config.json` carries no `displayName` (#297).
   static const String defaultDisplayName = 'Club Bar';
@@ -135,7 +153,7 @@ class ConfigService {
   ///
   /// Cached, not asked for: the terminal blocks a checkout in front of the
   /// member with no backend reachable, so the policy has to be here already.
-  /// It is persisted to `config.json` by [setCreditLimitPolicy], which is what
+  /// It is persisted to `policy.json` by [setCreditLimitPolicy], which is what
   /// makes it survive a restart on a terminal that boots offline.
   ///
   /// Before the first successful `/sync/config` poll on a fresh install this
@@ -144,7 +162,7 @@ class ConfigService {
   CreditLimitPolicy get creditLimitPolicy => _creditLimitPolicy;
 
   /// Records the club policy learned from `GET /sync/config` and writes it to
-  /// `config.json`.
+  /// `policy.json`, alongside `config.json` (issue #885).
   ///
   /// Persisting rather than holding it in memory is the whole point: a
   /// terminal that boots with the network down must still enforce what the
@@ -152,31 +170,24 @@ class ConfigService {
   /// failed poll never reaches here, so the cached policy simply stays — the
   /// same graceful-degradation rule ADR-0023 sets for balances.
   ///
-  /// The rest of `config.json` is read and written back untouched: it holds
-  /// this terminal's credentials, and this method must not be able to lose
-  /// them.
+  /// `config.json` holds this terminal's credentials and is never written by
+  /// this method — not "written back untouched", but not opened at all. That
+  /// is what guarantees it can't lose them or the `0600` mode set on it at
+  /// provisioning.
   Future<void> setCreditLimitPolicy(CreditLimitPolicy policy) async {
     _creditLimitPolicy = policy;
 
-    final configFile = await _getConfigFile();
-    Map<String, dynamic> json = {};
-    if (configFile.existsSync()) {
-      try {
-        json = jsonDecode(configFile.readAsStringSync()) as Map<String, dynamic>;
-      } catch (_) {
-        // An unparseable file is not made worse by refusing to write a cache
-        // value into it. load() is where a broken config is reported.
-        return;
-      }
-    }
-
-    json['creditLimit'] = {
-      'defaultLimitCents': policy.defaultLimitCents,
-      'warnThresholdPercent': policy.warnThresholdPercent,
+    final policyFile = await _getPolicyFile();
+    final json = {
+      'creditLimit': {
+        'defaultLimitCents': policy.defaultLimitCents,
+        'warnThresholdPercent': policy.warnThresholdPercent,
+      },
     };
 
-    configFile.parent.createSync(recursive: true);
-    configFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+    policyFile.parent.createSync(recursive: true);
+    policyFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+    _restrictToOwner(policyFile);
   }
 
   /// Records the org-wide instance name learned from the backend's `/health`
@@ -248,6 +259,68 @@ class ConfigService {
     return File('$dir/$_configFileName');
   }
 
+  Future<File> _getPolicyFile() async {
+    final dir = await _getConfigDir();
+    return File('$dir/$_policyFileName');
+  }
+
+  /// Restricts [file] to owner-only read/write (`0600`).
+  ///
+  /// POSIX only — Windows ACLs work differently and `chmod` isn't meaningful
+  /// there, so this is a no-op on that platform (issue #885).
+  ///
+  /// Best-effort: a refused `chmod` (unusual filesystem, read-only mount) is
+  /// logged to stderr rather than fatal. [file] can hold this terminal's
+  /// bearer token — effectively the whole member database, see #885 — but an
+  /// unattended kiosk failing to start over a permissions quirk trades one
+  /// risk for a worse one.
+  void _restrictToOwner(File file) {
+    if (Platform.isWindows) return;
+    try {
+      final result = Process.runSync('chmod', ['600', file.path]);
+      if (result.exitCode != 0) {
+        stderr.writeln(
+          'clubbar-terminal: could not restrict permissions on ${file.path} '
+          '(chmod exited ${result.exitCode}): ${result.stderr}',
+        );
+      }
+    } catch (e) {
+      stderr.writeln(
+        'clubbar-terminal: could not restrict permissions on ${file.path}: $e',
+      );
+    }
+  }
+
+  /// Warns — and self-heals — when [file] is readable or writable beyond its
+  /// owner (issue #885).
+  ///
+  /// `config.json` holds this terminal's bearer token, which unlocks every
+  /// member's name, date of birth, balance and purchase history on the
+  /// backend it points at — not a generic secret-on-disk finding. Refusing to
+  /// start over it would turn a fixable permissions slip into a bricked
+  /// kiosk, so this fixes the mode and keeps going, loud on stderr either way
+  /// (`main()` wires the configured file logger only after `load()` returns).
+  void _enforceOwnerOnlyMode(File file) {
+    if (Platform.isWindows) return;
+    if (!file.existsSync()) return;
+    try {
+      final mode = file.statSync().mode;
+      if (mode & 0x3F != 0) {
+        stderr.writeln(
+          'clubbar-terminal: ${file.path} is readable beyond its owner '
+          '(mode ${(mode & 0xFFF).toRadixString(8).padLeft(3, '0')}). '
+          'This file holds the terminal\'s live credentials — treat it as '
+          'the member database. Restricting it to 0600.',
+        );
+        _restrictToOwner(file);
+      }
+    } catch (e) {
+      stderr.writeln(
+        'clubbar-terminal: could not check permissions on ${file.path}: $e',
+      );
+    }
+  }
+
   /// Returns the absolute path where config.json is expected to exist.
   Future<String> getConfigFilePath() async {
     final file = await _getConfigFile();
@@ -269,6 +342,8 @@ class ConfigService {
     final configFile = await _getConfigFile();
 
     if (configFile.existsSync()) {
+      _enforceOwnerOnlyMode(configFile);
+
       try {
         final contents = configFile.readAsStringSync();
         final json = jsonDecode(contents) as Map<String, dynamic>;
@@ -282,8 +357,10 @@ class ConfigService {
         _displayName = json['displayName'] as String?;
         _fontSizes = json['fontSizes'] as Map<String, dynamic>?;
 
-        // The club policy this terminal last synced (ADR-0047). Absent on a
-        // fresh install, which is what the shipped seed values are for.
+        // The club policy this terminal last synced (ADR-0047), for a
+        // terminal that hasn't synced since upgrading past #885 and still
+        // carries it embedded here rather than in policy.json. Superseded
+        // below if policy.json exists.
         final creditLimit = json['creditLimit'] as Map<String, dynamic>?;
         if (creditLimit != null) {
           _creditLimitPolicy = CreditLimitPolicy(
@@ -331,6 +408,29 @@ class ConfigService {
         throw ConfigParseException(
           'Failed to parse ${configFile.path}: $e',
         );
+      }
+    }
+
+    // The synced credit policy (ADR-0047), split out of config.json in
+    // #885. Overrides the legacy embedded value read above, if any.
+    final policyFile = await _getPolicyFile();
+    if (policyFile.existsSync()) {
+      try {
+        final policyJson =
+            jsonDecode(policyFile.readAsStringSync()) as Map<String, dynamic>;
+        final creditLimit = policyJson['creditLimit'] as Map<String, dynamic>?;
+        if (creditLimit != null) {
+          _creditLimitPolicy = CreditLimitPolicy(
+            defaultLimitCents: creditLimit['defaultLimitCents'] as int? ??
+                AppConfig.balanceLimitCents,
+            warnThresholdPercent: creditLimit['warnThresholdPercent'] as int? ??
+                AppConfig.balanceWarnThresholdPercent,
+          );
+        }
+      } catch (_) {
+        // An unparseable policy.json is a cache, not a credential — fall
+        // back to whatever the block above (or the shipped default) already
+        // set rather than refusing to start over it.
       }
     }
 
@@ -445,6 +545,11 @@ class ConfigService {
     final configFile = await _getConfigFile();
     if (configFile.existsSync()) {
       configFile.deleteSync();
+    }
+
+    final policyFile = await _getPolicyFile();
+    if (policyFile.existsSync()) {
+      policyFile.deleteSync();
     }
   }
 }

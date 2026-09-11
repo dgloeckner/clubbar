@@ -888,6 +888,7 @@
       "categories": {
         "exposure": "What the webserver hands out",
         "data": "Where the data lives",
+        "network": "Where a request is trusted to have come from",
         "backup": "Whether there is anything to restore from",
         "transport": "Connection",
         "delivery": "Whether messages get out",
@@ -1566,6 +1567,9 @@
       "admin_invitation": "Invitation",
       "admin_role_changed": "Roles changed",
       "admin_email_changed": "Sign-in address changed",
+      "admin_password_changed": "Password changed",
+      "admin_totp_enrolled": "Two-factor authentication set up",
+      "admin_totp_reset": "Two-factor authentication reset",
       "backup_secret_expiry_warning": "Backup credential expiring",
       "backup_health_warning": "Backup not reporting"
     },

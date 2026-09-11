@@ -294,6 +294,75 @@ enum MailKind: string
     case ADMIN_INVITATION = 'admin_invitation';
 
     /**
+     * "Your password was changed", sent to the account it belongs to (#892).
+     *
+     * Fires for both write paths: the self-service change
+     * ({@see \App\Modules\AdminUsers\Services\AdminUsersService::changeOwnPassword()})
+     * and the cross-account reset
+     * ({@see \App\Modules\AdminUsers\Services\AdminUsersService::resetAdminPassword()}).
+     * Either way `touchCredentialsEpoch()` ends every other session on the
+     * account in the same request, so the legitimate holder — if it was not
+     * them — sees a generic "please sign in again" with no way to tell an
+     * intentional change from a hijack. This is that channel: the one an
+     * attacker holding the session, the password and a TOTP code cannot also
+     * hold, because it is not the credential they just moved.
+     *
+     * The same argument {@see self::ADMIN_EMAIL_CHANGED} already makes about a
+     * stolen session moving the login address applies here at least as
+     * strongly — the password is the login, not an attribute of it.
+     *
+     * Unlike the email-change notice, the address does not move, so the
+     * recipient is not a former value the row is about to lose. It is still
+     * snapshotted into `mail_outbox.recipient` at the moment the password is
+     * written, rather than re-read from `admin_users` at send time — the same
+     * "address on file at the time of the change" property, in case the
+     * address itself moves again before the drain runs.
+     *
+     * The occasion carries the moment, `changed:<stamp>`, and the actor is
+     * whoever performed the change — the account itself on a self-change, a
+     * different admin on a reset — so the body can say which.
+     */
+    case ADMIN_PASSWORD_CHANGED = 'admin_password_changed';
+
+    /**
+     * "Two-factor authentication was set up on your account", sent on the
+     * first successful {@see \App\Modules\Auth\Controllers\AuthController::confirm2fa()}
+     * (#892).
+     *
+     * ADR-0026 allows no self-disable and no recovery codes, so enrolling an
+     * authenticator is not adjustable afterwards by the account itself —
+     * undoing it takes a second admin. That makes this the one credential
+     * event in the login where a mistaken or hostile enrollment is otherwise
+     * invisible until the legitimate owner's own next login attempt: `/login`
+     * mints a full session on the password alone while `totp_enabled = 0`, so
+     * anyone who reaches the account before its owner does can enroll their
+     * own authenticator and lock the real owner out at the next sign-in. A
+     * mail at enrollment time is the difference between noticing that in
+     * minutes and noticing it when the real owner is the one refused entry.
+     *
+     * There is no cross-account path here — enrollment always names the
+     * enrolling session's own account — so there is no separate actor to
+     * report, unlike its sibling {@see self::ADMIN_TOTP_RESET}.
+     */
+    case ADMIN_TOTP_ENROLLED = 'admin_totp_enrolled';
+
+    /**
+     * "Two-factor authentication was reset on your account" (#892), sent on
+     * {@see \App\Modules\Auth\Controllers\AuthController::reset2fa()} — to the
+     * **target** account, which may be a different admin than the one who
+     * performed it.
+     *
+     * The reset is the one recovery path ADR-0026 leaves for a lost
+     * authenticator, and also the one step that hands an attacker who has
+     * compromised any single admin's step-up a way to take over every other
+     * account's second factor. The body says who did it, mirroring
+     * {@see self::ADMIN_ROLE_CHANGED}'s actor label, because "reset by
+     * yourself, mid-recovery" and "reset by someone else, without you asking"
+     * read as the same audit row and must not read as the same mail.
+     */
+    case ADMIN_TOTP_RESET = 'admin_totp_reset';
+
+    /**
      * A member's card has been assigned for the first time: they can use the
      * bar, and this is the first message they have ever had from the club.
      *
@@ -455,6 +524,14 @@ enum MailKind: string
             // account. A second club copy carrying a working link to that
             // account would put a live credential on a list.
             self::ADMIN_INVITATION,
+            // Personal security notices about one account, not lifecycle
+            // events about the installation's power structure — the same
+            // reasoning that keeps ADMIN_EMAIL_CHANGED off this list. The
+            // account holder is the witness these three want; a club-wide
+            // address has no business reading who reset their own password.
+            self::ADMIN_PASSWORD_CHANGED,
+            self::ADMIN_TOTP_ENROLLED,
+            self::ADMIN_TOTP_RESET,
             // Not a lifecycle event, and not for a Vorstand list. Who is near
             // their Deckel ceiling is operational detail with member names in
             // it, and routing it to a club-wide address would widen a report
@@ -549,7 +626,21 @@ enum MailKind: string
             // row's snapshot. Creating an admin is `admin`-only
             // (`POST /api/admin/admin-users`), so the office that may know an
             // invitation exists is the office that may issue one.
-            self::ADMIN_INVITATION => [AdminRole::ADMIN],
+            self::ADMIN_INVITATION,
+            // Stated for the same reason as the two kinds above, and never
+            // fanned out either: each goes to the one account it is about,
+            // from that account's own snapshot. Unlike the credential mail
+            // above, the account behind it need not hold `admin` at all — a
+            // Kassenwart or Getränkewart has a password and a TOTP secret of
+            // their own — but `recipientRoles()` names an office for every
+            // kind that is not addressed to a member or a prospect (see the
+            // test this method is held to), and `admin` is the answer for the
+            // same reason it is everywhere else on this surface: it is the
+            // root of the ladder, and the account this notice is about would
+            // hold it if any office did.
+            self::ADMIN_PASSWORD_CHANGED,
+            self::ADMIN_TOTP_ENROLLED,
+            self::ADMIN_TOTP_RESET => [AdminRole::ADMIN],
 
             // The one kind whose surface is not `admin`-only, and it is not a
             // special case: it is the same rule applied to a different route.
@@ -613,7 +704,10 @@ enum MailKind: string
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
-            self::ADMIN_INVITATION => MailSubject::ADMIN_USER,
+            self::ADMIN_INVITATION,
+            self::ADMIN_PASSWORD_CHANGED,
+            self::ADMIN_TOTP_ENROLLED,
+            self::ADMIN_TOTP_RESET => MailSubject::ADMIN_USER,
             self::DECKEL_STATEMENT,
             // The member, as the Deckelauszug's is — these are about the
             // record itself rather than about anything that happened to it, so
@@ -667,6 +761,9 @@ enum MailKind: string
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
             self::ADMIN_INVITATION,
+            self::ADMIN_PASSWORD_CHANGED,
+            self::ADMIN_TOTP_ENROLLED,
+            self::ADMIN_TOTP_RESET,
             self::JUGENDSCHUTZ_VIOLATION,
             self::CREDIT_LIMIT_DIGEST,
             // Addressed to somebody who is *not* a member — that is the point
@@ -720,6 +817,9 @@ enum MailKind: string
             self::ADMIN_EMAIL_CHANGED,
             self::ADMIN_ACCOUNT_CREATED,
             self::ADMIN_ROLE_CHANGED,
+            self::ADMIN_PASSWORD_CHANGED,
+            self::ADMIN_TOTP_ENROLLED,
+            self::ADMIN_TOTP_RESET,
             // The nearest thing to a counterexample, and it is not one: an
             // invitation reaches somebody who has no *credential* yet, but
             // `admin_users` already holds their row and `subject_id` points at

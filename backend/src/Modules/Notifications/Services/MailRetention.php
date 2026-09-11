@@ -146,6 +146,14 @@ final class MailRetention
             // `invitation_accepted` audit entries, which carry no token and are
             // untouched here.
             MailKind::ADMIN_INVITATION,
+            // The three credential notices (#892) keep the default, on the
+            // same reasoning as the two lifecycle kinds above: the durable
+            // record is the `password_changed` / `totp_enrolled` / `totp_reset`
+            // audit entry, untouched here. These rows are the *telling*, and
+            // what they hold past delivery is only an address.
+            MailKind::ADMIN_PASSWORD_CHANGED,
+            MailKind::ADMIN_TOTP_ENROLLED,
+            MailKind::ADMIN_TOTP_RESET,
             // The Jugendschutz notice (#622) keeps the default, and the reason
             // is worth stating because the instinct is to keep it for ten years
             // beside the incident. It is not the incident. The durable record
