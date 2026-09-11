@@ -39,7 +39,13 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    // 'hidden': maps are still emitted (kept as a CI artifact for
+    // symbolicating a reported stack trace) but no `//# sourceMappingURL`
+    // comment is written, so a browser never fetches them from a production
+    // install (#895). build-package.sh strips *.map before assembling the
+    // release ZIP as the second layer, and package/.htaccess denies the
+    // extension as the belt for an older release unpacked by hand.
+    sourcemap: 'hidden'
   },
   test: {
     environment: 'node',
