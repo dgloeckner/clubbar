@@ -661,16 +661,18 @@ void main() {
       });
 
       /// `config.json` holds this terminal's credentials. Writing a cache value
-      /// into it must not be able to lose them.
-      test('writing the policy leaves the rest of the file untouched',
+      /// must not be able to lose them — and since #885, doesn't even open
+      /// the file: the policy goes to a sibling `policy.json` instead.
+      test('writing the policy leaves config.json byte-for-byte untouched',
           () async {
         final configFile = File('${tempDir.path}/config.json');
-        configFile.writeAsStringSync(jsonEncode({
+        final original = jsonEncode({
           'terminalId': 'terminal-1',
           'apiUrl': 'https://bar.example.org/api',
           'apiToken': 'secret-token',
           'displayName': 'Ruderbar',
-        }));
+        });
+        configFile.writeAsStringSync(original);
         await configService.load();
 
         await configService.setCreditLimitPolicy(
@@ -679,6 +681,8 @@ void main() {
             warnThresholdPercent: 75,
           ),
         );
+
+        expect(configFile.readAsStringSync(), original);
 
         final rebooted = ConfigService(configDir: tempDir.path);
         await rebooted.load();
@@ -701,6 +705,155 @@ void main() {
 
         expect(configService.creditLimitPolicy, CreditLimitPolicy.shipped);
       });
+
+      /// The split that removes the mode-loss path (issue #885): the synced
+      /// policy lives in its own file, so `config.json` is provisioned once
+      /// and never reopened for writing by the running app.
+      group('policy.json split (issue #885)', () {
+        test('setCreditLimitPolicy writes policy.json, not config.json',
+            () async {
+          final configFile = File('${tempDir.path}/config.json');
+          final policyFile = File('${tempDir.path}/policy.json');
+          expect(configFile.existsSync(), isFalse);
+
+          await configService.setCreditLimitPolicy(
+            const CreditLimitPolicy(
+              defaultLimitCents: 8000,
+              warnThresholdPercent: 70,
+            ),
+          );
+
+          expect(configFile.existsSync(), isFalse);
+          expect(policyFile.existsSync(), isTrue);
+          final written =
+              jsonDecode(policyFile.readAsStringSync()) as Map<String, dynamic>;
+          expect(written['creditLimit']['defaultLimitCents'], 8000);
+          expect(written['creditLimit']['warnThresholdPercent'], 70);
+        });
+
+        test('load prefers policy.json over a legacy embedded creditLimit',
+            () async {
+          File('${tempDir.path}/config.json').writeAsStringSync(jsonEncode({
+            'terminalId': 'T1',
+            'apiUrl': 'http://x',
+            'apiToken': 'tok',
+            'creditLimit': {
+              'defaultLimitCents': 1111,
+              'warnThresholdPercent': 11,
+            },
+          }));
+          File('${tempDir.path}/policy.json').writeAsStringSync(jsonEncode({
+            'creditLimit': {
+              'defaultLimitCents': 2222,
+              'warnThresholdPercent': 22,
+            },
+          }));
+
+          await configService.load();
+
+          expect(configService.creditLimitPolicy.defaultLimitCents, 2222);
+          expect(configService.creditLimitPolicy.warnThresholdPercent, 22);
+        });
+
+        test(
+            'load falls back to a legacy embedded creditLimit when policy.json is absent (upgrade path)',
+            () async {
+          File('${tempDir.path}/config.json').writeAsStringSync(jsonEncode({
+            'terminalId': 'T1',
+            'apiUrl': 'http://x',
+            'apiToken': 'tok',
+            'creditLimit': {
+              'defaultLimitCents': 1111,
+              'warnThresholdPercent': 11,
+            },
+          }));
+
+          await configService.load();
+
+          expect(configService.creditLimitPolicy.defaultLimitCents, 1111);
+          expect(configService.creditLimitPolicy.warnThresholdPercent, 11);
+        });
+
+        test('clear deletes policy.json', () async {
+          await configService.setCreditLimitPolicy(
+            const CreditLimitPolicy(
+              defaultLimitCents: 5000,
+              warnThresholdPercent: 65,
+            ),
+          );
+          final policyFile = File('${tempDir.path}/policy.json');
+          expect(policyFile.existsSync(), isTrue);
+
+          await configService.clear();
+
+          expect(policyFile.existsSync(), isFalse);
+        });
+
+        test('an unparseable policy.json does not block startup', () async {
+          File('${tempDir.path}/config.json').writeAsStringSync(jsonEncode({
+            'terminalId': 'T1',
+            'apiUrl': 'http://x',
+            'apiToken': 'tok',
+          }));
+          File('${tempDir.path}/policy.json').writeAsStringSync('not json {{{');
+
+          await configService.load();
+
+          expect(configService.isConfigured, isTrue);
+          expect(configService.creditLimitPolicy, CreditLimitPolicy.shipped);
+        });
+      });
     });
+
+    /// The bearer token in `config.json` unlocks every member's name, date of
+    /// birth, balance and purchase history (issue #885) — the file's
+    /// permissions are not a cosmetic detail.
+    group('credential file permissions (issue #885)', () {
+      int modeOf(File file) => file.statSync().mode & 0x3F;
+
+      test('load tightens an overly permissive config.json to 0600',
+          () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'T1',
+          'apiUrl': 'http://x',
+          'apiToken': 'tok',
+        }));
+        Process.runSync('chmod', ['644', configFile.path]);
+        expect(modeOf(configFile), isNot(0));
+
+        await configService.load();
+
+        expect(modeOf(configFile), 0);
+      });
+
+      test('load leaves an already-0600 config.json alone and still parses',
+          () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'T1',
+          'apiUrl': 'http://x',
+          'apiToken': 'tok',
+        }));
+        Process.runSync('chmod', ['600', configFile.path]);
+
+        await configService.load();
+
+        expect(modeOf(configFile), 0);
+        expect(configService.apiToken, 'tok');
+      });
+
+      test('setCreditLimitPolicy writes policy.json as 0600', () async {
+        await configService.setCreditLimitPolicy(
+          const CreditLimitPolicy(
+            defaultLimitCents: 3000,
+            warnThresholdPercent: 50,
+          ),
+        );
+
+        final policyFile = File('${tempDir.path}/policy.json');
+        expect(modeOf(policyFile), 0);
+      });
+    }, skip: Platform.isWindows ? 'chmod/file mode is POSIX-only' : false);
   });
 }
