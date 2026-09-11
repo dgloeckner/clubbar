@@ -477,7 +477,8 @@
     "validation": {
       "priceRequired": "Valid price is required",
       "categoryRequired": "Category is required",
-      "minAgeRange": "Minimum age must be between 1 and 99 (empty = no age restriction)"
+      "minAgeRange": "Minimum age must be between 1 and 99 (empty = no age restriction)",
+      "volumeRange": "The size must be between 0.001 and 10 litres."
     },
     "errors": {
       "load": "Failed to load products",
@@ -490,6 +491,8 @@
     "minAge": "Minimum age",
     "minAgePlaceholder": "e.g. 16",
     "minAgeHelp": "Leave empty if the drink carries no age restriction. The terminal refuses the purchase if the member is younger.",
+    "volume": "Size",
+    "volumeHelp": "The volume in litres, e.g. 0.5 — do not write it into the name. \"Wheat beer (0.5l)\" becomes \"Wheat beer\" plus 0.5 here. Leave it empty for a product with no size (sauna token, coffee).",
     "minAgeBadge": "{{age}}+"
   },
   "categories": {

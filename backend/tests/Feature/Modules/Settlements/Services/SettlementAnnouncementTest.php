@@ -405,6 +405,39 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         );
     }
 
+    /**
+     * The itemised statement inside a settlement announcement names each drink
+     * the way every other surface does: the name, then its size (ADR-0056).
+     *
+     * This is the mail a member reads *beside* their Deckelauszug, so the two
+     * naming a booking differently is exactly the confusion the column exists
+     * to remove.
+     */
+    public function test_the_itemised_statement_names_each_drinks_size(): void
+    {
+        $this->configureCreditor();
+
+        $memberId = $this->collectableMember('Klara');
+        $settlementId = $this->finalize([
+            $this->purchase($memberId, 420, 500),
+            $this->purchase($memberId, 300, null),
+        ]);
+
+        $row = $this->outbox->findBySubjectId($settlementId)[0];
+        $message = $this->builder->build($row, $this->mailConfig);
+
+        foreach ([$message->html, $message->text] as $part) {
+            $this->assertStringContainsString("Bier 0,5\u{00A0}l", $part, 'the size travels with the name');
+            // …and the product with no size is its name alone, which is why the
+            // count matters: two lines, one of them plain.
+            $this->assertSame(
+                2,
+                substr_count($part, 'Bier'),
+                'both bookings are itemised',
+            );
+        }
+    }
+
     public function test_a_cancellation_row_renders_without_a_mandate_reference(): void
     {
         $this->configureCreditor();
@@ -499,7 +532,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         return $memberId;
     }
 
-    private function purchase(string $memberId, int $amountCents): string
+    private function purchase(string $memberId, int $amountCents, ?int $volumeMl = null): string
     {
         $categoryId = $this->generateUuid();
         $this->testCategoryIds[] = $categoryId;
@@ -509,8 +542,8 @@ class SettlementAnnouncementTest extends DatabaseTestCase
         $productId = $this->generateUuid();
         $this->testProductIds[] = $productId;
         $this->db->prepare(
-            'INSERT INTO products (id, category_id, names, price_cents, is_active) VALUES (?, ?, ?, ?, 1)'
-        )->execute([$productId, $categoryId, json_encode(['de' => 'Bier', 'en' => 'Beer']), $amountCents]);
+            'INSERT INTO products (id, category_id, names, price_cents, is_active, volume_ml) VALUES (?, ?, ?, ?, 1, ?)'
+        )->execute([$productId, $categoryId, json_encode(['de' => 'Bier', 'en' => 'Beer']), $amountCents, $volumeMl]);
 
         $transactionId = $this->generateUuid();
         $this->testTransactionIds[] = $transactionId;

@@ -16,6 +16,11 @@ final readonly class SettlementItemDto
         public ?string $notes,
         public ?string $productName,
         public ?string $transactionCreatedAt,
+        // Last, with a default, only because PHP will not take an optional
+        // parameter before a required one. It belongs beside $productName:
+        // everything that prints a product name prints the size after it
+        // (ADR-0056).
+        public ?int $productVolumeMl = null,
     ) {}
 
     public static function fromRow(array $row): self
@@ -38,6 +43,10 @@ final readonly class SettlementItemDto
             transactionType: $row['transaction_type'] ?? null,
             notes: $row['transaction_notes'] ?? null,
             productName: $productName,
+            // Read live from the same join as the name (ADR-0056 decision 3),
+            // and handed over as a number: the client formats it for its own
+            // reader, exactly as it does the amount.
+            productVolumeMl: isset($row['product_volume_ml']) ? (int) $row['product_volume_ml'] : null,
             transactionCreatedAt: $row['transaction_created_at'] ?? null,
         );
     }
@@ -53,6 +62,7 @@ final readonly class SettlementItemDto
             'amount_eur' => round($this->amountCents / 100, 2),
             'transaction_type' => $this->transactionType,
             'product_name' => $this->productName,
+            'product_volume_ml' => $this->productVolumeMl,
             'notes' => $this->notes,
             'transaction_date' => \App\Shared\Utils\DateFormatter::toUtcIso($this->transactionCreatedAt),
         ];

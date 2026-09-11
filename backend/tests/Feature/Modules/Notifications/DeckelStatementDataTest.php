@@ -324,6 +324,64 @@ class DeckelStatementDataTest extends DatabaseTestCase
         $this->assertSame(['Bier'], $this->labels($this->statementFor($member)));
     }
 
+    /**
+     * A statement line names the product the way every other surface does:
+     * the name, then its size, in the member's own notation (ADR-0056).
+     *
+     * The size is what used to be inside the name, spelled five ways. A member
+     * reading `Weizenbier 0,5 l` on a Deckelauszug and `Weizenbier 0,5 l` on
+     * the terminal is the whole point of having one column and one formatter.
+     */
+    public function test_a_line_prints_the_products_size_after_its_name(): void
+    {
+        $member = $this->member();
+        $this->purchase($member, 420, '2026-07-20 19:00:00', 'Weizenbier', 'Wheat beer', 500);
+
+        $this->assertSame(["Weizenbier 0,5\u{00A0}l"], $this->labels($this->statementFor($member)));
+    }
+
+    public function test_the_size_is_written_in_the_members_own_notation(): void
+    {
+        $member = $this->member();
+        $this->purchase($member, 420, '2026-07-20 19:00:00', 'Weizenbier', 'Wheat beer', 500);
+
+        $this->assertSame(
+            ["Wheat beer 0.5\u{00A0}l"],
+            $this->labels($this->statementFor($member, self::BOUNDARY, null, MailLanguage::English)),
+        );
+    }
+
+    /**
+     * A product with no size is its name alone — no trailing separator, no
+     * dash. A Sauna-Token is a Sauna-Token.
+     */
+    public function test_a_product_with_no_size_prints_its_name_alone(): void
+    {
+        $member = $this->member();
+        $this->purchase($member, 300, '2026-07-20 19:00:00', 'Sauna-Token', 'Sauna token');
+
+        $this->assertSame(['Sauna-Token'], $this->labels($this->statementFor($member)));
+    }
+
+    /**
+     * The Storno half of the same rule. An orphaned Storno names what it
+     * reversed, and that name has to carry the size too — otherwise a member
+     * reading `Storno Bier` against `Bier 0,33 l` two lines up cannot tell
+     * whether the two are the same drink.
+     */
+    public function test_an_orphaned_storno_names_the_size_of_what_it_reversed(): void
+    {
+        $member = $this->member();
+        $original = $this->purchase($member, 330, '2026-06-20 19:00:00', 'Cola', 'Cola', 330);
+        $this->settle($member, $original, 330, '2026-07-03 09:00:00', '2026-07-03');
+        $this->storno($member, $original, -330, '2026-07-20 19:00:00');
+
+        $labels = $this->labels($this->statementFor($member));
+
+        $this->assertCount(1, $labels);
+        $this->assertStringContainsString("Cola 0,33\u{00A0}l", $labels[0]);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────
 
     private function statementFor(
@@ -369,19 +427,20 @@ class DeckelStatementDataTest extends DatabaseTestCase
         return $id;
     }
 
-    private function product(string $nameDe, ?string $nameEn = null): string
+    private function product(string $nameDe, ?string $nameEn = null, ?int $volumeMl = null): string
     {
         // The category is tracked first, so the reversed teardown deletes the
         // product before the category it points at.
         $categoryId = $this->category();
         $id = $this->track('products', 'id', $this->generateUuid());
         $this->db->prepare(
-            'INSERT INTO products (id, category_id, names, price_cents, is_active) VALUES (?, ?, ?, ?, 1)'
+            'INSERT INTO products (id, category_id, names, price_cents, is_active, volume_ml) VALUES (?, ?, ?, ?, 1, ?)'
         )->execute([
             $id,
             $categoryId,
             json_encode(['de' => $nameDe, 'en' => $nameEn ?? $nameDe], JSON_UNESCAPED_UNICODE),
             250,
+            $volumeMl,
         ]);
 
         return $id;
@@ -405,9 +464,10 @@ class DeckelStatementDataTest extends DatabaseTestCase
         string $occurredAt,
         string $productName,
         ?string $productNameEn = null,
+        ?int $volumeMl = null,
     ): string {
         return $this->transaction($memberId, $cents, $occurredAt, 'purchase', [
-            'product_id' => $this->product($productName, $productNameEn),
+            'product_id' => $this->product($productName, $productNameEn, $volumeMl),
         ]);
     }
 

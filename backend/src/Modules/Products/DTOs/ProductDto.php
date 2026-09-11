@@ -16,6 +16,7 @@ final readonly class ProductDto
         public bool $requiresDispenser,
         public ?string $iconName,
         public ?int $minAge,
+        public ?int $volumeMl,
         public string $createdAt,
         public string $updatedAt,
         public ?string $deletedAt = null,
@@ -35,6 +36,10 @@ final readonly class ProductDto
             // Left null rather than cast: NULL means the product carries no
             // legal age at all (ADR-0045), which is not the same as zero.
             minAge: isset($row['min_age']) ? (int) $row['min_age'] : null,
+            // Same reading as min_age: NULL means the product has no size at
+            // all (ADR-0056), which a cast would turn into a zero-millilitre
+            // drink.
+            volumeMl: isset($row['volume_ml']) ? (int) $row['volume_ml'] : null,
             createdAt: $row['created_at'],
             updatedAt: $row['updated_at'],
             deletedAt: $row['deleted_at'] ?? null,
@@ -55,6 +60,10 @@ final readonly class ProductDto
             // The minimum age a member must have reached to buy this product;
             // null means unrestricted (ADR-0045).
             'min_age' => $this->minAge,
+            // The product's size in whole millilitres, language-neutral; null
+            // means it has no size (ADR-0056). Every reader formats it for
+            // itself.
+            'volume_ml' => $this->volumeMl,
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
             'deleted_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->deletedAt),

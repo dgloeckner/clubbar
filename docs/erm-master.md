@@ -50,6 +50,7 @@ erDiagram
         boolean is_active "Available for sale"
         boolean requires_dispenser "Poured by a dispenser rather than handed over"
         tinyint_unsigned min_age "Minimum legal age (ADR-0045); NULL = unrestricted"
+        int_unsigned volume_ml "Size in millilitres (ADR-0056); NULL = no size"
         varchar_50 icon_name "Icon name (nullable)"
         datetime deleted_at "Soft-deleted; hidden from the catalogue"
         binary_16 deleted_by_admin_id FK "Admin who deleted it"
@@ -425,12 +426,13 @@ Product catalog with multilingual support.
 |--------|------|-------------|-------------|
 | id | BINARY(16) | PK | UUID, immutable |
 | category_id | BINARY(16) | FK → categories.id, NOT NULL | Product category |
-| names | JSON | NOT NULL | Multilingual names: `{"de": "Bier 0,5L", "en": "Beer 0.5L"}` |
+| names | JSON | NOT NULL | Multilingual names: `{"de": "Bier", "en": "Beer"}`. The size does **not** belong here — it is `volume_ml` (ADR-0056) |
 | descriptions | JSON | NULL | Multilingual descriptions |
 | price_cents | INT | NOT NULL | Price in cents (> 0; max 999999 = €9,999.99) |
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Available for purchase |
 | requires_dispenser | BOOLEAN | NOT NULL, DEFAULT FALSE | Poured by a dispenser rather than handed over; the terminal holds the sale until the pour is confirmed |
 | min_age | TINYINT UNSIGNED | NULL | Minimum legal age to buy this product ([ADR-0045](../adr/0045-age-restricted-products.md)). NULL — the ordinary state of most of a drinks list — means unrestricted. A free integer between 1 and 99 rather than a `{16, 18}` enum: those two thresholds are JuSchG § 9, and a club running this elsewhere sets its own numbers |
+| volume_ml | INT UNSIGNED | NULL | The product's size in whole millilitres ([ADR-0056](../adr/0056-product-volume.md)). Language-neutral: every surface formats it for its own reader — `0,5 l` in German, `0.5 l` in English — so a size is never written into `names`. NULL means the product has **no size** (a Sauna-Token, a Kaffee), which is not a size of zero. The API bounds it at 1–10 000; ten litres is a typo guard, not a business rule |
 | icon_name | VARCHAR(50) | NULL | Icon component name (e.g., "PilsIcon"; NULL for default) |
 | deleted_at | DATETIME | NULL | Soft delete. The row survives because `transactions.product_id` references it and a sold drink must stay nameable |
 | deleted_by_admin_id | VARCHAR(36) | FK → admin_users.id, NULL | Admin who deleted it |
@@ -447,6 +449,8 @@ Product catalog with multilingual support.
 - `updated_at`
 
 **Price Changes**: New price applies to new transactions only. Historical transactions retain original amount_cents.
+
+**Volume Changes**: The same way, and this is the price of decision 3 in [ADR-0056](../adr/0056-product-volume.md). A transaction stores `product_id` and `amount_cents` and nothing about the product, so every surface that prints a name joins the product row live and reads the volume from that same join. Editing a volume therefore changes how past bookings read — exactly as renaming a product already does. Snapshotting name and size onto the booking is a change to the transaction shape and is deliberately deferred.
 
 **Age Changes**: The same way. Raising or clearing `min_age` changes what the terminal refuses from the next sync onwards; it does not reach backwards. A Jugendschutz violation already recorded against a past sale keeps the limit as it stood at the time and does not clear when the drink is later un-restricted ([ADR-0045](../adr/0045-age-restricted-products.md) invariant 4).
 

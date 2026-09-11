@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useFormatters } from './useFormatters'
 import { toIsoDate } from '../utils/dates'
+import volumeVectors from '../../../api/fixtures/volume-format.json'
 
 const i18nState = vi.hoisted(() => ({ language: 'de' }))
 
@@ -34,6 +35,54 @@ describe('useFormatters', () => {
 
     it('exposes the raw language code', () => {
       expect(withLanguage('en').language).toBe('en')
+    })
+  })
+
+  /**
+   * The TypeScript third of one formatting rule (ADR-0056, decision 4).
+   *
+   * The vectors come from `api/fixtures/volume-format.json`, which the PHP and
+   * Dart suites read too. Nothing is hard-coded here on purpose: three
+   * implementations checked against three private lists agree only by luck, and
+   * the first divergence would show up as an admin list saying `0.5 l` beside a
+   * terminal badge saying `0,5 l`.
+   *
+   * A new vector belongs in the fixture. Adding one here instead is what this
+   * arrangement exists to prevent.
+   */
+  describe('formatVolume', () => {
+    for (const testCase of volumeVectors.cases) {
+      for (const language of volumeVectors.languages) {
+        it(`${testCase.ml} ml in ${language} — ${testCase.why}`, () => {
+          const expected = (testCase.expected as Record<string, string>)[language]
+          expect(withLanguage(language).formatVolume(testCase.ml)).toBe(expected)
+        })
+      }
+    }
+
+    it('covers the whole range the fixture claims to', () => {
+      // A guard on the guard: a truncated fixture would make every case above
+      // pass by having nothing to check.
+      const millilitres = volumeVectors.cases.map((c) => c.ml)
+      expect(millilitres.length).toBeGreaterThanOrEqual(15)
+      expect(millilitres).toContain(1)
+      expect(millilitres).toContain(1005)
+      expect(millilitres).toContain(10000)
+      expect(volumeVectors.languages).toEqual(['de', 'en'])
+    })
+
+    it('separates the unit with a no-break space', () => {
+      // A plain space would let a badge or a table cell wrap between the number
+      // and its unit.
+      expect(withLanguage('de').formatVolume(500)).toContain('\u00a0')
+      expect(withLanguage('de').formatVolume(500)).not.toContain(' ')
+    })
+
+    it('formats a product with no size as nothing at all', () => {
+      // Null is "this product has no size" — a Sauna-Token, a Kaffee — so a
+      // caller can concatenate without a branch.
+      expect(withLanguage('de').formatVolume(null)).toBe('')
+      expect(withLanguage('de').formatVolume(undefined)).toBe('')
     })
   })
 

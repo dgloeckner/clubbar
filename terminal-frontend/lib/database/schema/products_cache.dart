@@ -18,6 +18,17 @@ class ProductsCache extends Table {
   /// and a club running this elsewhere sets its own numbers.
   IntColumn get minAge => integer().nullable()();
 
+  /// The product's size in whole millilitres, or null when it has no size at
+  /// all (ADR-0056) — a Sauna-Token, a Kaffee.
+  ///
+  /// Language-neutral, like the price and unlike `names`: the card formats it
+  /// for the member's own language at draw time, `0,5 l` or `0.5 l`, from one
+  /// stored number. It is what lets the tile carry a one-line name with the
+  /// size in a badge beneath it.
+  ///
+  /// Null is not a size of zero, so nothing casts it.
+  IntColumn get volumeMl => integer().nullable()();
+
   TextColumn get iconName => text().nullable()(); // Canonical kebab-case icon name (e.g., "beer-pils")
   TextColumn get updatedAt => text()();
 

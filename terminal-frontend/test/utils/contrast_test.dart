@@ -222,6 +222,70 @@ void main() {
     });
   });
 
+  /// The product card's two tinted surfaces (#878, ADR-0056).
+  ///
+  /// Both are washes of a colour over [AppColors.bgCard], which is the case a
+  /// flat token matrix cannot cover: the text sits on the *blend*, not on the
+  /// token. The price pill in particular is the reason [AppColors.infoOnTint]
+  /// exists — the same reason [AppColors.dangerOnTint] does.
+  group('the product card price pill and volume badge', () {
+    final pill = _over(AppColors.bgPricePill, AppColors.bgCard);
+    final badge = _over(AppColors.bgVolumeBadge, AppColors.bgCard);
+
+    test('the price clears AA on its own pill', () {
+      _expectText(AppColors.infoOnTint, pill, why: 'the price on its pill');
+    });
+
+    test('semanticInfo on that pill is why infoOnTint exists', () {
+      // The card's old flat price colour. It reads well on the card and not on
+      // a wash of itself, so a "just tint the background" change would have
+      // quietly dropped the price under AA.
+      expect(
+        contrastRatio(AppColors.semanticInfo, pill),
+        lessThan(kTextContrastFloor),
+        reason: 'if this ever clears AA, infoOnTint can be collapsed back',
+      );
+    });
+
+    test('the prototype\'s 28% fill is why the shipped one is 22%', () {
+      // Drawn at 28%, the pill measures under the 4.5:1 this terminal holds
+      // text to — passing AA only under the large-text allowance. The shipped
+      // fill is lighter on purpose, and this is the record of why.
+      final asPrototyped =
+          _over(AppColors.semanticInfo.withValues(alpha: 0.28), AppColors.bgCard);
+
+      expect(
+        contrastRatio(AppColors.infoOnTint, asPrototyped),
+        lessThan(kTextContrastFloor),
+      );
+    });
+
+    test('the pill has an edge, and the edge is visible', () {
+      // WCAG 1.4.11: the boundary of a meaningful non-text element against
+      // what is behind it. The pill is what makes the price read as the tile's
+      // figure rather than as a third line of text.
+      _expectGlyph(_over(AppColors.borderPricePill, pill), AppColors.bgCard,
+          why: 'the price pill border against the card');
+    });
+
+    test('the volume badge clears AA on its own fill', () {
+      // Small text — 0.4 x the name — so the flat 4.5:1 is the right floor and
+      // the large-text allowance does not apply.
+      _expectText(AppColors.textSecondary, badge,
+          why: 'the volume badge on its fill');
+    });
+
+    test('the badge is quieter than the price without being unreadable', () {
+      // The order the member reads the tile in: name, price, size. The badge
+      // must clear AA and still not compete.
+      expect(
+        contrastRatio(AppColors.textSecondary, badge),
+        lessThan(contrastRatio(AppColors.textPrimary, AppColors.bgCard)),
+        reason: 'the badge must not shout as loud as the name',
+      );
+    });
+  });
+
   group('the purchases button members can find', () {
     // Same complaint as the logout above, one control to the left: the route
     // to the booking history was unlabelled and unbordered, so members did
@@ -329,6 +393,36 @@ void main() {
       // Untouched keys keep the shipped default.
       expect(AppFontSizes.xxxl, 26.0);
     });
+
+    // The product name has its own two keys. A config written before they
+    // existed falls back to `xxxl` for the floor, so a terminal that tuned
+    // that step keeps the size it had; the ceiling follows the floor.
+    group('the product-name range', () {
+      test('falls back to xxxl and 1.5 x that when not configured', () {
+        expect(AppFontSizes.productNameMin, isNull);
+        expect(AppFontSizes.productNameMax, isNull);
+        expect(AppFontSizes.productNameFloor, 26.0);
+        expect(AppFontSizes.productNameCeiling, 39.0);
+
+        AppFontSizes.applyConfig(const {'xxxl': 31});
+        expect(AppFontSizes.productNameFloor, 31.0);
+        expect(AppFontSizes.productNameCeiling, 46.5);
+      });
+
+      test('productNameMin is the floor once set, whatever xxxl is', () {
+        AppFontSizes.applyConfig(const {'xxxl': 31, 'productNameMin': 28});
+        expect(AppFontSizes.productNameFloor, 28.0);
+        expect(AppFontSizes.productNameCeiling, 42.0);
+        // Untouched keys keep what they had.
+        expect(AppFontSizes.xxxl, 31.0);
+      });
+
+      test('productNameMax is the ceiling once set', () {
+        AppFontSizes.applyConfig(const {'productNameMin': 28, 'productNameMax': 36});
+        expect(AppFontSizes.productNameFloor, 28.0);
+        expect(AppFontSizes.productNameCeiling, 36.0);
+      });
+    });
   });
 }
 
@@ -343,6 +437,8 @@ void _resetFontSizes() {
   AppFontSizes.xxl = 22.0;
   AppFontSizes.xxxl = 26.0;
   AppFontSizes.display = 55.0;
+  AppFontSizes.productNameMin = null;
+  AppFontSizes.productNameMax = null;
 }
 
 Color _c(String hex) => hexToColor(hex);

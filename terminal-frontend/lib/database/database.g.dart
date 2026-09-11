@@ -1285,6 +1285,17 @@ class $ProductsCacheTable extends ProductsCache
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _volumeMlMeta = const VerificationMeta(
+    'volumeMl',
+  );
+  @override
+  late final GeneratedColumn<int> volumeMl = GeneratedColumn<int>(
+    'volume_ml',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _iconNameMeta = const VerificationMeta(
     'iconName',
   );
@@ -1328,6 +1339,7 @@ class $ProductsCacheTable extends ProductsCache
     isActive,
     requiresDispenser,
     minAge,
+    volumeMl,
     iconName,
     updatedAt,
     deletedAt,
@@ -1403,6 +1415,12 @@ class $ProductsCacheTable extends ProductsCache
         minAge.isAcceptableOrUnknown(data['min_age']!, _minAgeMeta),
       );
     }
+    if (data.containsKey('volume_ml')) {
+      context.handle(
+        _volumeMlMeta,
+        volumeMl.isAcceptableOrUnknown(data['volume_ml']!, _volumeMlMeta),
+      );
+    }
     if (data.containsKey('icon_name')) {
       context.handle(
         _iconNameMeta,
@@ -1464,6 +1482,10 @@ class $ProductsCacheTable extends ProductsCache
         DriftSqlType.int,
         data['${effectivePrefix}min_age'],
       ),
+      volumeMl: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}volume_ml'],
+      ),
       iconName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}icon_name'],
@@ -1503,6 +1525,17 @@ class ProductsCacheData extends DataClass
   /// rather than a `{16, 18}` enum: JuSchG's two thresholds are German law,
   /// and a club running this elsewhere sets its own numbers.
   final int? minAge;
+
+  /// The product's size in whole millilitres, or null when it has no size at
+  /// all (ADR-0056) — a Sauna-Token, a Kaffee.
+  ///
+  /// Language-neutral, like the price and unlike `names`: the card formats it
+  /// for the member's own language at draw time, `0,5 l` or `0.5 l`, from one
+  /// stored number. It is what lets the tile carry a one-line name with the
+  /// size in a badge beneath it.
+  ///
+  /// Null is not a size of zero, so nothing casts it.
+  final int? volumeMl;
   final String? iconName;
   final String updatedAt;
 
@@ -1524,6 +1557,7 @@ class ProductsCacheData extends DataClass
     required this.isActive,
     required this.requiresDispenser,
     this.minAge,
+    this.volumeMl,
     this.iconName,
     required this.updatedAt,
     this.deletedAt,
@@ -1542,6 +1576,9 @@ class ProductsCacheData extends DataClass
     map['requires_dispenser'] = Variable<int>(requiresDispenser);
     if (!nullToAbsent || minAge != null) {
       map['min_age'] = Variable<int>(minAge);
+    }
+    if (!nullToAbsent || volumeMl != null) {
+      map['volume_ml'] = Variable<int>(volumeMl);
     }
     if (!nullToAbsent || iconName != null) {
       map['icon_name'] = Variable<String>(iconName);
@@ -1567,6 +1604,9 @@ class ProductsCacheData extends DataClass
       minAge: minAge == null && nullToAbsent
           ? const Value.absent()
           : Value(minAge),
+      volumeMl: volumeMl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(volumeMl),
       iconName: iconName == null && nullToAbsent
           ? const Value.absent()
           : Value(iconName),
@@ -1591,6 +1631,7 @@ class ProductsCacheData extends DataClass
       isActive: serializer.fromJson<int>(json['isActive']),
       requiresDispenser: serializer.fromJson<int>(json['requiresDispenser']),
       minAge: serializer.fromJson<int?>(json['minAge']),
+      volumeMl: serializer.fromJson<int?>(json['volumeMl']),
       iconName: serializer.fromJson<String?>(json['iconName']),
       updatedAt: serializer.fromJson<String>(json['updatedAt']),
       deletedAt: serializer.fromJson<String?>(json['deletedAt']),
@@ -1608,6 +1649,7 @@ class ProductsCacheData extends DataClass
       'isActive': serializer.toJson<int>(isActive),
       'requiresDispenser': serializer.toJson<int>(requiresDispenser),
       'minAge': serializer.toJson<int?>(minAge),
+      'volumeMl': serializer.toJson<int?>(volumeMl),
       'iconName': serializer.toJson<String?>(iconName),
       'updatedAt': serializer.toJson<String>(updatedAt),
       'deletedAt': serializer.toJson<String?>(deletedAt),
@@ -1623,6 +1665,7 @@ class ProductsCacheData extends DataClass
     int? isActive,
     int? requiresDispenser,
     Value<int?> minAge = const Value.absent(),
+    Value<int?> volumeMl = const Value.absent(),
     Value<String?> iconName = const Value.absent(),
     String? updatedAt,
     Value<String?> deletedAt = const Value.absent(),
@@ -1635,6 +1678,7 @@ class ProductsCacheData extends DataClass
     isActive: isActive ?? this.isActive,
     requiresDispenser: requiresDispenser ?? this.requiresDispenser,
     minAge: minAge.present ? minAge.value : this.minAge,
+    volumeMl: volumeMl.present ? volumeMl.value : this.volumeMl,
     iconName: iconName.present ? iconName.value : this.iconName,
     updatedAt: updatedAt ?? this.updatedAt,
     deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
@@ -1657,6 +1701,7 @@ class ProductsCacheData extends DataClass
           ? data.requiresDispenser.value
           : this.requiresDispenser,
       minAge: data.minAge.present ? data.minAge.value : this.minAge,
+      volumeMl: data.volumeMl.present ? data.volumeMl.value : this.volumeMl,
       iconName: data.iconName.present ? data.iconName.value : this.iconName,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
@@ -1674,6 +1719,7 @@ class ProductsCacheData extends DataClass
           ..write('isActive: $isActive, ')
           ..write('requiresDispenser: $requiresDispenser, ')
           ..write('minAge: $minAge, ')
+          ..write('volumeMl: $volumeMl, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt')
@@ -1691,6 +1737,7 @@ class ProductsCacheData extends DataClass
     isActive,
     requiresDispenser,
     minAge,
+    volumeMl,
     iconName,
     updatedAt,
     deletedAt,
@@ -1707,6 +1754,7 @@ class ProductsCacheData extends DataClass
           other.isActive == this.isActive &&
           other.requiresDispenser == this.requiresDispenser &&
           other.minAge == this.minAge &&
+          other.volumeMl == this.volumeMl &&
           other.iconName == this.iconName &&
           other.updatedAt == this.updatedAt &&
           other.deletedAt == this.deletedAt);
@@ -1721,6 +1769,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
   final Value<int> isActive;
   final Value<int> requiresDispenser;
   final Value<int?> minAge;
+  final Value<int?> volumeMl;
   final Value<String?> iconName;
   final Value<String> updatedAt;
   final Value<String?> deletedAt;
@@ -1734,6 +1783,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.isActive = const Value.absent(),
     this.requiresDispenser = const Value.absent(),
     this.minAge = const Value.absent(),
+    this.volumeMl = const Value.absent(),
     this.iconName = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.deletedAt = const Value.absent(),
@@ -1748,6 +1798,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     this.isActive = const Value.absent(),
     this.requiresDispenser = const Value.absent(),
     this.minAge = const Value.absent(),
+    this.volumeMl = const Value.absent(),
     this.iconName = const Value.absent(),
     required String updatedAt,
     this.deletedAt = const Value.absent(),
@@ -1766,6 +1817,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Expression<int>? isActive,
     Expression<int>? requiresDispenser,
     Expression<int>? minAge,
+    Expression<int>? volumeMl,
     Expression<String>? iconName,
     Expression<String>? updatedAt,
     Expression<String>? deletedAt,
@@ -1780,6 +1832,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       if (isActive != null) 'is_active': isActive,
       if (requiresDispenser != null) 'requires_dispenser': requiresDispenser,
       if (minAge != null) 'min_age': minAge,
+      if (volumeMl != null) 'volume_ml': volumeMl,
       if (iconName != null) 'icon_name': iconName,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (deletedAt != null) 'deleted_at': deletedAt,
@@ -1796,6 +1849,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     Value<int>? isActive,
     Value<int>? requiresDispenser,
     Value<int?>? minAge,
+    Value<int?>? volumeMl,
     Value<String?>? iconName,
     Value<String>? updatedAt,
     Value<String?>? deletedAt,
@@ -1810,6 +1864,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
       isActive: isActive ?? this.isActive,
       requiresDispenser: requiresDispenser ?? this.requiresDispenser,
       minAge: minAge ?? this.minAge,
+      volumeMl: volumeMl ?? this.volumeMl,
       iconName: iconName ?? this.iconName,
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
@@ -1844,6 +1899,9 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
     if (minAge.present) {
       map['min_age'] = Variable<int>(minAge.value);
     }
+    if (volumeMl.present) {
+      map['volume_ml'] = Variable<int>(volumeMl.value);
+    }
     if (iconName.present) {
       map['icon_name'] = Variable<String>(iconName.value);
     }
@@ -1870,6 +1928,7 @@ class ProductsCacheCompanion extends UpdateCompanion<ProductsCacheData> {
           ..write('isActive: $isActive, ')
           ..write('requiresDispenser: $requiresDispenser, ')
           ..write('minAge: $minAge, ')
+          ..write('volumeMl: $volumeMl, ')
           ..write('iconName: $iconName, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('deletedAt: $deletedAt, ')
@@ -4775,6 +4834,7 @@ typedef $$ProductsCacheTableCreateCompanionBuilder =
       Value<int> isActive,
       Value<int> requiresDispenser,
       Value<int?> minAge,
+      Value<int?> volumeMl,
       Value<String?> iconName,
       required String updatedAt,
       Value<String?> deletedAt,
@@ -4790,6 +4850,7 @@ typedef $$ProductsCacheTableUpdateCompanionBuilder =
       Value<int> isActive,
       Value<int> requiresDispenser,
       Value<int?> minAge,
+      Value<int?> volumeMl,
       Value<String?> iconName,
       Value<String> updatedAt,
       Value<String?> deletedAt,
@@ -4893,6 +4954,11 @@ class $$ProductsCacheTableFilterComposer
 
   ColumnFilters<int> get minAge => $composableBuilder(
     column: $table.minAge,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get volumeMl => $composableBuilder(
+    column: $table.volumeMl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -5004,6 +5070,11 @@ class $$ProductsCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get volumeMl => $composableBuilder(
+    column: $table.volumeMl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get iconName => $composableBuilder(
     column: $table.iconName,
     builder: (column) => ColumnOrderings(column),
@@ -5078,6 +5149,9 @@ class $$ProductsCacheTableAnnotationComposer
 
   GeneratedColumn<int> get minAge =>
       $composableBuilder(column: $table.minAge, builder: (column) => column);
+
+  GeneratedColumn<int> get volumeMl =>
+      $composableBuilder(column: $table.volumeMl, builder: (column) => column);
 
   GeneratedColumn<String> get iconName =>
       $composableBuilder(column: $table.iconName, builder: (column) => column);
@@ -5176,6 +5250,7 @@ class $$ProductsCacheTableTableManager
                 Value<int> isActive = const Value.absent(),
                 Value<int> requiresDispenser = const Value.absent(),
                 Value<int?> minAge = const Value.absent(),
+                Value<int?> volumeMl = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 Value<String> updatedAt = const Value.absent(),
                 Value<String?> deletedAt = const Value.absent(),
@@ -5189,6 +5264,7 @@ class $$ProductsCacheTableTableManager
                 isActive: isActive,
                 requiresDispenser: requiresDispenser,
                 minAge: minAge,
+                volumeMl: volumeMl,
                 iconName: iconName,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,
@@ -5204,6 +5280,7 @@ class $$ProductsCacheTableTableManager
                 Value<int> isActive = const Value.absent(),
                 Value<int> requiresDispenser = const Value.absent(),
                 Value<int?> minAge = const Value.absent(),
+                Value<int?> volumeMl = const Value.absent(),
                 Value<String?> iconName = const Value.absent(),
                 required String updatedAt,
                 Value<String?> deletedAt = const Value.absent(),
@@ -5217,6 +5294,7 @@ class $$ProductsCacheTableTableManager
                 isActive: isActive,
                 requiresDispenser: requiresDispenser,
                 minAge: minAge,
+                volumeMl: volumeMl,
                 iconName: iconName,
                 updatedAt: updatedAt,
                 deletedAt: deletedAt,

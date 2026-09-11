@@ -61,7 +61,7 @@ class SettlementsRepository
     public function findItemsBySettlementId(string $settlementId): array
     {
         $stmt = $this->db->prepare(
-            'SELECT si.*, m.first_name, m.last_name, t.transaction_type, t.notes AS transaction_notes, t.product_id, t.occurred_at AS transaction_created_at, p.names AS product_names, p.price_cents AS product_price_cents
+            'SELECT si.*, m.first_name, m.last_name, t.transaction_type, t.notes AS transaction_notes, t.product_id, t.occurred_at AS transaction_created_at, p.names AS product_names, p.volume_ml AS product_volume_ml, p.price_cents AS product_price_cents
              FROM settlement_items si
              LEFT JOIN members m ON si.member_id = m.id
              LEFT JOIN transactions t ON si.transaction_id = t.id

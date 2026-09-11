@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:clubbar_terminal/utils/formatters.dart';
+
 /// One line of the post-checkout receipt: a product, how many of it were
 /// booked, and what that came to.
 ///
@@ -16,6 +18,7 @@ class ReceiptLine {
     required this.unitPriceCents,
     required this.totalCents,
     this.requestedQuantity,
+    this.volumeMl,
   });
 
   final String productId;
@@ -37,6 +40,11 @@ class ReceiptLine {
   /// product.
   final int? requestedQuantity;
 
+  /// The product's size in whole millilitres, or null when it has none
+  /// (ADR-0056). Read from the same live join as [namesJson], so a receipt
+  /// prints the product as it stands now — exactly as a rename already works.
+  final int? volumeMl;
+
   /// Whether fewer tokens came out than were asked for.
   bool get isPartial =>
       requestedQuantity != null && quantity < requestedQuantity!;
@@ -51,4 +59,8 @@ class ReceiptLine {
       return '?';
     }
   }
+
+  /// The name as every surface prints it: the name, then the size (ADR-0056).
+  String label(String language) =>
+      formatProductLabel(name(language), volumeMl, language);
 }

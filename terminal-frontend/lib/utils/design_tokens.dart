@@ -39,6 +39,32 @@ class AppColors {
   /// (#41). [semanticDanger] on its own 15% tint is 3.9:1; this is 5.3:1.
   static const Color dangerOnTint = Color(0xfff87171);
 
+  /// Cyan for a price sitting on its own *tinted cyan* pill (#878).
+  ///
+  /// The same reason [dangerOnTint] exists: [semanticInfo] reads well on the
+  /// card, and not on a wash of itself. On [bgPricePill] over [bgCard] it is
+  /// 3.4:1, under the 4.5:1 this terminal holds text to; this is 4.8:1.
+  /// `contrast_test.dart` is where that is checked rather than assumed.
+  static const Color infoOnTint = Color(0xff38bdf8);
+
+  /// The price pill's fill — [semanticInfo] at 22% over the card.
+  ///
+  /// The prototype drew it at 28%, which measures 4.3:1 against
+  /// [infoOnTint] — passing AA for large text and failing the flat 4.5:1 floor
+  /// the rest of this file is held to. 22% keeps the pill unmistakably a pill
+  /// and clears the floor with margin.
+  static const Color bgPricePill = Color(0x380ea5e9);
+
+  /// The price pill's 1 px border — [infoOnTint] at 45%.
+  static const Color borderPricePill = Color(0x7338bdf8);
+
+  /// The volume badge's fill — [textSecondary] at 12% over the card (#878).
+  ///
+  /// Faint on purpose. The badge is what a member confirms once they have
+  /// already found the drink by name and checked the price; it must not
+  /// compete with either.
+  static const Color bgVolumeBadge = Color(0x1f94a3b8);
+
   /// Stronger red fill — the failed-sales banner (#152).
   static const Color dangerStrong = Color(0xffb91c1c);
 
@@ -191,6 +217,29 @@ class AppFontSizes {
   /// way every other step does (#303).
   static double display = 55.0;
 
+  /// The product name on the grid has its own two keys, `productNameMin` and
+  /// `productNameMax`, rather than borrowing a step of the scale: the name is
+  /// sized per category between them (`ProductGridLayout`), and a step that
+  /// also meant "the checkout title" or "the member bar" could not say which
+  /// of its readers a club was tuning.
+  ///
+  /// `null` means "not in config". [productNameFloor] then falls back to
+  /// [xxxl], which is what the name was set at before the keys existed, so a
+  /// terminal whose config predates them keeps the size it had.
+  static double? productNameMin;
+
+  /// Upper bound for a product name on the grid, when set in config.
+  /// `null` falls back to 1.5 x [productNameFloor]; see [productNameCeiling].
+  static double? productNameMax;
+
+  /// The smallest a product name is set at — the size a club wants at
+  /// minimum. A category grows from here when it has the room.
+  static double get productNameFloor => productNameMin ?? xxxl;
+
+  /// The largest a product name is set at.
+  static double get productNameCeiling =>
+      productNameMax ?? productNameFloor * 1.5;
+
   /// Apply font size overrides from config (e.g. from config.json `fontSizes` key).
   /// Only non-null values are applied; omitted keys keep their defaults.
   static void applyConfig(Map<String, dynamic>? fontSizes) {
@@ -204,6 +253,12 @@ class AppFontSizes {
     if (fontSizes['xxxl'] is num) xxxl = (fontSizes['xxxl'] as num).toDouble();
     if (fontSizes['display'] is num) {
       display = (fontSizes['display'] as num).toDouble();
+    }
+    if (fontSizes['productNameMin'] is num) {
+      productNameMin = (fontSizes['productNameMin'] as num).toDouble();
+    }
+    if (fontSizes['productNameMax'] is num) {
+      productNameMax = (fontSizes['productNameMax'] as num).toDouble();
     }
   }
 }

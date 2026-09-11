@@ -6309,8 +6309,8 @@ components:
       additionalProperties:
         type: string
       example:
-        de: "Bier 0,5L"
-        en: "Beer 0.5L"
+        de: "Bier"
+        en: "Beer"
 
     # --------------------------------------------------------------------------
     # Authentication
@@ -7445,6 +7445,26 @@ components:
             thresholds are German law and this software is self-hosted, so
             another country's club sets its own numbers.
           example: 18
+        volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: |
+            The product's size in whole **millilitres**, language-neutral
+            ([ADR-0056](../../adr/0056-product-volume.md)). Every client
+            formats it for its own reader — `0,5 l` for a German member,
+            `0.5 l` for an English one — so the size is never written into
+            `names`.
+
+            `null` means the product has **no size** — a Sauna-Token, a Kaffee
+            — which is not a size of zero. Below 100 ml the agreed rendering is
+            millilitres (`20 ml`), because `0,02 l` says less; the vectors are
+            in `api/fixtures/volume-format.json`.
+
+            The upper bound is a typo guard, not a business rule: above ten
+            litres means litres were entered where millilitres were asked for.
+          example: 500
         created_at:
           type: string
           format: date-time
@@ -7489,6 +7509,17 @@ components:
             ([ADR-0045](../../adr/0045-age-restricted-products.md)). On update,
             an explicit `null` removes an existing restriction.
           example: 18
+        volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: >-
+            Optional. The product's size in whole millilitres
+            ([ADR-0056](../../adr/0056-product-volume.md)). Omit or send `null`
+            for a product with no size. On update, an explicit `null` removes
+            an existing volume.
+          example: 500
 
     ProductUpdateRequest:
       type: object
@@ -7528,6 +7559,17 @@ components:
             ([ADR-0045](../../adr/0045-age-restricted-products.md)). On update,
             an explicit `null` removes an existing restriction.
           example: 18
+        volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: >-
+            Optional. The product's size in whole millilitres
+            ([ADR-0056](../../adr/0056-product-volume.md)). Omit or send `null`
+            for a product with no size. On update, an explicit `null` removes
+            an existing volume.
+          example: 500
 
     Category:
       type: object
@@ -7995,6 +8037,18 @@ components:
         product_name:
           type: string
           nullable: true
+        product_volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: >-
+            The product's size in whole millilitres
+            ([ADR-0056](../../adr/0056-product-volume.md)), or `null` when the
+            product has no size — and always `null` on a row that carries no
+            product at all. Language-neutral: the panel formats it for the
+            admin's own language and prints it after the name. Read live from
+            the product, exactly as `product_name` is (decision 3).
         notes:
           type: string
           nullable: true
@@ -8440,6 +8494,18 @@ components:
         product_name:
           type: string
           nullable: true
+        product_volume_ml:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10000
+          description: >-
+            The product's size in whole millilitres
+            ([ADR-0056](../../adr/0056-product-volume.md)), or `null` when the
+            product has no size — and always `null` on a row that carries no
+            product at all. Language-neutral: the panel formats it for the
+            admin's own language and prints it after the name. Read live from
+            the product, exactly as `product_name` is (decision 3).
         product_names:
           type: string
           nullable: true

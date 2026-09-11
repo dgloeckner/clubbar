@@ -446,4 +446,69 @@ class ProductsRepositoryTest extends DatabaseTestCase
             'min_age' => $minAge,
         ]);
     }
+
+    /**
+     * `volume_ml` has to be in two places to work: the INSERT column list and
+     * `updateById`'s `$allowed` allowlist. A column missing from the allowlist
+     * is skipped without any error at all — the write returns the unchanged row
+     * and the caller has no way to tell (ADR-0056, M2).
+     */
+    public function test_create_persists_a_volume_and_update_clears_it(): void
+    {
+        $categoryId = $this->makeCategory();
+
+        $productId = $this->generateUuid();
+        $this->testProductIds[] = $productId;
+        $this->productsRepository->create([
+            'id' => $productId,
+            'category_id' => $categoryId,
+            'names' => ['de' => 'Weizenbier', 'en' => 'Wheat beer'],
+            'descriptions' => [],
+            'price_cents' => 420,
+            'is_active' => true,
+            'volume_ml' => 500,
+        ]);
+
+        $created = $this->productsRepository->findById($productId);
+        $this->assertSame(500, (int) $created['volume_ml'], 'the INSERT must carry the volume');
+
+        $updated = $this->productsRepository->updateById($productId, ['volume_ml' => 330]);
+        $this->assertSame(330, (int) $updated['volume_ml'], 'volume_ml must be in the update allowlist');
+
+        $cleared = $this->productsRepository->updateById($productId, ['volume_ml' => null]);
+        $this->assertNull($cleared['volume_ml'], 'an explicit null is how an admin says the product has no size');
+    }
+
+    public function test_create_leaves_a_product_with_no_volume_null(): void
+    {
+        $categoryId = $this->makeCategory();
+
+        $productId = $this->generateUuid();
+        $this->testProductIds[] = $productId;
+        $this->productsRepository->create([
+            'id' => $productId,
+            'category_id' => $categoryId,
+            'names' => ['de' => 'Sauna-Token', 'en' => 'Sauna token'],
+            'descriptions' => [],
+            'price_cents' => 300,
+            'is_active' => true,
+        ]);
+
+        // Not 0: "no size" and "a size of zero" are different statements, and
+        // only one of them is true of a Sauna-Token.
+        $this->assertNull($this->productsRepository->findById($productId)['volume_ml']);
+    }
+
+    private function makeCategory(): string
+    {
+        $categoryId = $this->generateUuid();
+        $this->testCategoryIds[] = $categoryId;
+        $this->categoriesRepository->create([
+            'id' => $categoryId,
+            'names' => ['de' => 'Volumen Test', 'en' => 'Volume test'],
+            'is_active' => true,
+        ]);
+
+        return $categoryId;
+    }
 }

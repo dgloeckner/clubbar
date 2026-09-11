@@ -51,7 +51,7 @@ class ProductsRepository
         $descriptions = is_array($data['descriptions'] ?? []) ? json_encode($data['descriptions'] ?? []) : ($data['descriptions'] ?? '{}');
 
         $stmt = $this->db->prepare(
-            'INSERT INTO products (id, category_id, names, descriptions, price_cents, is_active, icon_name, requires_dispenser, min_age, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO products (id, category_id, names, descriptions, price_cents, is_active, icon_name, requires_dispenser, min_age, volume_ml, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $id,
@@ -66,6 +66,9 @@ class ProductsRepository
             // means "unrestricted" (ADR-0045), and a cast would turn it into a
             // 0 nobody can be old enough for.
             isset($data['min_age']) ? (int) $data['min_age'] : null,
+            // Nullable for the same reason: NULL is "this product has no size"
+            // (ADR-0056), and a cast would store a zero-millilitre drink.
+            isset($data['volume_ml']) ? (int) $data['volume_ml'] : null,
             $now,
             $now,
         ]);
@@ -79,7 +82,7 @@ class ProductsRepository
         $fields = [];
         $values = [];
 
-        $allowed = ['category_id', 'names', 'descriptions', 'price_cents', 'is_active', 'icon_name', 'requires_dispenser', 'min_age', 'deleted_at', 'deleted_by_admin_id'];
+        $allowed = ['category_id', 'names', 'descriptions', 'price_cents', 'is_active', 'icon_name', 'requires_dispenser', 'min_age', 'volume_ml', 'deleted_at', 'deleted_by_admin_id'];
         foreach ($data as $key => $value) {
             if (!in_array($key, $allowed, true)) continue;
             if (($key === 'names' || $key === 'descriptions') && is_array($value)) {

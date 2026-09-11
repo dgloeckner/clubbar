@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { formatPrice, formatDate, formatDateTime } from '../styles/design-system';
+import { formatPrice, formatVolume, formatDate, formatDateTime } from '../styles/design-system';
 import { getIntlLocale } from '../utils/i18n-helpers';
 import { parseApiDate } from '../utils/dates';
 
@@ -16,6 +16,20 @@ export function useFormatters() {
      * Format a price in cents to currency string
      */
     formatPrice: (cents: number) => formatPrice(cents, intlLocale),
+
+    /**
+     * A product's size in whole millilitres, written for the panel's language.
+     *
+     * `500` → `0,5 l` in German, `0.5 l` in English; below 100 ml it reads in
+     * millilitres (`20 ml`), because `0,02 l` says less. `null` — the product
+     * has no size at all — formats to an empty string, so a caller can
+     * concatenate without a branch (ADR-0056).
+     *
+     * Never format a volume by hand: the rule is shared with the backend and
+     * the terminal through `api/fixtures/volume-format.json`.
+     */
+    formatVolume: (millilitres: number | null | undefined) =>
+      millilitres === null || millilitres === undefined ? '' : formatVolume(millilitres, intlLocale),
 
     /**
      * Format a date string to localized date

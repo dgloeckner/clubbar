@@ -1,0 +1,504 @@
+<title>Produktkarten-Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap">
+<style>
+  :root{
+    --bg:#0a1628;
+    --bg-header:#0d1b30;
+    --card:#1a2744;
+    --card-hover:#1f2f52;
+    --border:#334155;
+    --border-dark:#1e293b;
+    --text:#f1f5f9;
+    --text-secondary:#94a3b8;
+    --text-muted:#64748b;
+    --accent:#3b82f6;
+    --price:#0ea5e9;
+    --price-text:#38bdf8;
+    --price-fill:rgba(14,165,233,0.28);
+    --price-border:rgba(56,189,248,0.45);
+    --success:#22c55e;
+    --success-fill:rgba(34,197,94,0.14);
+    --old-wrong:#f87171;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Roboto',system-ui,-apple-system,'Segoe UI',sans-serif;
+    padding:0;
+  }
+
+  /* ---------- intro / annotation ---------- */
+  .brief{
+    max-width:960px;
+    margin:0 auto;
+    padding:40px 24px 8px;
+  }
+  .brief .eyebrow{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.10em;
+    text-transform:uppercase;
+    color:var(--accent);
+  }
+  .brief h1{
+    font-size:28px;
+    font-weight:700;
+    margin:8px 0 6px;
+    text-wrap:balance;
+  }
+  .brief p.sub{
+    color:var(--text-secondary);
+    font-size:15px;
+    max-width:62ch;
+    margin:0 0 20px;
+    line-height:1.55;
+  }
+  .decisions{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-bottom:36px;
+  }
+  .decision{
+    background:var(--card);
+    border:1px solid var(--border-dark);
+    border-radius:10px;
+    padding:14px 16px;
+  }
+  .decision .num{
+    font-size:11px;
+    font-weight:700;
+    color:var(--price);
+    letter-spacing:.06em;
+  }
+  .decision h3{
+    font-size:14px;
+    margin:4px 0 3px;
+    font-weight:700;
+  }
+  .decision p{
+    font-size:12.5px;
+    color:var(--text-secondary);
+    margin:0;
+    line-height:1.4;
+  }
+
+  /* ---------- device frame ---------- */
+  .frame-label{
+    max-width:960px;
+    margin:0 auto;
+    padding:0 24px;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    margin-bottom:8px;
+  }
+  .device{
+    width:960px;
+    max-width:calc(100% - 32px);
+    margin:0 auto 40px;
+    background:var(--bg);
+    border:1px solid var(--border-dark);
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 20px 60px -20px rgba(0,0,0,.6);
+  }
+
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    border-bottom:1px solid var(--border-dark);
+    background:var(--bg-header);
+  }
+  .topbar .club{
+    font-size:17px;
+    font-weight:700;
+    color:var(--text-secondary);
+  }
+  .topbar .right{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .pill-online{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:var(--success-fill);
+    color:var(--success);
+    font-weight:700;
+    font-size:13px;
+    padding:6px 12px;
+    border-radius:999px;
+  }
+  .pill-online::before{
+    content:"";
+    width:7px;height:7px;border-radius:50%;
+    background:var(--success);
+  }
+  .clock{font-size:16px;color:var(--text-secondary);font-variant-numeric:tabular-nums;}
+
+  .memberbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 20px;
+    background:var(--card);
+    border-bottom:1px solid var(--border-dark);
+  }
+  .member{display:flex;align-items:center;gap:12px;}
+  .avatar{
+    width:40px;height:40px;border-radius:50%;
+    background:#f59e0b;
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:14px;color:#1a1206;
+  }
+  .member .name{font-weight:700;font-size:17px;}
+  .member .status{font-size:12.5px;color:var(--text-secondary);}
+  .memberbar .actions{display:flex;gap:8px;}
+  .btn{
+    font-size:13px;font-weight:700;
+    border-radius:8px;padding:9px 14px;
+    border:1px solid var(--border);
+    background:transparent;color:var(--text);
+  }
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  .tabs{
+    display:flex;gap:10px;
+    padding:14px 20px 0;
+  }
+  .tab{
+    font-size:14px;font-weight:700;
+    padding:10px 16px;border-radius:999px;
+    color:var(--text-secondary);
+    background:var(--card);
+    border:1px solid var(--border-dark);
+  }
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* ---------- grid + redesigned card ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    padding:16px 20px 22px;
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--border-dark);
+    border-radius:12px;
+    padding:16px 12px 14px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+    position:relative;
+  }
+  .card .icon{font-size:40px;line-height:1;margin-bottom:8px;}
+
+  /* name: the same per-category solver as today (ProductGridLayout) —
+     largest size between productNameMin/Max at which every name in the
+     category fits whole. With one line instead of two, the same floor
+     (31) has much more headroom before it hits a real word's width, so
+     short single-word names like these land well above the floor rather
+     than being pinned to it. */
+  .card .name{
+    font-size:30px;
+    font-weight:700;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:100%;
+    line-height:1.2;
+  }
+
+  /* volume: its own metadata row, reserved height whether present or not */
+  .card .volume{
+    height:20px;
+    display:flex;align-items:center;justify-content:center;
+    margin-top:2px;
+  }
+  .card .volume span{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.04em;
+    color:var(--text-secondary);
+    background:rgba(148,163,184,.12);
+    padding:2px 8px;
+    border-radius:999px;
+  }
+
+  /* price: the loudest thing on the tile now, not the name */
+  .card .price{
+    margin-top:10px;
+    font-size:32px;
+    font-weight:900;
+    color:var(--price-text);
+    background:var(--price-fill);
+    border:1px solid var(--price-border);
+    padding:5px 18px;
+    border-radius:999px;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .badge-1x{
+    position:absolute;top:8px;right:8px;
+    background:var(--accent);color:#fff;
+    font-size:12px;font-weight:700;
+    padding:4px 9px;border-radius:999px;
+  }
+  .card.selected{border-color:var(--accent);}
+
+  .footerbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;
+    background:var(--card);
+    border-top:1px solid var(--border-dark);
+  }
+  .footerbar .total-label{font-size:12.5px;color:var(--text-secondary);}
+  .footerbar .total{font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;}
+  .footerbar .actions{display:flex;gap:10px;}
+  .btn.success{background:var(--success);border-color:var(--success);color:#06210f;}
+
+  /* ---------- before / after strip ---------- */
+  .compare-wrap{max-width:960px;margin:0 auto;padding:0 24px 56px;}
+  .compare-wrap h2{font-size:18px;margin:0 0 4px;}
+  .compare-wrap p.note{color:var(--text-secondary);font-size:13px;margin:0 0 18px;}
+  .compare-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:18px;
+  }
+  .compare-pair{
+    background:var(--card);
+    border:1px solid var(--border-dark);
+    border-radius:12px;
+    padding:14px;
+  }
+  .compare-pair .label{
+    font-size:11px;font-weight:700;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--text-muted);
+    margin-bottom:10px;
+  }
+  .mini-row{display:flex;gap:10px;align-items:center;}
+  .mini-row .tag{
+    font-size:10px;font-weight:700;letter-spacing:.05em;
+    text-transform:uppercase;
+    padding:2px 7px;border-radius:5px;
+    flex-shrink:0;width:44px;text-align:center;
+  }
+  .mini-row.before .tag{background:rgba(248,113,113,.15);color:var(--old-wrong);}
+  .mini-row.after .tag{background:var(--success-fill);color:var(--success);}
+  .mini-card{
+    flex:1;
+    background:var(--bg);
+    border:1px solid var(--border-dark);
+    border-radius:8px;
+    padding:10px 8px;
+    text-align:center;
+  }
+  .mini-row.before .mini-card .mname{
+    font-size:14px;font-weight:700;line-height:1.15;
+  }
+  .mini-row.after .mini-card .mname{
+    font-size:14px;font-weight:700;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .mini-row .mini-card .mvol{
+    font-size:9.5px;font-weight:700;color:var(--text-secondary);
+    background:rgba(148,163,184,.12);
+    display:inline-block;padding:1px 6px;border-radius:999px;
+    margin-top:3px;
+  }
+  .mini-row .mini-card .mprice{
+    font-size:12px;font-weight:900;color:var(--price);
+    margin-top:5px;
+  }
+  .mini-row.after .mini-card .mprice{
+    color:var(--price-text);
+    background:var(--price-fill);
+    border:1px solid var(--price-border);
+    display:inline-block;padding:2px 8px;border-radius:999px;
+  }
+  .compare-pair .gap{height:10px;}
+
+  @media (max-width:720px){
+    .decisions{grid-template-columns:1fr;}
+    .grid{grid-template-columns:repeat(2,1fr);}
+    .compare-grid{grid-template-columns:1fr;}
+    .device{width:100%;}
+  }
+</style>
+
+<div class="brief">
+  <div class="eyebrow">Terminal · Produktraster</div>
+  <h1>Ein Preis, der auffällt. Ein Name, der passt.</h1>
+  <p class="sub">
+    Visueller Prototyp für die drei besprochenen Änderungen. Das Datenmodell
+    wird erst danach erweitert — <code style="color:var(--text)">volumeLabel</code>
+    ist hier nur aus dem alten Namen herausgelöst, damit sich die Wirkung schon
+    heute beurteilen lässt.
+  </p>
+  <div class="decisions">
+    <div class="decision">
+      <div class="num">01</div>
+      <h3>Name — immer einzeilig</h3>
+      <p>Kein Umbruch mehr, nur noch Ellipse als letzter Ausweg. Kategorien wie „Alkoholfreie Getränke" tragen jetzt selbst die Aussage, die sonst im Namen stand.</p>
+    </div>
+    <div class="decision">
+      <div class="num">02</div>
+      <h3>Volumen — eigenes Feld</h3>
+      <p>„(0,5l)" ist kein Teil des Namens mehr, sondern ein eigenes kleines Badge darunter. Optional: fehlt es, bleibt die Zeile einfach leer, die Karte bleibt gleich hoch.</p>
+    </div>
+    <div class="decision">
+      <div class="num">03</div>
+      <h3>Preis — die lauteste Zahl</h3>
+      <p>Größer als der Name, in einer eigenen Pille mit Preisfarbe. Das Mitglied tippt nach Name, aber der Preis ist die Zahl, die zählt.</p>
+    </div>
+  </div>
+</div>
+
+<div class="frame-label">FRGS Ruderbar (INT) — Terminal, 1280 × 800</div>
+<div class="device">
+  <div class="topbar">
+    <div class="club">FRGS Ruderbar (INT)</div>
+    <div class="right">
+      <div class="pill-online">Online</div>
+      <div class="clock">21:29</div>
+    </div>
+  </div>
+
+  <div class="memberbar">
+    <div class="member">
+      <div class="avatar">DG</div>
+      <div>
+        <div class="name">Daniel Glöckner</div>
+        <div class="status">Nichts offen</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn primary">☰ Buchungen</button>
+      <button class="btn">⇥ Abmelden</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active">🥤 Alkoholfreie Getränke</div>
+    <div class="tab">🍺 Getränke</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="icon">🧃</div>
+      <div class="name">Apfelschorle</div>
+      <div class="volume"><span>0,3 L</span></div>
+      <div class="price">2,00&nbsp;€</div>
+    </div>
+    <div class="card selected">
+      <div class="badge-1x">1×</div>
+      <div class="icon">🍺</div>
+      <div class="name">Bier</div>
+      <div class="volume"></div>
+      <div class="price">2,00&nbsp;€</div>
+    </div>
+    <div class="card">
+      <div class="icon">💧</div>
+      <div class="name">Wasser</div>
+      <div class="volume"><span>0,3 L</span></div>
+      <div class="price">2,00&nbsp;€</div>
+    </div>
+    <div class="card">
+      <div class="icon">💧</div>
+      <div class="name">Wasser</div>
+      <div class="volume"><span>1 L</span></div>
+      <div class="price">2,00&nbsp;€</div>
+    </div>
+  </div>
+
+  <div class="footerbar">
+    <div>
+      <div class="total-label">Gesamt</div>
+      <div class="total">2,00&nbsp;€</div>
+    </div>
+    <div class="actions">
+      <button class="btn">🧾 Warenkorb</button>
+      <button class="btn success">✓ Bezahlen</button>
+    </div>
+  </div>
+</div>
+
+<div class="compare-wrap">
+  <h2>Genau die drei Namen, die vorher umgebrochen sind</h2>
+  <p class="note">Gleiche Karte, gleiche Kategorie „Getränke" — links der heutige Stand, rechts der Vorschlag.</p>
+  <div class="compare-grid">
+
+    <div class="compare-pair">
+      <div class="label">Alkoholfreies Bier</div>
+      <div class="mini-row before">
+        <div class="tag">Heute</div>
+        <div class="mini-card">
+          <div class="mname">Alkoholfreie<br>s Bier</div>
+          <div class="mprice">2,00&nbsp;€</div>
+        </div>
+      </div>
+      <div class="gap"></div>
+      <div class="mini-row after">
+        <div class="tag">Neu</div>
+        <div class="mini-card">
+          <div class="mname">Bier</div>
+          <div class="mvol">— kategorie sagt „alkoholfrei"</div>
+          <div class="mprice">2,00&nbsp;€</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="compare-pair">
+      <div class="label">Weizenbier (0,5l)</div>
+      <div class="mini-row before">
+        <div class="tag">Heute</div>
+        <div class="mini-card">
+          <div class="mname">Weizenbier<br>(0,5l)</div>
+          <div class="mprice">2,50&nbsp;€</div>
+        </div>
+      </div>
+      <div class="gap"></div>
+      <div class="mini-row after">
+        <div class="tag">Neu</div>
+        <div class="mini-card">
+          <div class="mname">Weizenbier</div>
+          <div class="mvol">0,5 L</div>
+          <div class="mprice">2,50&nbsp;€</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="compare-pair">
+      <div class="label">Apfelschorle (0,3l)</div>
+      <div class="mini-row before">
+        <div class="tag">Heute</div>
+        <div class="mini-card">
+          <div class="mname">Apfelschorl<br>e (0,3l)</div>
+          <div class="mprice">2,00&nbsp;€</div>
+        </div>
+      </div>
+      <div class="gap"></div>
+      <div class="mini-row after">
+        <div class="tag">Neu</div>
+        <div class="mini-card">
+          <div class="mname">Apfelschorle</div>
+          <div class="mvol">0,3 L</div>
+          <div class="mprice">2,00&nbsp;€</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

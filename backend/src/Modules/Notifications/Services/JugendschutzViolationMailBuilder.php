@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Shared\Format\VolumeFormatter;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\DTOs\JugendschutzViolationDataDto;
@@ -115,7 +116,16 @@ class JugendschutzViolationMailBuilder implements MailContentBuilder
             return null;
         }
 
-        return (string) ($names[$language->value] ?? reset($names));
+        $name = (string) ($names[$language->value] ?? reset($names));
+
+        // Name then size, like everywhere else (ADR-0056). A violation notice
+        // has to name the drink precisely enough for a Getränkewart to find the
+        // row it refers to, and `Bier` is three products on some lists.
+        return VolumeFormatter::withName(
+            $name,
+            isset($product['volume_ml']) ? (int) $product['volume_ml'] : null,
+            $language->value,
+        );
     }
 
     /** @param array<string,mixed> $outboxRow */

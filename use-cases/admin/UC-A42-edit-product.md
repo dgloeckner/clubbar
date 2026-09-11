@@ -30,7 +30,28 @@ Admin clicks "Edit" on product
 | Price | Price in cents |
 | Category | Product category assignment |
 | Minimum age | Legal minimum age for this product (Jugendschutz, [ADR-0045](../../adr/0045-age-restricted-products.md)). Empty = unrestricted; clearing it removes the restriction |
+| Size | The product's volume, typed in litres and stored as whole millilitres ([ADR-0056](../../adr/0056-product-volume.md)). Empty = the product has no size; clearing it removes the size |
 | Status | Active / Inactive toggle |
+
+## Renaming a Product That Carries Its Size
+
+This is the edit a club does once, per product, after
+[ADR-0056](../../adr/0056-product-volume.md) ships. **Shortening the name and
+setting the size are one save**, so nothing is ever left half-renamed:
+
+1. Open the product. The name still reads `Weizenbier (0,5l)`.
+2. Delete the suffix from **every** language tab: `Weizenbier`, `Wheat beer`.
+3. Type the size into the Size field: `0,5`.
+4. Save.
+
+Nothing is backfilled automatically, and that is deliberate: a regex cannot tell
+a size from a price, cannot decide what a translation should become, and would
+mangle a minority of products silently — on a screen members read.
+
+**A size edit changes how past bookings read**, exactly as a rename already
+does: a transaction stores no product snapshot, so every statement, report and
+history line joins the product as it stands now. That is a known property of the
+model, not something the size introduced.
 
 ## Status Toggle
 
@@ -95,11 +116,20 @@ Activating a product in an inactive category will NOT make it visible until the 
 - Deactivate confirmation: dialog shown before deactivating
 - Activate in inactive category: warning shown
 
+**Size ([ADR-0056](../../adr/0056-product-volume.md)):**
+- Set a size on a product that had none: stored, and the list shows it
+- Reopen the form: `500` comes back reading `0,5`, not `0,500`
+- Clear the size: an explicit null reaches the column, and the list shows the
+  name alone
+- A size out of range on update: refused, and the stored size is left alone
+- A price-only edit says nothing about the size
+
 **Validation:**
 - Same as create (names, price, category required)
 
 **Audit:**
-- All changes logged with old/new values
+- All changes logged with old/new values, the size beside the name — the two
+  are edited together, so a record of one without the other is incomplete
 - Status changes logged
 
 ## Related

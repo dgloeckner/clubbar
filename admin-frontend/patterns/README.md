@@ -120,6 +120,25 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 
 ---
 
+### [Volume Field Pattern](./volume-field.md)
+**Purpose**: one size control for a product, typed in litres and stored in millilitres
+
+- ✅ Why `<input type="number">` is gone here too (a comma reaches script as `''`)
+- ✅ Litres on screen, whole millilitres on the wire; hidden `{testId}-value` for E2E
+- ✅ `null` is "this product has no size" — never `0`, which would print as one
+- ✅ The mask is not the validator: 50 l reaches the page's own refusal
+- ✅ Never format a size by hand — `useFormatters().formatVolume`, one rule shared with the backend and the terminal
+
+**When to use**: the product form's size field (ADR-0056)
+
+**Quick Start**:
+```typescript
+<VolumeField testId="products-form-volume-input"
+  value={formData.volumeMl} onChange={(volumeMl) => setFormData({ ...formData, volumeMl })} />
+```
+
+---
+
 ### [Component Patterns](./components.md)
 **Purpose**: Reference for the reusable UI components available to pages
 
@@ -215,3 +234,4 @@ To add a new pattern:
 | [Role-Aware Navigation](./role-visibility.md) | 1.0 | Active | 2026-08-19 |
 | [Date Field](./date-field.md) | 1.0 | Active | 2026-08-21 |
 | [Money Field](./money-field.md) | 1.0 | Active | 2026-09-09 |
+| [Volume Field](./volume-field.md) | 1.0 | Active | 2026-09-10 |

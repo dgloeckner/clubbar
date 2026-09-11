@@ -289,6 +289,62 @@ class ReportsRepositoryTest extends DatabaseTestCase
         $this->assertSame($product, $rows[0]['dimension_id']);
     }
 
+    /**
+     * A report grouped by product names the size after the name (ADR-0056).
+     *
+     * Without it a club selling two sizes of the same drink gets two rows both
+     * reading `Bier`, with nothing on the row to say which is which — and the
+     * rows are genuinely different products, so they cannot be merged either.
+     */
+    public function test_a_product_grouping_names_the_size_after_the_name(): void
+    {
+        $member = $this->createMember();
+        $category = $this->createCategory();
+        $this->createTransaction($member, 200, '2019-03-05 10:00:00', 'purchase', $this->createProduct($category, 'Bier', 200, 330));
+        $this->createTransaction($member, 400, '2019-03-05 11:00:00', 'purchase', $this->createProduct($category, 'Bier', 400, 500));
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'product', 'revenue', 25, 0);
+
+        $this->assertSame(
+            ["Bier 0,5\u{00A0}l", "Bier 0,33\u{00A0}l"],
+            array_column($rows, 'dimension'),
+            'two sizes of one drink must be tellable apart on the report',
+        );
+    }
+
+    public function test_a_product_with_no_size_is_named_alone(): void
+    {
+        $member = $this->createMember();
+        $category = $this->createCategory();
+        $this->createTransaction($member, 300, '2019-03-05 10:00:00', 'purchase', $this->createProduct($category, 'Sauna-Token', 300));
+
+        $rows = $this->repository->fetchGrouped($this->window(), 'product', 'revenue', 25, 0);
+
+        $this->assertSame('Sauna-Token', $rows[0]['dimension']);
+    }
+
+    /**
+     * Only the product grouping has a size to give. A category, a member and a
+     * calendar month do not, and the `volume` key is exhaustive per grouping so
+     * a dimension added later cannot silently inherit `p.volume_ml`.
+     */
+    public function test_no_other_grouping_picks_up_a_size(): void
+    {
+        $member = $this->createMember();
+        $category = $this->createCategory('Getränke');
+        $this->createTransaction($member, 200, '2019-03-05 10:00:00', 'purchase', $this->createProduct($category, 'Bier', 200, 330));
+
+        foreach (['category', 'member', 'day', 'week', 'month', 'year'] as $groupBy) {
+            $rows = $this->repository->fetchGrouped($this->window(), $groupBy, 'revenue', 25, 0);
+
+            $this->assertStringNotContainsString(
+                "\u{00A0}l",
+                (string) $rows[0]['dimension'],
+                "grouping by {$groupBy} must not carry a product's size",
+            );
+        }
+    }
+
     public function test_grouping_by_revenue_puts_the_biggest_first(): void
     {
         $member = $this->createMember();
@@ -466,14 +522,14 @@ class ReportsRepositoryTest extends DatabaseTestCase
         return $id;
     }
 
-    private function createProduct(string $categoryId, string $name, int $priceCents): string
+    private function createProduct(string $categoryId, string $name, int $priceCents, ?int $volumeMl = null): string
     {
         $id = $this->generateUuid();
         $this->testProductIds[] = $id;
 
         $this->db->prepare(
-            'INSERT INTO products (id, category_id, names, price_cents, icon_name, is_active) VALUES (?, ?, ?, ?, ?, 1)'
-        )->execute([$id, $categoryId, json_encode(['de' => $name, 'en' => $name]), $priceCents, 'glass']);
+            'INSERT INTO products (id, category_id, names, price_cents, icon_name, is_active, volume_ml) VALUES (?, ?, ?, ?, ?, 1, ?)'
+        )->execute([$id, $categoryId, json_encode(['de' => $name, 'en' => $name]), $priceCents, 'glass', $volumeMl]);
 
         return $id;
     }

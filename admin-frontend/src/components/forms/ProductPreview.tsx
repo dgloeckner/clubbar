@@ -15,15 +15,17 @@ interface ProductPreviewProps {
   name: string
   price: string
   iconName: string | null
+  /** Whole millilitres, or `null` when the product has no size (ADR-0056). */
+  volumeMl?: number | null
 }
 
-export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
+export function ProductPreview({ name, price, iconName, volumeMl = null }: ProductPreviewProps) {
   const { t } = useTranslation()
   // The terminal shows a price in the *member's* language, so the preview of
   // it shows one in the admin's — through `Intl`, like every other amount in
   // the panel. It used to hardcode the German comma, which was right for the
   // default language and wrong for the other one.
-  const { formatPrice } = useFormatters()
+  const { formatPrice, formatVolume } = useFormatters()
 
   const previewPrice = (priceStr: string) => {
     const cents = parseMoneyToCents(priceStr)
@@ -77,6 +79,43 @@ export function ProductPreview({ name, price, iconName }: ProductPreviewProps) {
         }}
       >
         {displayName}
+      </div>
+
+      {/*
+        The volume badge, drawn the way the terminal draws it: under a one-line
+        name, in secondary text on a faint fill (ADR-0056).
+
+        The row keeps its height when the product has no size. That is not
+        cosmetic — on the terminal it is what holds every price on a grid row at
+        the same height, and a preview that collapsed it would show an admin a
+        tile the terminal will never draw.
+      */}
+      <div
+        data-testid="products-preview-volume-row"
+        style={{
+          height: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '4px',
+        }}
+      >
+        {volumeMl != null && (
+          <span
+            data-testid="products-preview-volume"
+            style={{
+              padding: '1px 8px',
+              borderRadius: '999px',
+              backgroundColor: 'rgba(148, 163, 184, 0.16)',
+              color: theme.colors.text.secondary,
+              fontSize: '11px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatVolume(volumeMl)}
+          </span>
+        )}
       </div>
 
       {/* Price */}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -399,7 +400,14 @@ void main() {
     // Issue #29: the grid used to derive its aspect ratio from the number of
     // products, so tiles shrank without bound as the catalog grew (and could
     // even be computed negative), ballooned when a category held three items,
-    // and never scrolled. Tile size is now a constant; the catalog scrolls.
+    // and never scrolled. The type now has a floor (the configured `xxxl`)
+    // and a ceiling, the tile a width cap, and the catalog scrolls; within
+    // those bounds the grid is solved per category from measured names
+    // (`ProductGridLayout`, plans/2026-09-10-terminal-product-card-layout.md).
+    //
+    // Widths in these tests are in the test font, where every glyph is a
+    // 1 em square — "Alkoholfreies" is 13 em here against ~7.3 in Roboto —
+    // so the assertions are about relationships, never about a column count.
     group('product grid sizing (#29)', () {
       /// A kiosk-sized surface, so the numbers below mean what they say.
       Future<void> setSurface(WidgetTester tester, Size size) async {
@@ -408,10 +416,43 @@ void main() {
         addTearDown(tester.view.reset);
       }
 
+      /// Every line break in every rendered product name falls on a space,
+      /// and no name is ellipsised — the paragraph is re-laid out with the
+      /// span, alignment and width the card rendered it with, and each
+      /// line's first character is looked up.
+      void expectNoWordSplit(WidgetTester tester) {
+        for (final card in tester.widgetList<ProductCard>(find.byType(ProductCard))) {
+          final name = card.productName;
+          final paragraph = tester.renderObject<RenderParagraph>(find.descendant(
+            of: find.byWidget(card),
+            matching: find.text(name),
+          ));
+          final painter = TextPainter(
+            text: paragraph.text,
+            textDirection: TextDirection.ltr,
+            textAlign: paragraph.textAlign,
+            maxLines: paragraph.maxLines,
+            textScaler: paragraph.textScaler,
+          )..layout(maxWidth: paragraph.constraints.maxWidth);
+          expect(painter.didExceedMaxLines, isFalse,
+              reason: '"$name" is ellipsised at ${card.nameFontSize}');
+          final lines = painter.computeLineMetrics();
+          for (var i = 1; i < lines.length; i++) {
+            final start = painter
+                .getPositionForOffset(Offset(lines[i].left, lines[i].baseline))
+                .offset;
+            expect(name[start - 1].trim(), isEmpty,
+                reason: '"$name" breaks inside a word before "${name.substring(start)}"');
+          }
+          painter.dispose();
+        }
+      }
+
       Future<void> pumpCatalog(
         WidgetTester tester,
         int productCount, {
         Size surface = const Size(1280, 800),
+        String Function(int index)? name,
       }) async {
         await setSurface(tester, surface);
 
@@ -448,6 +489,8 @@ void main() {
         when(() => mockProductsProvider.getTranslatedName(any(), any()))
             .thenAnswer((invocation) {
           final product = invocation.positionalArguments[0] as ProductsCacheData;
+          final index = int.parse(product.id.substring('prod-'.length));
+          if (name != null) return name(index);
           // Two-line names are the worst case for vertical fit.
           return 'Ein ziemlich langer Produktname ${product.id}';
         });
@@ -498,18 +541,68 @@ void main() {
         expect(find.byType(ProductCard), findsWidgets);
       });
 
-      testWidgets('a sparse category gets the same tile size as a full one',
+      testWidgets('a full category keeps the configured size and scrolls',
           (WidgetTester tester) async {
-        await pumpCatalog(tester, 3);
+        await pumpCatalog(tester, 40, name: (i) => 'Bier $i');
+
+        final card = tester.widget<ProductCard>(find.byType(ProductCard).first);
+        expect(card.nameFontSize, AppFontSizes.productNameFloor,
+            reason: 'the floor is the size a club asked for at minimum');
+        final tile = tester.getSize(find.byType(ProductCard).first);
+        expect(tile.height, greaterThan(160));
+      });
+
+      testWidgets('a sparse category grows its type, within the ceiling',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 3, name: (i) => ['Cola', 'Bier', 'Wein'][i]);
+        final sparse = tester.widget<ProductCard>(find.byType(ProductCard).first);
         final sparseTile = tester.getSize(find.byType(ProductCard).first);
 
-        await pumpCatalog(tester, 40);
-        final fullTile = tester.getSize(find.byType(ProductCard).first);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await pumpCatalog(tester, 40, name: (i) => 'Bier $i');
+        final full = tester.widget<ProductCard>(find.byType(ProductCard).first);
 
-        expect(sparseTile, fullTile);
+        expect(sparse.nameFontSize, greaterThan(full.nameFontSize));
+        expect(sparse.nameFontSize, AppFontSizes.productNameCeiling);
+        expect(sparse.iconSize, greaterThan(full.iconSize),
+            reason: 'the tile scales as one thing, not as a caption');
         // Readable, not screen-tall: three snacks must not become giant cards.
         expect(sparseTile.height, lessThan(320));
-        expect(sparseTile.height, greaterThan(160));
+        expect(sparseTile.width, lessThanOrEqualTo(420));
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a configured productNameMin is the floor, not xxxl',
+          (WidgetTester tester) async {
+        addTearDown(() {
+          AppFontSizes.productNameMin = null;
+          AppFontSizes.productNameMax = null;
+        });
+        AppFontSizes.applyConfig(
+            const {'productNameMin': 30, 'productNameMax': 34});
+        await pumpCatalog(tester, 40, name: (i) => 'Bier $i');
+        final full = tester.widget<ProductCard>(find.byType(ProductCard).first);
+        expect(full.nameFontSize, 30);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await pumpCatalog(tester, 3, name: (i) => ['Cola', 'Bier', 'Wein'][i]);
+        final sparse =
+            tester.widget<ProductCard>(find.byType(ProductCard).first);
+        expect(sparse.nameFontSize, 34);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('every tile of a category shares one size',
+          (WidgetTester tester) async {
+        await pumpCatalog(tester, 6,
+            name: (i) => ['Cola', 'Alkoholfreies Bier (0,5l)', 'Wein',
+                'Weizenbier (0,5l)', 'Apfelschorle', 'Tee'][i]);
+
+        final sizes = tester
+            .widgetList<ProductCard>(find.byType(ProductCard))
+            .map((card) => card.nameFontSize)
+            .toSet();
+        expect(sizes, hasLength(1));
       });
 
       testWidgets('a catalog taller than the screen scrolls',
@@ -531,33 +624,89 @@ void main() {
         expect(tester.takeException(), isNull);
       });
 
-      // Member feedback: product names were too small. The name is now set
-      // at `xxxl`, where "Alkoholfreies" — the longest single word on a
-      // German drinks list — needs ~190 px; a sixth column on the kiosk
-      // (198 px tiles, 174 inside the padding) would break it mid-word.
-      // Five columns on 1280 give every tile 240 px. This pins that floor
-      // so a later tweak to the column bound cannot quietly cross it.
-      testWidgets('a kiosk tile is wide enough for the larger name',
-          (WidgetTester tester) async {
-        await pumpCatalog(tester, 12, surface: const Size(1280, 800));
-        final tile = tester.getSize(find.byType(ProductCard).first);
+      // Member feedback: product names were too small. The name went up to
+      // `xxxl`, where "Alkoholfreies" — the longest single word on a German
+      // drinks list — needs ~190 px, and the tile was capped at 240 so a
+      // sixth kiosk column could not split it. That held for one word at one
+      // scale: at the 31 a production terminal runs the word is ~226 px in
+      // a 208 px line, and Flutter splits it mid-word with no hyphen. The
+      // grid now measures the names and chooses a column count and size at
+      // which every word stays whole — and this is asserted on the rendered
+      // paragraph, not on a width.
+      group('a word is never split', () {
+        String drinks(int i) => const [
+              'Alkoholfreies Bier (0,5l)',
+              'Weizenbier (0,5l)',
+              'Apfelschorle',
+              'Radler (0,5l)',
+            ][i % 4];
 
-        expect(tile.width, greaterThanOrEqualTo(230));
-        expect(tester.takeException(), isNull);
+        testWidgets('on the kiosk at the shipped scale',
+            (WidgetTester tester) async {
+          await pumpCatalog(tester, 12, name: drinks);
+
+          expectNoWordSplit(tester);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('on the kiosk at the scale a production terminal runs',
+            (WidgetTester tester) async {
+          final shipped = {
+            'xs': AppFontSizes.xs, 'sm': AppFontSizes.sm,
+            'base': AppFontSizes.base, 'lg': AppFontSizes.lg,
+            'xl': AppFontSizes.xl, 'xxl': AppFontSizes.xxl,
+            'xxxl': AppFontSizes.xxxl,
+          };
+          addTearDown(() => AppFontSizes.applyConfig(shipped));
+          AppFontSizes.applyConfig({
+            'xs': 20.0, 'sm': 23.0, 'base': 21.0,
+            'lg': 23.0, 'xl': 25.0, 'xxl': 27.0, 'xxxl': 31.0,
+          });
+          await pumpCatalog(tester, 40, name: drinks);
+
+          expectNoWordSplit(tester);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets('on a narrow screen, where the type gives way instead',
+            (WidgetTester tester) async {
+          await pumpCatalog(tester, 12,
+              surface: const Size(640, 480), name: drinks);
+
+          expectNoWordSplit(tester);
+          final card =
+              tester.widget<ProductCard>(find.byType(ProductCard).first);
+          // Never below the price size, whatever the word.
+          expect(card.nameFontSize, greaterThanOrEqualTo(AppFontSizes.xxl));
+          expect(tester.takeException(), isNull);
+        });
       });
 
       testWidgets('column count follows the screen width, not a fixed 4',
           (WidgetTester tester) async {
+        int columnsOf(WidgetTester tester) {
+          final cards = find.byType(ProductCard);
+          final firstTop = tester.getTopLeft(cards.first).dy;
+          return tester
+              .widgetList(cards)
+              .toList()
+              .asMap()
+              .keys
+              .where((i) => tester.getTopLeft(cards.at(i)).dy == firstTop)
+              .length;
+        }
+
         await pumpCatalog(tester, 12, surface: const Size(1920, 1080));
+        final wideColumns = columnsOf(tester);
         final wideTile = tester.getSize(find.byType(ProductCard).first);
 
+        await tester.pumpWidget(const SizedBox.shrink());
         await pumpCatalog(tester, 12, surface: const Size(1024, 768));
-        final narrowTile = tester.getSize(find.byType(ProductCard).first);
+        final narrowColumns = columnsOf(tester);
 
-        // Same tile, more of them per row — width does not stretch with the
-        // screen, and height is identical either way.
-        expect(wideTile.height, narrowTile.height);
-        expect((wideTile.width - narrowTile.width).abs(), lessThan(40));
+        expect(wideColumns, greaterThan(narrowColumns));
+        // Wider screen, not wider tiles without bound.
+        expect(wideTile.width, lessThanOrEqualTo(420));
       });
 
       // The tile height used to be pinned at 218, measured when `xl` was 18.
@@ -613,9 +762,13 @@ void main() {
 
         testWidgets('a bigger scale buys a taller tile, not a clipped one',
             (WidgetTester tester) async {
+          // Short names, so the scale is what sizes the tile — a name too
+          // wide for the test font would be width-bound at either scale.
+          String short(int i) => 'Bier $i';
+
           useScale(tester,
               xs: 12, sm: 13, base: 14, lg: 16, xl: 18, xxl: 20, xxxl: 24);
-          await pumpCatalog(tester, 9);
+          await pumpCatalog(tester, 9, name: short);
           final small = tester.getSize(find.byType(ProductCard).first).height;
 
           // The screen is pumped as a const widget, so an identical second
@@ -625,7 +778,7 @@ void main() {
 
           useScale(tester,
               xs: 16, sm: 17, base: 20, lg: 22, xl: 24, xxl: 26, xxxl: 30);
-          await pumpCatalog(tester, 9);
+          await pumpCatalog(tester, 9, name: short);
           final large = tester.getSize(find.byType(ProductCard).first).height;
 
           expect(large, greaterThan(small),

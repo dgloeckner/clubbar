@@ -51,6 +51,7 @@ erDiagram
         INTEGER price_cents "Price in cents (350 = 3.50 EUR)"
         INTEGER is_active "1=available, 0=unavailable"
         INTEGER min_age "Minimum legal age; NULL = unrestricted"
+        INTEGER volume_ml "Size in millilitres; NULL = no size"
         TEXT updated_at "Last sync timestamp (ISO 8601)"
     }
 
@@ -170,12 +171,13 @@ Read-only cache of product catalog synced from backend.
 |--------|------|-------------|-------------|
 | `id` | TEXT | PRIMARY KEY | UUID from backend |
 | `category_id` | TEXT | NOT NULL, FK | Reference to `categories_cache.id` |
-| `names` | TEXT | NOT NULL | JSON string: `{"de": "Bier 0,5L", "en": "Beer 0.5L"}` |
+| `names` | TEXT | NOT NULL | JSON string: `{"de": "Bier", "en": "Beer"}`. The size lives in `volume_ml`, not in the name (ADR-0056) |
 | `descriptions` | TEXT | NULL | JSON string: Multilingual descriptions (optional) |
 | `price_cents` | INTEGER | NOT NULL | Price in cents (350 = 3.50 EUR) |
 | `is_active` | INTEGER | NOT NULL, DEFAULT 1 | 1=available, 0=unavailable |
 | `requires_dispenser` | INTEGER | NOT NULL, DEFAULT 0 | 1=poured by a dispenser, 0=handed over |
 | `min_age` | INTEGER | NULL | Minimum legal age to buy this product ([ADR-0045](../adr/0045-age-restricted-products.md)); NULL — the ordinary state of most of a drinks list — means unrestricted |
+| `volume_ml` | INTEGER | NULL | The product's size in whole millilitres ([ADR-0056](../adr/0056-product-volume.md)). Drawn as a badge under the one-line name, formatted in the member's own language. NULL means the product has no size; the badge is not drawn, but its row keeps its height so every price on a grid row stays level |
 | `updated_at` | TEXT | NOT NULL | Last modification timestamp (ISO 8601) |
 
 **Indexes:**

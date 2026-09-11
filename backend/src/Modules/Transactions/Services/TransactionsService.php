@@ -277,6 +277,16 @@ class TransactionsService
             // Format timestamps to ISO 8601 UTC
             $row = $this->formatTransactionTimestamps($row);
 
+            // The product's size, language-neutral, beside the translated name
+            // (ADR-0056). Handed over as a number rather than as a formatted
+            // string: the client knows its reader's language, and the three
+            // formatters agree on the rendering
+            // (`api/fixtures/volume-format.json`). Null for a correction, which
+            // carries no product at all.
+            $row['product_volume_ml'] = isset($row['product_volume_ml'])
+                ? (int) $row['product_volume_ml']
+                : null;
+
             // Normalize type field
             $row['type'] = $row['transaction_type'] ?? null;
 

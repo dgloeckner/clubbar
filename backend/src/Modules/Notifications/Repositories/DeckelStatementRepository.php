@@ -52,7 +52,11 @@ class DeckelStatementRepository
 
         $stmt = $this->db->prepare(
             'SELECT t.id, t.amount_cents, t.occurred_at, t.transaction_type, t.notes,
-                    t.related_transaction_id, p.names AS product_names
+                    t.related_transaction_id, p.names AS product_names,
+                    -- Read live from the same join as the name (ADR-0056
+                    -- decision 3): a statement prints the product as it stands
+                    -- now, which is already how a rename behaves.
+                    p.volume_ml AS product_volume_ml
                FROM transactions t
                LEFT JOIN products p ON p.id = t.product_id
               WHERE t.member_id = ? AND ' . $predicate . '
@@ -78,7 +82,7 @@ class DeckelStatementRepository
      * above already leaves at most one of them live.
      *
      * @param list<string> $ids
-     * @return array<string, array{product_names: ?string, notes: ?string, settlement_date: ?string}>
+     * @return array<string, array{product_names: ?string, product_volume_ml: ?int, notes: ?string, settlement_date: ?string}>
      */
     public function originals(array $ids, DateTimeImmutable $boundary): array
     {
@@ -91,7 +95,7 @@ class DeckelStatementRepository
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
 
         $stmt = $this->db->prepare(
-            'SELECT t.id, t.notes, p.names AS product_names,
+            'SELECT t.id, t.notes, p.names AS product_names, p.volume_ml AS product_volume_ml,
                     (SELECT MAX(s.settlement_date)
                        FROM settlement_items si
                        JOIN settlements s ON s.id = si.settlement_id
@@ -109,6 +113,7 @@ class DeckelStatementRepository
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $originals[(string) $row['id']] = [
                 'product_names' => $row['product_names'] ?? null,
+                'product_volume_ml' => isset($row['product_volume_ml']) ? (int) $row['product_volume_ml'] : null,
                 'notes' => $row['notes'] ?? null,
                 'settlement_date' => $row['settlement_date'] ?? null,
             ];

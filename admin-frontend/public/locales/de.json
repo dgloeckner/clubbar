@@ -477,7 +477,8 @@
     "validation": {
       "priceRequired": "Ein gültiger Preis ist erforderlich",
       "categoryRequired": "Kategorie ist erforderlich",
-      "minAgeRange": "Mindestalter muss zwischen 1 und 99 liegen (leer = keine Altersbeschränkung)"
+      "minAgeRange": "Mindestalter muss zwischen 1 und 99 liegen (leer = keine Altersbeschränkung)",
+      "volumeRange": "Die Größe muss zwischen 0,001 und 10 Litern liegen."
     },
     "errors": {
       "load": "Produkte konnten nicht geladen werden",
@@ -490,6 +491,8 @@
     "minAge": "Mindestalter",
     "minAgePlaceholder": "z. B. 16",
     "minAgeHelp": "Leer lassen, wenn das Getränk keiner Altersbeschränkung unterliegt. Das Terminal verweigert den Kauf, wenn das Mitglied jünger ist.",
+    "volume": "Größe",
+    "volumeHelp": "Die Füllmenge in Litern, z. B. 0,5 — nicht in den Namen schreiben. Aus „Weizenbier (0,5l)\" wird „Weizenbier\" plus 0,5 hier. Leer lassen, wenn das Produkt keine Größe hat (Sauna-Token, Kaffee).",
     "minAgeBadge": "ab {{age}}"
   },
   "categories": {

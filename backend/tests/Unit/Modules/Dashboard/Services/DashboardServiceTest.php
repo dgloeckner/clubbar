@@ -813,4 +813,45 @@ class DashboardServiceTest extends TestCase
         );
     }
 
+
+    /**
+     * The dashboard's recent-transaction list names a product the way every
+     * other surface does: the name, then the size (ADR-0056).
+     *
+     * The rows come from a live join, so the label is a finished string here
+     * rather than a number for the client to format — the panel's dashboard has
+     * no product id to look one up with.
+     */
+    public function test_a_recent_transaction_names_the_products_size_after_it(): void
+    {
+        $this->assertSame(
+            "Weizenbier 0,5\u{00A0}l",
+            DashboardService::displayName('{"de":"Weizenbier","en":"Wheat beer"}', 500),
+        );
+    }
+
+    public function test_a_product_with_no_size_is_named_alone(): void
+    {
+        // Not a trailing space, not a dash: a Sauna-Token is a Sauna-Token.
+        $this->assertSame(
+            'Sauna-Token',
+            DashboardService::displayName('{"de":"Sauna-Token"}', null),
+        );
+    }
+
+    public function test_a_volume_that_arrives_as_a_string_still_reads_as_a_number(): void
+    {
+        // PDO hands back column values as strings under some drivers.
+        $this->assertSame(
+            "Weizenbier 0,5\u{00A0}l",
+            DashboardService::displayName('{"de":"Weizenbier"}', '500'),
+        );
+    }
+
+    public function test_a_row_with_no_product_at_all_is_still_null(): void
+    {
+        // A storno or a payout: the caller falls back to its own label.
+        $this->assertNull(DashboardService::displayName(null, 500));
+        $this->assertNull(DashboardService::displayName('', 500));
+    }
 }

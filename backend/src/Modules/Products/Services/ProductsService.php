@@ -73,7 +73,7 @@ class ProductsService
             action: AuditAction::CREATE,
             entityType: EntityType::PRODUCT,
             entityId: $row['id'],
-            newValues: ['names' => $validated['names'], 'price_cents' => $validated['price_cents']],
+            newValues: ['names' => $validated['names'], 'price_cents' => $validated['price_cents'], 'volume_ml' => $validated['volume_ml'] ?? null],
             adminUserId: $adminUserId,
         );
 
@@ -109,8 +109,12 @@ class ProductsService
             action: AuditAction::UPDATE,
             entityType: EntityType::PRODUCT,
             entityId: $productId,
-            oldValues: ['names' => $old['names'], 'price_cents' => $old['price_cents']],
-            newValues: ['names' => $row['names'], 'price_cents' => $row['price_cents']],
+            // The volume travels with the name in the audit trail because the
+            // two are edited together: shortening `Weizenbier (0,5l)` to
+            // `Weizenbier` is only a complete record if the 500 that replaced
+            // the suffix is beside it (ADR-0056, decision 2).
+            oldValues: ['names' => $old['names'], 'price_cents' => $old['price_cents'], 'volume_ml' => $old['volume_ml'] ?? null],
+            newValues: ['names' => $row['names'], 'price_cents' => $row['price_cents'], 'volume_ml' => $row['volume_ml'] ?? null],
             adminUserId: $adminUserId,
         );
 

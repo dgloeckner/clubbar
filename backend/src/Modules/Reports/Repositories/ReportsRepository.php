@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Reports\Repositories;
 
+use App\Shared\Format\VolumeFormatter;
 use App\Modules\Reports\Domain\ReportFilters;
 use App\Shared\Time\ClubLocalSql;
 use App\Shared\Time\ClubTimeZone;
@@ -41,7 +42,13 @@ class ReportsRepository
      *   API owes here is the fact that there is no name, plus the `id` that
      *   had none, which is what tells two dead products apart on screen.
      *
-     * @var array<string, array{dimension: string, id: string, group: string, joins: string}>
+     * `volume` is the product's size, selected beside the dimension so the PHP
+     * mapper can append it through the one shared formatter (ADR-0056). Every
+     * other grouping answers `NULL`: a category, a member and a calendar month
+     * have no size, and an exhaustive key is what keeps a grouping added later
+     * from silently inheriting `p.volume_ml`.
+     *
+     * @var array<string, array{dimension: string, id: string, group: string, joins: string, volume: string}>
      */
     private const GROUP_BY_SQL = [
         'category' => [
@@ -49,33 +56,38 @@ class ReportsRepository
             'id' => 'p.category_id',
             'group' => 'p.category_id',
             'joins' => 'LEFT JOIN categories c ON p.category_id = c.id',
+            'volume' => 'NULL',
         ],
         'product' => [
             'dimension' => "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.de')), JSON_UNQUOTE(JSON_EXTRACT(p.names, '$.en')))",
             'id' => 't.product_id',
             'group' => 't.product_id',
             'joins' => '',
+            'volume' => 'p.volume_ml',
         ],
         'member' => [
             'dimension' => "CONCAT(m.first_name, ' ', m.last_name)",
             'id' => 't.member_id',
             'group' => 't.member_id',
             'joins' => 'LEFT JOIN members m ON t.member_id = m.id',
+            'volume' => 'NULL',
         ],
-        'day' => ['dimension' => 'DATE({local})', 'id' => 'NULL', 'group' => 'DATE({local})', 'joins' => ''],
+        'day' => ['dimension' => 'DATE({local})', 'id' => 'NULL', 'group' => 'DATE({local})', 'joins' => '', 'volume' => 'NULL'],
         'week' => [
             'dimension' => "CONCAT(YEAR({local}), '-W', LPAD(WEEK({local}, 1), 2, '0'))",
             'id' => 'NULL',
             'group' => 'YEAR({local}), WEEK({local}, 1)',
             'joins' => '',
+            'volume' => 'NULL',
         ],
         'month' => [
             'dimension' => "DATE_FORMAT({local}, '%Y-%m')",
             'id' => 'NULL',
             'group' => "DATE_FORMAT({local}, '%Y-%m')",
             'joins' => '',
+            'volume' => 'NULL',
         ],
-        'year' => ['dimension' => 'YEAR({local})', 'id' => 'NULL', 'group' => 'YEAR({local})', 'joins' => ''],
+        'year' => ['dimension' => 'YEAR({local})', 'id' => 'NULL', 'group' => 'YEAR({local})', 'joins' => '', 'volume' => 'NULL'],
     ];
 
     /** Sort keys the grouped query accepts, mapped to their ORDER BY clause. */
@@ -157,6 +169,7 @@ class ReportsRepository
         $stmt = $this->db->prepare(
             "SELECT {$grouping['dimension']} as dimension,
                     {$grouping['id']} as dimension_id,
+                    {$grouping['volume']} as dimension_volume_ml,
                     SUM(t.amount_cents) as revenue_cents,
                     COUNT(DISTINCT t.id) as count
              FROM transactions t
@@ -172,7 +185,16 @@ class ReportsRepository
         return array_map(static fn(array $row): array => [
             // Deliberately not cast to string: a null dimension is the report
             // saying "this group has no name", and '' would read as one.
-            'dimension' => $row['dimension'] === null ? null : (string) $row['dimension'],
+            // Name then size (ADR-0056). Without it a report grouped by product
+            // shows `Bier` twice for a club that sells two sizes of it, with
+            // nothing on the row to say which line is which.
+            'dimension' => $row['dimension'] === null
+                ? null
+                : VolumeFormatter::withName(
+                    (string) $row['dimension'],
+                    isset($row['dimension_volume_ml']) ? (int) $row['dimension_volume_ml'] : null,
+                    'de',
+                ),
             'dimension_id' => $row['dimension_id'] === null ? null : (string) $row['dimension_id'],
             'revenue_cents' => (int) $row['revenue_cents'],
             'count' => (int) $row['count'],
@@ -280,7 +302,7 @@ class ReportsRepository
      * that nobody notices. {@see ClubLocalSql} explains why this is an offset
      * expression and not `CONVERT_TZ`.
      *
-     * @return array{dimension: string, id: string, group: string, joins: string}
+     * @return array{dimension: string, id: string, group: string, joins: string, volume: string}
      */
     private function groupBySql(string $groupBy, ReportFilters $filters): array
     {
@@ -294,6 +316,7 @@ class ReportsRepository
             'id' => str_replace('{local}', $local, $grouping['id']),
             'group' => str_replace('{local}', $local, $grouping['group']),
             'joins' => $grouping['joins'],
+            'volume' => $grouping['volume'],
         ];
     }
 

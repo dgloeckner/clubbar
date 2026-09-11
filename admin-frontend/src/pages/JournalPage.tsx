@@ -36,7 +36,8 @@ import { useListQuery } from '../hooks/useListQuery'
 import { getTransactions } from '../api/generated/transactions/transactions'
 import { getTransactionTypeColor, getTransactionAmountColor } from '../utils/transactions'
 import { getCurrentLanguage } from '../i18n/config'
-import { getLocalizedName } from '../utils/i18n-helpers'
+import { getIntlLocale, getLocalizedName } from '../utils/i18n-helpers'
+import { formatVolume } from '../styles/design-system'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodKey } from '../utils/periods'
 import { StornoConfirmDialog } from '../components/modals/StornoConfirmDialog'
 import { UndoIcon } from '../components/icons'
@@ -70,6 +71,7 @@ interface ResolvedTransaction {
 
 function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransaction[] {
   const lang = getCurrentLanguage()
+  const intlLocale = getIntlLocale(lang)
   return items.map((item) => {
     let product_name: string | null = item.product_name ?? null
     if (typeof item.product_names === 'string') {
@@ -78,6 +80,14 @@ function localizeTransactionItems(items: GlobalTransaction[]): ResolvedTransacti
       } catch {
         // ignore parse errors
       }
+    }
+    // Name then size (ADR-0056), so the journal, the Deckelauszug and the
+    // terminal's own history all name a booking the same way. `formatVolume`
+    // is used rather than a hand-rolled `${ml/1000} l` because the rule is
+    // shared with the backend and the terminal through
+    // `api/fixtures/volume-format.json`.
+    if (product_name && item.product_volume_ml != null) {
+      product_name = `${product_name} ${formatVolume(item.product_volume_ml, intlLocale)}`
     }
     return {
       id: item.id ?? '',

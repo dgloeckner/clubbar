@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Transactions\Controllers;
 
+use App\Shared\Format\VolumeFormatter;
 use App\Modules\Transactions\Services\JugendschutzViolationService;
 use App\Modules\Transactions\Services\TransactionsService;
 use App\Shared\Validation\Validator;
@@ -271,7 +272,15 @@ class AdminController
 
     /**
      * Product name in German where available, then English, then whatever the
-     * product has; a correction carries no product and falls back to its note.
+     * product has, followed by its size; a correction carries no product and
+     * falls back to its note.
+     *
+     * The size is appended for the reason ADR-0056 gives: everything that
+     * prints a product name prints the volume after it, so a Kassenwart
+     * reconciling this export against a Deckelauszug sees the same string on
+     * both. German, because the export itself is — `Datum`, `Mitglied`,
+     * `Produkt` — and a row that mixed notations would be worse than one that
+     * commits.
      *
      * @param array<string, mixed> $item
      */
@@ -286,7 +295,11 @@ class AdminController
 
             $label = $names['de'] ?? $names['en'] ?? (reset($names) ?: '');
             if ($label !== '') {
-                return (string) $label;
+                return VolumeFormatter::withName(
+                    (string) $label,
+                    isset($item['product_volume_ml']) ? (int) $item['product_volume_ml'] : null,
+                    'de',
+                );
             }
         }
 

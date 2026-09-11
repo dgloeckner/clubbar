@@ -44,7 +44,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -202,6 +202,22 @@ class ClubBarDatabase extends _$ClubBarDatabase {
             // still there to be uploaded after it.
             await _addColumnIfNotExists(
                 m, 'members_cache', 'credit_limit_cents', 'INTEGER');
+          }
+          if (from < 13) {
+            // The product's size, in whole millilitres (ADR-0056).
+            //
+            // Nullable with no default, which is the correct state for every
+            // row already in the cache: no product cached before this upgrade
+            // is known to have a size, and until the next delta sync delivers
+            // one the tile simply draws no badge. Nothing about the sale
+            // changes — the size is a label, not a rule, unlike `min_age`.
+            //
+            // Added in place, beside whatever unsynced transactions this
+            // terminal is holding: nothing here rewrites or moves a row in
+            // `transactions_local`, so a sale rung before the upgrade is still
+            // there to be uploaded after it.
+            await _addColumnIfNotExists(
+                m, 'products_cache', 'volume_ml', 'INTEGER');
           }
         },
       );

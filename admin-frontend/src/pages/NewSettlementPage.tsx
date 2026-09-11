@@ -28,6 +28,7 @@ import { useExecutionDateInfo } from '../hooks/useExecutionDateInfo'
 import { useLatestRequest } from '../hooks/useLatestRequest'
 import { getSettlements } from '../api/generated/settlements/settlements'
 import { getTransactions } from '../api/generated/transactions/transactions'
+import { formatVolume } from '../styles/design-system'
 import { tableColors, tableSpacing, headerCellBaseStyle, headerRowStyle } from '../styles/tableTokens'
 import type { SettlementPreview, SettlementPreviewMember } from '../api/generated/model'
 
@@ -95,7 +96,7 @@ const toolbarStyle: React.CSSProperties = {
 
 export function NewSettlementPage() {
   const { t } = useTranslation()
-  const { formatPrice, formatDate } = useFormatters()
+  const { formatPrice, formatDate, intlLocale } = useFormatters()
   const navigate = useNavigate()
 
   const [preview, setPreview] = useState<SettlementPreview | null>(null)
@@ -183,7 +184,14 @@ export function NewSettlementPage() {
         [memberId]: (result.data ?? []).map((tx) => ({
           id: tx.id ?? '',
           created_at: tx.created_at ?? '',
-          product_name: tx.product_name ?? null,
+          // Name then size (ADR-0056). The API hands the volume over as a
+          // number — it is language-agnostic (ADR-0002) — so the panel is what
+          // renders it, through the shared rule rather than by hand.
+          product_name: tx.product_name
+            ? tx.product_volume_ml != null
+              ? `${tx.product_name} ${formatVolume(tx.product_volume_ml, intlLocale)}`
+              : tx.product_name
+            : null,
           description: tx.description ?? '',
           amount_cents: tx.amount_cents ?? 0,
         })),

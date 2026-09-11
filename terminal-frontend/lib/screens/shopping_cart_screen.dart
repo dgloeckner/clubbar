@@ -191,7 +191,10 @@ class ShoppingCartScreen extends StatelessWidget {
                                 // row is not height-critical the way the
                                 // grid is; this list scrolls.
                                 Text(
-                                  item.productName,
+                                  // Name, then size — the same string the
+                                  // receipt and the statements print
+                                  // (ADR-0056).
+                                  item.label(item.language),
                                   style: TextStyle(
                                     color: AppColors.textPrimary,
                                     fontSize: AppFontSizes.xxl,

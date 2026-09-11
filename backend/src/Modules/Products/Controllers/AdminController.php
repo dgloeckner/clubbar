@@ -176,6 +176,13 @@ class AdminController
             // while sitting in the field that restricts. NULL is unrestricted,
             // which is most of a drinks list and must stay frictionless.
             'min_age' => ['nullable', 'integer', 'gte:1', 'lte:99'],
+            // The product's size, in whole millilitres (ADR-0056). Nullable,
+            // because most of a snacks list has no size and a Sauna-Token has
+            // none either. The bounds rule out the two typos that matter: 0,
+            // which would print as a size while meaning none, and a value
+            // above ten litres, which is litres entered where millilitres were
+            // asked for.
+            'volume_ml' => ['nullable', 'integer', 'gte:1', 'lte:10000'],
         ])) {
             return $this->validationFailed($response, $this->validator->errors());
         }
@@ -205,6 +212,10 @@ class AdminController
             // with `storeProduct()` because Products has no FIELD_RULES const;
             // extracting one is tempting and out of scope here.
             if (array_key_exists('min_age', $body)) $rules['min_age'] = ['nullable', 'integer', 'gte:1', 'lte:99'];
+            // `array_key_exists` again, and for the same reason: an explicit
+            // null is how an admin says the product has no size after all, and
+            // `isset` would let that write past its own bounds check.
+            if (array_key_exists('volume_ml', $body)) $rules['volume_ml'] = ['nullable', 'integer', 'gte:1', 'lte:10000'];
 
             if (!empty($rules) && !$this->validator->validate($body, $rules)) {
                 return $this->validationFailed($response, $this->validator->errors());

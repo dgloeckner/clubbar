@@ -353,6 +353,52 @@ export function formatPrice(centAmount: number, locale: string = 'de-DE'): strin
 }
 
 /**
+ * Below this, litres stop reading as a size: at 100 ml the litre value gains a
+ * non-zero first decimal, and below 5 ml two decimals of a litre round to zero
+ * outright. See `api/fixtures/volume-format.json`.
+ */
+const VOLUME_MILLILITRE_THRESHOLD = 100
+
+/** A NO-BREAK SPACE, so a size never wraps between its number and its unit. */
+const VOLUME_UNIT_SEPARATOR = '\u00A0'
+
+/**
+ * A product's size, written the way the reader's language writes it.
+ *
+ * `500` becomes `0,5 l` for a German admin and `0.5 l` for an English one, from
+ * one language-neutral number — the size is data, not part of the translated
+ * name (ADR-0056).
+ *
+ * The rule, and its vectors, live in `api/fixtures/volume-format.json`. PHP,
+ * TypeScript and Dart each implement it and each language's suite reads that
+ * file, so the three cannot drift apart unnoticed. A new vector belongs in the
+ * fixture, never in one suite.
+ *
+ * Prefer `useFormatters().formatVolume()` in components — it already knows the
+ * panel's language.
+ */
+export function formatVolume(millilitres: number, locale: string = 'de-DE'): string {
+  if (millilitres < VOLUME_MILLILITRE_THRESHOLD) {
+    return `${millilitres}${VOLUME_UNIT_SEPARATOR}ml`
+  }
+
+  // Half away from zero, decided on integers before any division: `1005 / 1000`
+  // is a float whose nearest double sits below 1.005, so leaving the rounding
+  // to Intl answers 1,00 where PHP answers 1,01. Rounding first leaves Intl
+  // nothing to disagree about — the value it receives already has at most two
+  // decimals.
+  const hundredths = Math.floor((millilitres + 5) / 10)
+
+  const number = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  }).format(hundredths / 100)
+
+  return `${number}${VOLUME_UNIT_SEPARATOR}l`
+}
+
+/**
  * Utility function to format IBAN (mask except last 4 digits)
  */
 export function formatIban(iban: string): string {
