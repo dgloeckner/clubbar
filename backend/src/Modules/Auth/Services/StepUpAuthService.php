@@ -33,6 +33,7 @@ class StepUpAuthService
         private AuditService $auditService,
         private LoginAttemptsRepository $loginAttempts,
         private AdminUsersRepository $adminUsersRepository,
+        private bool $replayProtectionDisabled = false,
     ) {}
 
     /**
@@ -69,6 +70,15 @@ class StepUpAuthService
      * been consumed by either path. A step-up performed immediately after
      * login must therefore wait for the next timestep — the correct
      * behaviour for a replay guard, not a bug.
+     *
+     * $replayProtectionDisabled (DISABLE_TOTP_REPLAY_PROTECTION, test
+     * environments only — see ServiceFactory) restores the pre-#882 check
+     * with no timestep bookkeeping at all: the E2E suite runs almost every
+     * step-up-gated spec through one seeded admin's TOTP secret
+     * (fixtures/stepUp.ts), so two specs, or two workers, presenting the
+     * same real-time code within the same ~30s window is a fixture
+     * collision, not a replay. The guard itself stays covered regardless, in
+     * StepUpAuthServiceTest.
      */
     private function verifyOwnTotpCode(array $caller, string $code): bool
     {
@@ -84,6 +94,10 @@ class StepUpAuthService
         $secret = $this->totpService->decrypt($encryptedSecret);
         if ($secret === false) {
             return false;
+        }
+
+        if ($this->replayProtectionDisabled) {
+            return $this->totpService->verifyCode($secret, $code);
         }
 
         $matchedTimestep = $this->totpService->verifyCodeWithTimestep($secret, $code);

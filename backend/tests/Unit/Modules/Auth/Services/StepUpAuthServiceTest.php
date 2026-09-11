@@ -246,4 +246,64 @@ class StepUpAuthServiceTest extends TestCase
 
         $this->service->verify($this->caller(), ['current_password' => 'wrong'], $this->request('198.51.100.9'));
     }
+
+    // ─── DISABLE_TOTP_REPLAY_PROTECTION (test environments only) ──────────
+    //
+    // The E2E suite shares one seeded admin's TOTP secret across nearly every
+    // step-up-gated spec (fixtures/stepUp.ts), so the persistent guard above
+    // would reject one spec's step-up because another spec, or another
+    // parallel worker, consumed the same real-time code moments earlier —
+    // a fixture collision, not a replay. ServiceFactory wires this flag from
+    // DISABLE_TOTP_REPLAY_PROTECTION; here it is passed directly.
+
+    public function test_a_replayed_timestep_still_passes_when_replay_protection_is_disabled(): void
+    {
+        $service = new StepUpAuthService(
+            $this->adminUsersService,
+            $this->totpService,
+            $this->auditService,
+            $this->loginAttempts,
+            $this->adminUsersRepository,
+            true,
+        );
+
+        $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
+        $this->totpService->method('decrypt')->willReturn('plain-secret');
+        $this->totpService->method('verifyCode')->with('plain-secret', '123456')->willReturn(true);
+
+        $this->totpService->expects($this->never())->method('verifyCodeWithTimestep');
+        $this->adminUsersRepository->expects($this->never())->method('updateTotpLastTimestep');
+
+        $result = $service->verify(
+            $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret', 'totp_last_timestep' => 999999]),
+            ['current_password' => 'correct', 'totp_code' => '123456'],
+            $this->request(),
+        );
+
+        $this->assertTrue($result);
+    }
+
+    public function test_a_wrong_code_still_fails_when_replay_protection_is_disabled(): void
+    {
+        $service = new StepUpAuthService(
+            $this->adminUsersService,
+            $this->totpService,
+            $this->auditService,
+            $this->loginAttempts,
+            $this->adminUsersRepository,
+            true,
+        );
+
+        $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
+        $this->totpService->method('decrypt')->willReturn('plain-secret');
+        $this->totpService->method('verifyCode')->willReturn(false);
+
+        $result = $service->verify(
+            $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret']),
+            ['current_password' => 'correct', 'totp_code' => '000000'],
+            $this->request(),
+        );
+
+        $this->assertFalse($result);
+    }
 }
