@@ -24,6 +24,7 @@ import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
+import 'package:clubbar_terminal/widgets/scroll_more_hint.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 
@@ -411,14 +412,17 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
         // The tile cap bit: two products on a wide screen are two tiles of
         // the capped width, centred, rather than two billboards.
+        // A row under the summary bar must read as "more below", not as
+        // nothing there.
+        final hinted = ScrollMoreHint(child: grid);
         final usedWidth = geometry.usedWidth(_gridSpacing);
         if (usedWidth < constraints.maxWidth - 0.5) {
           return Align(
             alignment: Alignment.topCenter,
-            child: SizedBox(width: usedWidth, child: grid),
+            child: SizedBox(width: usedWidth, child: hinted),
           );
         }
-        return grid;
+        return hinted;
       },
     );
   }

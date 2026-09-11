@@ -19,6 +19,7 @@ import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
+import 'package:clubbar_terminal/widgets/scroll_more_hint.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
   const ShoppingCartScreen({super.key});
@@ -145,200 +146,205 @@ class ShoppingCartScreen extends StatelessWidget {
             // quantity and remove buttons silently swallow taps. It covers
             // only the list because the one control outside it, the checkout
             // button, states its own in-flight condition.
+            //
+            // [ScrollMoreHint]: a line below the fold read as missing from the
+            // cart, with the total still counting it.
             Expanded(
-              child: LoadingOverlay(
-                isLoading: isCheckoutInFlight,
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  itemCount: cartProvider.items.length,
-                  itemBuilder: (context, index) {
-                    final item = cartProvider.items[index];
-                    final unitPriceFormatted = formatPrice(item.priceCents, locale);
-                    final lineTotalFormatted = formatPrice(item.priceCents * item.quantity, locale);
+              child: ScrollMoreHint(
+                child: LoadingOverlay(
+                  isLoading: isCheckoutInFlight,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    itemCount: cartProvider.items.length,
+                    itemBuilder: (context, index) {
+                      final item = cartProvider.items[index];
+                      final unitPriceFormatted = formatPrice(item.priceCents, locale);
+                      final lineTotalFormatted = formatPrice(item.priceCents * item.quantity, locale);
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.md,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgCard,
-                        borderRadius: BorderRadius.circular(AppBorderRadius.lg),
-                        border: Border.all(
-                          color: AppColors.borderLight,
-                          width: 1,
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.md,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          // Icon
-                          getProductIcon(
-                            item.iconName,
-                            size: 48,
+                        decoration: BoxDecoration(
+                          color: AppColors.bgCard,
+                          borderRadius: BorderRadius.circular(AppBorderRadius.lg),
+                          border: Border.all(
+                            color: AppColors.borderLight,
+                            width: 1,
                           ),
-                          const SizedBox(width: AppSpacing.md),
+                        ),
+                        child: Row(
+                          children: [
+                            // Icon
+                            getProductIcon(
+                              item.iconName,
+                              size: 48,
+                            ),
+                            const SizedBox(width: AppSpacing.md),
 
-                          // Name and price per unit
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            // Name and price per unit
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // The line's headline, a step above its
+                                  // line total — the same reading order the
+                                  // grid tile has since product names went up
+                                  // there (member feedback: too small). The
+                                  // row is not height-critical the way the
+                                  // grid is; this list scrolls.
+                                  Text(
+                                    // Name, then size — the same string the
+                                    // receipt and the statements print
+                                    // (ADR-0056).
+                                    item.label(item.language),
+                                    style: TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontSize: AppFontSizes.xxl,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    l10n.cartEachPrice(unitPriceFormatted),
+                                    style: TextStyle(
+                                      color: AppColors.semanticInfo,
+                                      fontSize: AppFontSizes.base,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Quantity controls
+                            Row(
                               children: [
-                                // The line's headline, a step above its
-                                // line total — the same reading order the
-                                // grid tile has since product names went up
-                                // there (member feedback: too small). The
-                                // row is not height-critical the way the
-                                // grid is; this list scrolls.
-                                Text(
-                                  // Name, then size — the same string the
-                                  // receipt and the statements print
-                                  // (ADR-0056).
-                                  item.label(item.language),
-                                  style: TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: AppFontSizes.xxl,
-                                    fontWeight: FontWeight.w700,
+                                // Minus button — matches the product tile's '−'
+                                // (decreaseItem removes the line at quantity 1
+                                // instead of no-op'ing; issue #36). The trash
+                                // button remains the explicit remove-all.
+                                GestureDetector(
+                                  onTap: () =>
+                                      cartProvider.decreaseItem(item.productId),
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cartRemoveFill,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    // White, not #ef4444: red-on-dark-red was
+                                    // 2.7:1 and read as a flat coloured square
+                                    // under bar lighting (#41). The fill still
+                                    // carries the "remove" meaning.
+                                    child: const Center(
+                                      child: Text(
+                                        '−',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  l10n.cartEachPrice(unitPriceFormatted),
-                                  style: TextStyle(
-                                    color: AppColors.semanticInfo,
-                                    fontSize: AppFontSizes.base,
-                                    fontWeight: FontWeight.w500,
+
+                                // Quantity
+                                SizedBox(
+                                  width: 48,
+                                  child: Text(
+                                    '${item.quantity}',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: AppFontSizes.xl,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+
+                                // Plus button
+                                GestureDetector(
+                                  onTap: () {
+                                    cartProvider.updateQuantity(
+                                      item.productId,
+                                      item.quantity + 1,
+                                    );
+                                  },
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cartAddFill,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    // White for the same reason as '−' (#41):
+                                    // #22c55e on #166534 was 3.1:1.
+                                    child: const Center(
+                                      child: Text(
+                                        '+',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                          ),
 
-                          // Quantity controls
-                          Row(
-                            children: [
-                              // Minus button — matches the product tile's '−'
-                              // (decreaseItem removes the line at quantity 1
-                              // instead of no-op'ing; issue #36). The trash
-                              // button remains the explicit remove-all.
-                              GestureDetector(
-                                onTap: () =>
-                                    cartProvider.decreaseItem(item.productId),
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.cartRemoveFill,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  // White, not #ef4444: red-on-dark-red was
-                                  // 2.7:1 and read as a flat coloured square
-                                  // under bar lighting (#41). The fill still
-                                  // carries the "remove" meaning.
-                                  child: const Center(
-                                    child: Text(
-                                      '−',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            const SizedBox(width: AppSpacing.lg),
 
-                              // Quantity
-                              SizedBox(
-                                width: 48,
-                                child: Text(
-                                  '${item.quantity}',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: AppFontSizes.xl,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-
-                              // Plus button
-                              GestureDetector(
-                                onTap: () {
-                                  cartProvider.updateQuantity(
-                                    item.productId,
-                                    item.quantity + 1,
-                                  );
-                                },
-                                child: Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: AppColors.cartAddFill,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  // White for the same reason as '−' (#41):
-                                  // #22c55e on #166534 was 3.1:1.
-                                  child: const Center(
-                                    child: Text(
-                                      '+',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(width: AppSpacing.lg),
-
-                          // Line total
-                          SizedBox(
-                            width: 90,
-                            child: Text(
-                              lineTotalFormatted,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: AppFontSizes.xl,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(width: AppSpacing.md),
-
-                          // Delete button
-                          GestureDetector(
-                            onTap: () => cartProvider.removeItem(item.productId),
-                            child: Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: const Color(0x807f1d1d),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: AppColors.semanticDanger,
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Center(
-                                child: Icon(
-                                  Icons.delete_outline,
-                                  color: AppColors.semanticDanger,
-                                  size: 28,
+                            // Line total
+                            SizedBox(
+                              width: 90,
+                              child: Text(
+                                lineTotalFormatted,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: AppFontSizes.xl,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+
+                            const SizedBox(width: AppSpacing.md),
+
+                            // Delete button
+                            GestureDetector(
+                              onTap: () => cartProvider.removeItem(item.productId),
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0x807f1d1d),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: AppColors.semanticDanger,
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Center(
+                                  child: Icon(
+                                    Icons.delete_outline,
+                                    color: AppColors.semanticDanger,
+                                    size: 28,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

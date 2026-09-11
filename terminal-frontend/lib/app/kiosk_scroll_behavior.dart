@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 
 /// Scroll behaviour for touchscreen kiosk use:
 /// - Enables finger-drag scrolling on Linux (not included in the Flutter
@@ -27,4 +28,24 @@ class KioskScrollBehavior extends MaterialScrollBehavior {
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) =>
       const BouncingScrollPhysics();
+
+  /// A scrollbar that stays up on every vertical list that can scroll.
+  ///
+  /// The desktop default fades its thumb out unless a mouse hovers, and on a
+  /// touch kiosk nothing ever hovers: a cart line below the fold was invisible,
+  /// and nothing said the list went on. The thumb is painted only when the
+  /// content is longer than the viewport, so a list that fits shows nothing.
+  @override
+  Widget buildScrollbar(
+      BuildContext context, Widget child, ScrollableDetails details) {
+    if (axisDirectionToAxis(details.direction) != Axis.vertical) return child;
+    return RawScrollbar(
+      controller: details.controller,
+      thumbVisibility: true,
+      thickness: 6,
+      radius: const Radius.circular(3),
+      thumbColor: AppColors.textSecondary.withValues(alpha: 0.6),
+      child: child,
+    );
+  }
 }
