@@ -183,4 +183,50 @@ class InvitationControllerSessionTest extends TestCase
         $this->assertSame(PHP_SESSION_ACTIVE, session_status());
         $this->assertSame('the-inviting-admin', $_SESSION['admin_user_id']);
     }
+
+    /**
+     * #886: behind a configured trusted proxy, a refused token is recorded
+     * against the address X-Forwarded-For names, not the proxy that relayed
+     * it — the same rule the login rate limiter follows.
+     */
+    public function test_a_refused_lookup_behind_a_trusted_proxy_is_recorded_against_the_forwarded_address(): void
+    {
+        $trustedProxiesBackup = $_ENV['TRUSTED_PROXIES'] ?? null;
+        $_ENV['TRUSTED_PROXIES'] = '10.0.0.5';
+
+        try {
+            $controller = new InvitationController(
+                $this->invitationService,
+                new Validator($this->createMock(PDO::class)),
+                $this->loginAttempts,
+                new AppConfig(),
+            );
+
+            $this->invitationService->method('describe')->willThrowException(
+                new BusinessRuleException(BusinessRuleReason::INVITATION_INVALID, 'This invitation link is not valid'),
+            );
+
+            $this->loginAttempts->expects($this->once())
+                ->method('record')
+                ->with('198.51.100.1', null);
+
+            $request = (new ServerRequestFactory())->createServerRequest('POST', '/api/invitations/lookup', [
+                'REMOTE_ADDR' => '10.0.0.5',
+                'HTTP_X_FORWARDED_FOR' => '198.51.100.1',
+            ])->withParsedBody(['token' => str_repeat('a', 64)]);
+
+            try {
+                $controller->lookup($request, new Response());
+                $this->fail('An invalid token should have been refused');
+            } catch (BusinessRuleException) {
+                // Expected — recordRefusal() runs on the way out, which is under test.
+            }
+        } finally {
+            if ($trustedProxiesBackup === null) {
+                unset($_ENV['TRUSTED_PROXIES']);
+            } else {
+                $_ENV['TRUSTED_PROXIES'] = $trustedProxiesBackup;
+            }
+        }
+    }
 }

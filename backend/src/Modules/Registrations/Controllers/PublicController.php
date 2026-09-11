@@ -6,6 +6,7 @@ namespace App\Modules\Registrations\Controllers;
 
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\Registrations\Services\RegistrationsService;
+use App\Shared\Http\ClientIp;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -62,6 +63,8 @@ class PublicController
     public function __construct(
         private RegistrationsService $registrations,
         private Validator $validator,
+        /** @see \App\Shared\Config\AppConfig::$trustedProxies */
+        private string $trustedProxies = '',
     ) {}
 
     /**
@@ -161,8 +164,8 @@ class PublicController
 
     private function clientIp(Request $request): string
     {
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '';
+        $ip = ClientIp::resolve($request->getServerParams(), $this->trustedProxies);
 
-        return is_string($ip) && $ip !== '' ? $ip : '0.0.0.0';
+        return $ip !== '' ? $ip : '0.0.0.0';
     }
 }

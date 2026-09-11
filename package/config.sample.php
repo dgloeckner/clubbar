@@ -44,6 +44,29 @@ return [
         // every page on the internet whatever this API answers unauthenticated.
         // 'cors_origins' => [],
 
+        // REVERSE PROXIES ALLOWED TO NAME THE REAL CLIENT ADDRESS.
+        //
+        // Left alone — the ordinary case on the shared hosting this package
+        // targets, where PHP sees the visitor's browser directly — every
+        // login attempt, audit-log row and terminal sighting is keyed on the
+        // connecting address as-is.
+        //
+        // If this installation sits behind a reverse proxy, a CDN, or a
+        // TLS-terminating load balancer (Cloudflare, an nginx front end, a
+        // host-level balancer), every request otherwise arrives from that
+        // proxy's own address — collapsing the login rate limiter into one
+        // shared budget for your whole admin team, and writing the proxy's
+        // address into every audit-log row instead of the real one. Name the
+        // proxy's address (or its network) here and the real client address
+        // is read from the X-Forwarded-For header it sets, instead:
+        //
+        //   'trusted_proxies' => ['10.0.0.1', '172.16.0.0/12'],
+        //
+        // Only list addresses you control. Anything not listed here is never
+        // trusted to say who a request came from — an unlisted proxy's
+        // X-Forwarded-For header is ignored, not believed.
+        // 'trusted_proxies' => [],
+
         // The clock your club's books are stated in. Every time is stored in
         // UTC and converted back into this zone on every surface — the admin
         // panel, the CSV exports, the day and hour buckets behind the reports,

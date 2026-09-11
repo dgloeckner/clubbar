@@ -100,6 +100,46 @@ class ConfigFileTest extends TestCase
     }
 
     /**
+     * Reverse-proxy addresses trusted to name the real client via
+     * X-Forwarded-For (#886) — the same flattening `cors_origins` gets, for
+     * the same reason: a package install's whole environment is this file.
+     */
+    public function test_the_trusted_proxies_list_reaches_the_environment(): void
+    {
+        $config = $this->config();
+        $config['app']['trusted_proxies'] = ['10.0.0.1', '172.16.0.0/12'];
+
+        ConfigFile::applyToEnvironment($config, '/srv/clubbar-data');
+
+        $this->assertSame('10.0.0.1,172.16.0.0/12', $_ENV['TRUSTED_PROXIES']);
+    }
+
+    public function test_a_hand_written_string_of_trusted_proxies_is_taken_as_it_is(): void
+    {
+        $config = $this->config();
+        $config['app']['trusted_proxies'] = '10.0.0.1';
+
+        ConfigFile::applyToEnvironment($config, '/srv/clubbar-data');
+
+        $this->assertSame('10.0.0.1', $_ENV['TRUSTED_PROXIES']);
+    }
+
+    /**
+     * Published as an empty string rather than left unset, for the same
+     * reason `cors_origins` is: a stray `TRUSTED_PROXIES` left in the process
+     * environment must not answer for an installation that never configured
+     * one.
+     */
+    public function test_an_installation_that_says_nothing_publishes_an_empty_trusted_proxies_value(): void
+    {
+        $_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
+
+        ConfigFile::applyToEnvironment($this->config(), '/srv/clubbar-data');
+
+        $this->assertSame('', $_ENV['TRUSTED_PROXIES']);
+    }
+
+    /**
      * The club's zone reaches the environment from `config.php`, which is the
      * only place a self-hosted installation can set it — it governs every
      * surface that states the club's books, not just the mails.

@@ -888,6 +888,7 @@
       "categories": {
         "exposure": "Was der Webserver herausgibt",
         "data": "Wo die Daten liegen",
+        "network": "Woher eine Anfrage vertrauenswürdig kommt",
         "backup": "Ob es etwas zum Wiederherstellen gibt",
         "transport": "Verbindung",
         "delivery": "Ob Nachrichten ankommen",

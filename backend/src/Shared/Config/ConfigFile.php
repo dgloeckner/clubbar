@@ -64,6 +64,18 @@ final class ConfigFile
             ? implode(',', array_map('strval', $corsOrigins))
             : (string) $corsOrigins;
 
+        // Reverse-proxy addresses trusted to name the real client via
+        // X-Forwarded-For (#886). Optional, and absent is the safe default:
+        // AppConfig then reads REMOTE_ADDR everywhere an address is recorded
+        // or rate-limited, exactly as before this setting existed. A list in
+        // config.php, flattened the same way cors_origins is above — a
+        // package install's environment is this file, in full, so a key
+        // unmapped here could not be set at all.
+        $trustedProxies = $config['app']['trusted_proxies'] ?? '';
+        $_ENV['TRUSTED_PROXIES'] = is_array($trustedProxies)
+            ? implode(',', array_map('strval', $trustedProxies))
+            : (string) $trustedProxies;
+
         // The zone the club reads in. Optional, and deliberately only set when
         // present: ClubTimeZone's own default (Europe/Berlin) is then what
         // applies, and an empty string here would look like a configured value.

@@ -22,11 +22,18 @@ class AuditServiceTest extends TestCase
 {
     private AuditLogRepository $repository;
     private AuditService $auditService;
+    private array $serverBackup;
 
     protected function setUp(): void
     {
         $this->repository = $this->createMock(AuditLogRepository::class);
         $this->auditService = new AuditService($this->repository);
+        $this->serverBackup = $_SERVER;
+    }
+
+    protected function tearDown(): void
+    {
+        $_SERVER = $this->serverBackup;
     }
 
     public function test_logOnceSince_writes_when_nothing_has_been_recorded_in_the_window(): void
@@ -75,6 +82,56 @@ class AuditServiceTest extends TestCase
             EntityType::TERMINAL,
             'terminal-1',
             ['api_token' => 'super-secret'],
+        );
+    }
+
+    /**
+     * #886: with no trusted proxies configured, the fallback IP is
+     * $_SERVER['REMOTE_ADDR'] as before — X-Forwarded-For is ignored.
+     */
+    public function test_log_falls_back_to_remote_addr_with_no_trusted_proxies(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.1';
+
+        $this->repository->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(fn(array $row): bool => $row['ip_address'] === '203.0.113.7'));
+
+        $this->auditService->log(AuditAction::LOGIN_FAILED, EntityType::ADMIN_USER, 'admin-1');
+    }
+
+    /**
+     * A trusted proxy's X-Forwarded-For is believed, so the audit row names
+     * the real actor rather than the load balancer in front of it.
+     */
+    public function test_log_uses_the_forwarded_address_from_a_trusted_proxy(): void
+    {
+        $auditService = new AuditService($this->repository, '10.0.0.5');
+        $_SERVER['REMOTE_ADDR'] = '10.0.0.5';
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.1';
+
+        $this->repository->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(fn(array $row): bool => $row['ip_address'] === '198.51.100.1'));
+
+        $auditService->log(AuditAction::LOGIN_FAILED, EntityType::ADMIN_USER, 'admin-1');
+    }
+
+    /** An explicitly passed IP always wins over anything derived from $_SERVER. */
+    public function test_log_prefers_an_explicitly_passed_ip_address(): void
+    {
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+
+        $this->repository->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(fn(array $row): bool => $row['ip_address'] === '192.0.2.99'));
+
+        $this->auditService->log(
+            AuditAction::LOGIN_FAILED,
+            EntityType::ADMIN_USER,
+            'admin-1',
+            ipAddress: '192.0.2.99',
         );
     }
 }

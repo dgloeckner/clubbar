@@ -18,6 +18,7 @@ use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
 use App\Shared\Utils\DateFormatter;
 use App\Shared\Validation\Validator;
+use App\Shared\Http\ClientIp;
 use App\Shared\Http\JsonResponder;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -261,7 +262,7 @@ class AuthController
 
     private function clientIp(Request $request): string
     {
-        return $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
+        return ClientIp::resolve($request->getServerParams(), $this->config->trustedProxies) ?: '127.0.0.1';
     }
 
     /**
