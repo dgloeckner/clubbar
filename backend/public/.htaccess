@@ -6,8 +6,15 @@ RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 # Block dotfiles
 RedirectMatch 403 /\.(.*)$
 
-# Block installer endpoint. Comment out this block ONLY during initial setup or migrations,
-# then immediately restore it. The installer has key-based auth, but defence-in-depth matters.
+# install.php (the dev-only migration/seed tool, distinct from the packaged
+# release wizard at package/install.php) is not blocked at the .htaccess
+# layer here (#884): scripts/dev-setup.sh drives it over HTTP with
+# X-Install-Key on every fresh clone and CI run, so an always-on deny would
+# have to be commented out and restored by hand for that to keep working —
+# exactly the manual step dev-setup.sh exists to avoid. Its own auth is what
+# actually gates it: a timing-safe INSTALL_KEY comparison, and a
+# storage/.installed marker that refuses every action once migrations have
+# run once (see backend/public/install.php).
 
 # Front controller
 RewriteCond %{REQUEST_FILENAME} !-f
