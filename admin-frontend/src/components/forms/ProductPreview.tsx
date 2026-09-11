@@ -14,18 +14,16 @@
  * 1. the icon;
  * 2. the **name on one line**, bottom-aligned inside a fixed box — the box is
  *    what anchors everything below it to the same height across a row of tiles;
- * 3. the **volume badge**, in a row whose height is reserved whether or not the
- *    product has a size. That is the invariant, not the badge: a row that
- *    collapsed on a Sauna-Token would lift that tile's price above its
- *    neighbours';
- * 4. the **price, in a pill** — the loudest thing on the tile, which is what the
- *    dropped second name line paid for.
+ * 3. **size and price in one pill** — `0,5 l │ 2,00 €`, read as "this much, for
+ *    this price", and the loudest thing on the tile. The pill is one line tall
+ *    with or without a size, which is what keeps a Sauna-Token's price level
+ *    with its neighbours'.
  *
  * The numbers and colours are `TERMINAL_TILE` in `src/styles/terminalTile.ts`,
  * which mirrors `ProductTileMetrics` and `AppColors` at the terminal's name
  * floor. They are a copy — Dart and TypeScript share no module — so
- * `ProductPreview.test.tsx` pins the relationships (one name line, a reserved
- * row, a price derived from the name) rather than the pixels alone.
+ * `ProductPreview.test.tsx` pins the relationships (one name line, the size in
+ * the price pill, a price derived from the name) rather than the pixels alone.
  */
 
 import { useTranslation } from 'react-i18next'
@@ -37,7 +35,6 @@ import {
   TILE_NAME_BOX_HEIGHT,
   TILE_PRICE_FONT_SIZE,
   TILE_VOLUME_FONT_SIZE,
-  TILE_VOLUME_ROW_HEIGHT,
 } from '../../styles/terminalTile'
 
 interface ProductPreviewProps {
@@ -123,60 +120,54 @@ export function ProductPreview({ name, price, iconName, volumeMl = null }: Produ
         </div>
       </div>
 
-      {/*
-        The volume badge's row, reserved whether or not this product has a size
-        — see the header: it is what holds every price on a grid row at the same
-        height.
-      */}
+      {/* Size and price, one pill — the loudest thing on the tile. */}
       <div
-        data-testid="products-preview-volume-row"
+        data-testid="products-preview-price-pill"
         style={{
-          height: `${TILE_VOLUME_ROW_HEIGHT}px`,
+          marginTop: `${TERMINAL_TILE.gap}px`,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: `${TERMINAL_TILE.gap}px`,
+          alignItems: 'stretch',
+          maxWidth: '100%',
+          overflow: 'hidden',
+          borderRadius: `${TERMINAL_TILE.radiusFull}px`,
+          border: `${TERMINAL_TILE.pricePillBorder}px solid ${TERMINAL_TILE.colors.pricePillBorder}`,
+          whiteSpace: 'nowrap',
         }}
       >
         {volumeMl != null && (
           <span
             data-testid="products-preview-volume"
             style={{
-              padding: '2px 8px',
-              borderRadius: `${TERMINAL_TILE.radiusFull}px`,
+              display: 'flex',
+              alignItems: 'center',
+              padding: `0 ${TERMINAL_TILE.pillInnerPadding}px 0 ${TERMINAL_TILE.pillOuterPadding}px`,
+              borderRight: `${TERMINAL_TILE.pillDivider}px solid ${TERMINAL_TILE.colors.pricePillBorder}`,
               backgroundColor: TERMINAL_TILE.colors.volumeBadge,
               color: TERMINAL_TILE.colors.volume,
               fontSize: `${TILE_VOLUME_FONT_SIZE}px`,
               fontWeight: 700,
-              letterSpacing: '0.4px',
               lineHeight: 1,
-              whiteSpace: 'nowrap',
             }}
           >
             {formatVolume(volumeMl)}
           </span>
         )}
-      </div>
-
-      {/* The price, in its pill — the loudest thing on the tile. */}
-      <div
-        data-testid="products-preview-price"
-        style={{
-          padding: `${TERMINAL_TILE.pricePillPaddingY}px ${TERMINAL_TILE.pricePillPaddingX}px`,
-          borderRadius: `${TERMINAL_TILE.radiusFull}px`,
-          backgroundColor: TERMINAL_TILE.colors.pricePill,
-          border: `${TERMINAL_TILE.pricePillBorder}px solid ${TERMINAL_TILE.colors.pricePillBorder}`,
-          color: TERMINAL_TILE.colors.price,
-          fontSize: `${TILE_PRICE_FONT_SIZE}px`,
-          fontWeight: 900,
-          lineHeight: TERMINAL_TILE.lineHeight,
-          whiteSpace: 'nowrap',
-          maxWidth: '100%',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {displayPrice}
+        <span
+          data-testid="products-preview-price"
+          style={{
+            padding: `${TERMINAL_TILE.pricePillPaddingY}px ${TERMINAL_TILE.pillOuterPadding}px`,
+            paddingLeft: `${volumeMl != null ? TERMINAL_TILE.pillInnerPadding : TERMINAL_TILE.pillOuterPadding}px`,
+            backgroundColor: TERMINAL_TILE.colors.pricePill,
+            color: TERMINAL_TILE.colors.price,
+            fontSize: `${TILE_PRICE_FONT_SIZE}px`,
+            fontWeight: 900,
+            lineHeight: TERMINAL_TILE.lineHeight,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {displayPrice}
+        </span>
       </div>
     </div>
   )

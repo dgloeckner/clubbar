@@ -48,6 +48,7 @@ void main() {
     double minimum = 22,
     double price = 22,
     ProductGridLayout with_ = layout,
+    List<PriceTag> tags = const [],
   }) =>
       with_.solve(
         names: names,
@@ -58,6 +59,7 @@ void main() {
         ceiling: ceiling,
         minimum: minimum,
         priceFloor: price,
+        tags: tags,
       );
 
   /// Every name of the category fits its tile on one line at the chosen size,
@@ -86,34 +88,66 @@ void main() {
   group('ProductTileMetrics', () {
     test('matches the card the grid sizes by hand', () {
       // 8 + 24 + 8 + 8 + 4 of chrome plus the price pill's own 10 (padding
-      // and border, top and bottom), a 52 px icon at the shipped 26, the
-      // reserved volume row, and the pinned 1.2 line height over ONE line of
-      // name and one of price (#878).
+      // and border, top and bottom), a 52 px icon at the shipped 26, and the
+      // pinned 1.2 line height over ONE line of name and one of price (#878).
+      // No volume row: the size shares the price's pill.
       expect(metrics.fixedHeight, 62);
       expect(metrics.iconSize(26, 26), 52);
       expect(metrics.horizontalInset, 32);
-      expect(
-          metrics.tileHeight(26, 22, 26),
-          closeTo(
-              62 + 52 + metrics.volumeRowHeight(26) + 1.2 * (26 + 23.4), 1e-9));
+      expect(metrics.tileHeight(26, 22, 26),
+          closeTo(62 + 52 + 1.2 * (26 + 23.4), 1e-9));
     });
 
     test('the name takes one line, because the size has left it (#878)', () {
       expect(metrics.nameLines, 1);
     });
 
-    /// The row is reserved whether or not the product has a volume, and that
-    /// is what holds every price on a grid row at the same height — the
-    /// invariant the fixed two-line name box used to hold.
-    test('the volume row is in the height whether a product has one or not',
+    test('the pill is its chrome plus the volume and the price', () {
+      const withVolume = PriceTag(priceEm: 3, volumeEm: 2);
+      const priceOnly = PriceTag(priceEm: 3);
+
+      // Border 2, the rounded ends 24, and with a volume the divider and the
+      // padding either side of it, 17.
+      expect(metrics.pillChromeWidth(withVolume: false), 26);
+      expect(metrics.pillChromeWidth(withVolume: true), 43);
+      // At 26 the price sits on its 24 floor; the volume is 0.6 x 26.
+      expect(metrics.pillWidth(priceOnly, 26, 24), closeTo(26 + 3 * 24, 1e-9));
+      expect(metrics.pillWidth(withVolume, 26, 24),
+          closeTo(43 + 3 * 24 + 2 * 0.6 * 26, 1e-9));
+    });
+
+    /// The volume is set in the pill, beside the price, and still under it:
+    /// the member confirms the size once they have found the drink.
+    test('the volume is quieter than the price at every size', () {
+      for (final size in [20.0, 26.0, 31.0, 46.5]) {
+        expect(metrics.volumeFontSize(size),
+            lessThan(metrics.priceFontSize(size, 24)));
+      }
+    });
+
+    /// [maxNameForPill] inverts [pillWidth] on both sides of the price knee,
+    /// or the solver would pick a size whose pill does not fit.
+    test('the pill bound and the pill width agree on both sides of the knee',
         () {
-      // The metrics know nothing about any particular product: there is one
-      // tile height for the category, and it always includes the row.
-      expect(metrics.volumeRowHeight(31), closeTo(0.67 * 31, 1e-9));
-      expect(
-          metrics.tileHeight(31, 27, 31) - metrics.tileHeight(31, 27, 31),
-          0,
-          reason: 'the height cannot depend on a product at all');
+      const tag = PriceTag(priceEm: 3.5, volumeEm: 2.2);
+      // 150 solves below the knee, where only the volume grows; the rest above.
+      for (final inner in [150.0, 220.0, 300.0, 400.0]) {
+        final size = metrics.maxNameForPill(tag, inner, 24);
+        expect(metrics.pillWidth(tag, size, 24), closeTo(inner, 1e-9),
+            reason: 'inner $inner');
+      }
+    });
+
+    test('a pill without a volume is bounded only by its growing price', () {
+      const tag = PriceTag(priceEm: 3);
+      // Above the knee the price is 0.9 x the name: 26 + 2.7 n <= 120.
+      expect(metrics.maxNameForPill(tag, 120, 24), closeTo(94 / 2.7, 1e-9));
+      // A line of 100 holds the 98 px pill at the price floor, and the price
+      // stops growing with the name below the knee — so the bound sits at the
+      // name size where it would start to.
+      expect(metrics.maxNameForPill(tag, 100, 24), closeTo(74 / 2.7, 1e-9));
+      expect(metrics.maxNameForPill(tag, 60, 24), lessThan(0),
+          reason: 'the price floor alone is wider than the line');
     });
 
     /// The recommendation the plan makes and #878 left open: the height the
@@ -134,10 +168,8 @@ void main() {
       // A club that raised `xxxl` raised the text. The icon growing with it
       // is what would push the kiosk's second row under the summary bar.
       expect(metrics.iconSize(31, 31), 52);
-      expect(
-          metrics.tileHeight(31, 27, 31),
-          closeTo(
-              62 + 52 + metrics.volumeRowHeight(31) + 1.2 * (31 + 27.9), 1e-9));
+      expect(metrics.tileHeight(31, 27, 31),
+          closeTo(62 + 52 + 1.2 * (31 + 27.9), 1e-9));
     });
 
     test('the icon grows with the room a category has', () {
@@ -390,18 +422,38 @@ void main() {
       expect(g.iconSize, metrics.iconSize(g.nameFontSize, 31));
     });
 
-    /// The reserved volume row is part of every tile's height, whatever any
-    /// particular product carries. It is what keeps prices level across a row,
-    /// so it must not be something the solver can decide per category either.
-    test('the reserved volume row is in every tile height', () {
-      final g = solve(drinks, floor: 31, ceiling: 46.5, minimum: 27, price: 27);
-      final withoutRow = const ProductTileMetrics(volumeRowScale: 0);
+    /// `0,5 l │ 12,50 €` can be wider than a short name, so the pill bounds
+    /// the size just as the name does — a sparse category of short names
+    /// would otherwise grow until its pills overflowed the tile.
+    test('a wide pill caps the size a short name would have allowed', () {
+      final names = ['Cola', 'Bier', 'Wein'];
+      final free = solve(names);
+      const wide = PriceTag(priceEm: 8, volumeEm: 4);
+      final capped = solve(names, tags: [wide, wide, wide]);
 
+      expect(free.nameFontSize, 39);
+      expect(capped.nameFontSize, lessThan(39));
+      expect(capped.pillsOverflow, isFalse);
       expect(
-        g.tileHeight -
-            withoutRow.tileHeight(g.nameFontSize, 27, 31),
-        closeTo(metrics.volumeRowHeight(g.nameFontSize), 1e-9),
-      );
+          metrics.pillWidth(wide, capped.nameFontSize, 22),
+          lessThanOrEqualTo(metrics.innerWidth(capped.tileWidth)),
+          reason: 'the pill fits the tile at the size the grid chose');
+    });
+
+    test('a pill that fits at the chosen size changes nothing', () {
+      final g = solve(drinks, tags: [
+        for (final _ in drinks) const PriceTag(priceEm: 2.5, volumeEm: 1.8),
+      ]);
+
+      expect(g.nameFontSize, solve(drinks).nameFontSize);
+    });
+
+    test('a price floor wider than any tile is reported, not hidden', () {
+      final g = solve(['Cola'],
+          width: 200, tags: [const PriceTag(priceEm: 12, volumeEm: 3)]);
+
+      expect(g.pillsOverflow, isTrue);
+      expect(g.nameFontSize, 22, reason: 'never below the minimum');
     });
   });
 }

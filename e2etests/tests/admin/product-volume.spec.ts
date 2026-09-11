@@ -186,12 +186,10 @@ test.describe('Product volume', () => {
 
   /**
    * A product with no size is the ordinary state of a snacks list. It must be
-   * saveable with the picker untouched, and the preview must still reserve the
-   * badge's row — on the terminal that row is what holds every price on a grid
-   * row level, and a preview that collapsed it would show a tile the terminal
-   * will never draw.
+   * saveable with the picker untouched, and the preview's pill must then carry
+   * the price alone — not a dash, not an empty segment.
    */
-  test('a product with no size saves untouched, and the preview still reserves the badge row', async ({
+  test('a product with no size saves untouched, and the preview pill shows just the price', async ({
     authenticatedProductsPage,
     page,
   }) => {
@@ -203,8 +201,8 @@ test.describe('Product volume', () => {
     await authenticatedProductsPage.fillProductForm(productName, '3.00')
     await authenticatedProductsPage.selectCategory(category.id)
 
-    expect(await authenticatedProductsPage.isPreviewVolumeRowPresent()).toBe(true)
     expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBeNull()
+    expect(plain(await authenticatedProductsPage.getPreviewPricePill())).toMatch(/^3[,.]00\s€$/)
 
     await authenticatedProductsPage.submitForm()
     await authenticatedProductsPage.expectFormModalHidden()

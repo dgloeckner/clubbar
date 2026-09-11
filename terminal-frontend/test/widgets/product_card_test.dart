@@ -125,11 +125,16 @@ void main() {
 
   /// The card as the grid hands it to a tile, in a box of the height the
   /// solver computed for that name size — which is how a real row is laid out.
+  ///
+  /// 360 wide by default: the test font draws every glyph a full em wide, so
+  /// the pill needs more room than it would in Roboto, and the grid only ever
+  /// hands a tile a width its pill fits.
   Future<void> pumpTile(
     WidgetTester tester, {
     required String name,
     int? volumeMl,
     double nameFontSize = 26,
+    double width = 360,
   }) {
     const metrics = ProductCard.metrics;
     final priceFontSize =
@@ -139,7 +144,7 @@ void main() {
       createTestApp(
         child: Scaffold(
           body: SizedBox(
-            width: 240,
+            width: width,
             height: metrics.tileHeight(
                 nameFontSize, AppFontSizes.xxl, nameFontSize),
             child: ProductCard(
@@ -166,9 +171,9 @@ void main() {
   /// The regression from the branch this work is stacked on. A one-line name
   /// used to render shorter than a two-line one, and with the column centred
   /// that shifted the price below it — prices at different heights across a
-  /// row. Commit 2b4d50b5 fixed it by pinning the name box; #878 replaces the
-  /// second name line with a **reserved volume row**, which has to hold the
-  /// same invariant or the fix is undone.
+  /// row. Commit 2b4d50b5 fixed it by pinning the name box. The volume now
+  /// shares the price's pill, which has to hold the same invariant: the pill
+  /// is one line tall with or without a volume.
   group('ProductCard keeps every price at the same height', () {
     testWidgets('a product with a volume and one without agree',
         (WidgetTester tester) async {
@@ -179,7 +184,7 @@ void main() {
       final withoutVolume = priceTop(tester);
 
       expect(withoutVolume, closeTo(withVolume, 0.01),
-          reason: 'the volume row is reserved whether or not it is filled');
+          reason: 'the pill is as tall without a volume as with one');
     });
 
     testWidgets('a short name and a long one agree',
@@ -206,8 +211,36 @@ void main() {
     });
   });
 
-  /// The badge itself (ADR-0056).
-  group('ProductCard volume badge', () {
+  Finder pill() => find.byKey(const ValueKey('product-card-price-pill'));
+
+  /// The volume (ADR-0056), read with the price as one fact.
+  group('ProductCard volume', () {
+    testWidgets('shares the price\'s pill, to the left of the amount',
+        (WidgetTester tester) async {
+      await pumpTile(tester, name: 'Weizenbier', volumeMl: 500);
+
+      final volume = find.text('0,5\u00a0l');
+      final price = find.textContaining('2,00');
+      expect(find.descendant(of: pill(), matching: volume), findsOneWidget);
+      expect(find.descendant(of: pill(), matching: price), findsOneWidget);
+      expect(tester.getCenter(volume).dx, lessThan(tester.getCenter(price).dx));
+      expect(tester.getCenter(volume).dy,
+          closeTo(tester.getCenter(price).dy, 1.0),
+          reason: 'one line: this much, for this price');
+    });
+
+    /// The grid sizes the type so the pill fits; a pill that still does not
+    /// (the test font's glyphs are a full em wide) is scaled down, never
+    /// clipped and never an overflow.
+    testWidgets('never overflows the tile', (WidgetTester tester) async {
+      await pumpTile(tester, name: 'Apfelschorle', volumeMl: 1500, width: 240);
+
+      expect(tester.takeException(), isNull);
+      final fitted =
+          find.ancestor(of: pill(), matching: find.byType(FittedBox));
+      expect(tester.getSize(fitted).width, lessThanOrEqualTo(240 - 24));
+    });
+
     testWidgets('draws the size in the member\'s own notation',
         (WidgetTester tester) async {
       await pumpTile(tester, name: 'Weizenbier', volumeMl: 500);
@@ -234,7 +267,7 @@ void main() {
       final price = tester.widget<Text>(find.textContaining('2,00')).style!;
 
       // The member finds the drink by name, checks the price, and confirms the
-      // size last — so the badge must not compete with either.
+      // size — so it must not compete with either.
       expect(badge.fontSize!, lessThan(name.fontSize!));
       expect(badge.fontSize!, lessThan(price.fontSize!));
       expect(badge.color, AppColors.textSecondary);
@@ -253,7 +286,9 @@ void main() {
       expect(price.color, AppColors.infoOnTint);
       expect(price.fontWeight, FontWeight.w900);
 
-      final pill = tester.widget<Container>(
+      // The amount's own segment carries the tint; the pill carries the
+      // border round volume and price together.
+      final segment = tester.widget<Container>(
         find
             .ancestor(
               of: find.textContaining('2,00'),
@@ -261,9 +296,22 @@ void main() {
             )
             .first,
       );
-      final decoration = pill.decoration as BoxDecoration;
-      expect(decoration.color, AppColors.bgPricePill);
-      expect(decoration.border, isNotNull);
+      expect(segment.color, AppColors.bgPricePill);
+      final outline =
+          tester.widget<Container>(pill()).decoration as BoxDecoration;
+      expect(outline.border, isNotNull);
+    });
+
+    testWidgets('without a volume it is just the price',
+        (WidgetTester tester) async {
+      await pumpTile(tester, name: 'Sauna-Token', volumeMl: null);
+
+      final texts = tester
+          .widgetList<Text>(find.descendant(of: pill(), matching: find.byType(Text)))
+          .map((t) => t.data)
+          .toList();
+      expect(texts, hasLength(1));
+      expect(texts.single, contains('2,00'));
     });
 
     testWidgets('grows with the name once 0.9 x the name clears its floor',

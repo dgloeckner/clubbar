@@ -5,8 +5,8 @@
  * drift (ADR-0056; the layout is `ProductCard` in
  * `terminal-frontend/lib/widgets/styled_components/product_card.dart`).
  *
- * These tests pin what the layout *is* — one name line, a reserved volume row,
- * a price derived from the name — rather than a screenshot of it, because those
+ * These tests pin what the layout *is* — one name line, the size in the price
+ * pill, a price derived from the name — rather than a screenshot of it, because those
  * are the properties the terminal's own widget tests hold on the other side. A
  * change on one side that is not made on the other fails here.
  */
@@ -69,19 +69,24 @@ describe('ProductPreview — the terminal tile', () => {
   it('draws the price in a pill rather than as flat text', () => {
     renderPreview({ price: '4,20' })
 
+    const pill = screen.getByTestId('products-preview-price-pill')
     const price = screen.getByTestId('products-preview-price')
     expect(price.style.backgroundColor).toBe(TERMINAL_TILE.colors.pricePill)
-    expect(price.style.borderRadius).toBe(`${TERMINAL_TILE.radiusFull}px`)
-    expect(price.style.borderWidth).toBe(`${TERMINAL_TILE.pricePillBorder}px`)
+    expect(pill.style.borderRadius).toBe(`${TERMINAL_TILE.radiusFull}px`)
+    expect(pill.style.borderWidth).toBe(`${TERMINAL_TILE.pricePillBorder}px`)
     expect(price.textContent).toContain('4,20')
   })
 
-  it('shows the size as a badge, in litres', () => {
+  it('puts the size in the price pill, before the amount, in litres', () => {
     // Picked as 500 ml, read as 0,5 l — the whole point of storing one
-    // language-neutral number (ADR-0056).
+    // language-neutral number (ADR-0056). Read with the price, as one fact.
     renderPreview({ volumeMl: 500 })
 
     const badge = screen.getByTestId('products-preview-volume')
+    expect(screen.getByTestId('products-preview-price-pill').firstElementChild).toBe(badge)
+    expect(parseFloat(badge.style.fontSize)).toBeLessThan(
+      parseFloat(screen.getByTestId('products-preview-price').style.fontSize),
+    )
     expect(badge.textContent?.replace(/\u00a0/g, ' ')).toBe('0,5 l')
     expect(badge.style.backgroundColor).toBe(TERMINAL_TILE.colors.volumeBadge)
     expect(parseFloat(badge.style.fontSize)).toBe(
@@ -89,17 +94,11 @@ describe('ProductPreview — the terminal tile', () => {
     )
   })
 
-  it('reserves the badge row for a product with no size', () => {
-    // The invariant, and not a cosmetic one: on the terminal this row is what
-    // holds every price on a grid row at the same height. A row that collapsed
-    // on a Sauna-Token would lift that tile's price above its neighbours'.
+  it('draws just the price for a product with no size', () => {
     renderPreview({ volumeMl: null })
 
-    const row = screen.getByTestId('products-preview-volume-row')
-    expect(row.style.height).toBe(
-      `${TERMINAL_TILE.volumeRowScale * TERMINAL_TILE.nameFontSize}px`,
-    )
     expect(screen.queryByTestId('products-preview-volume')).toBeNull()
+    expect(screen.getByTestId('products-preview-price-pill').children).toHaveLength(1)
   })
 
   it('keeps the name box the same height whether or not there is a size', () => {
@@ -136,8 +135,10 @@ describe('TERMINAL_TILE', () => {
     expect(TERMINAL_TILE.iconSize).toBe(52) // metrics.baseIconSize
     expect(TERMINAL_TILE.padding).toBe(12) // AppSpacing.md
     expect(TERMINAL_TILE.gap).toBe(8) // AppSpacing.sm
-    expect(TERMINAL_TILE.volumeRowScale).toBe(0.67)
-    expect(TERMINAL_TILE.volumeTextScale).toBe(0.4)
+    expect(TERMINAL_TILE.volumeTextScale).toBe(0.6)
+    expect(TERMINAL_TILE.pillOuterPadding).toBe(12)
+    expect(TERMINAL_TILE.pillInnerPadding).toBe(8)
+    expect(TERMINAL_TILE.pillDivider).toBe(1)
     expect(TERMINAL_TILE.priceScale).toBe(0.9)
     expect(TERMINAL_TILE.priceFloor).toBe(24) // AppFontSizes.xxl
   })

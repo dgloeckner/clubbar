@@ -7,6 +7,17 @@ import 'dart:math' as math;
 /// size, so a word measured at one size is known at every size.
 typedef WordWidth = double Function(String word);
 
+/// One product's price pill, measured: the price's width in em in the price's
+/// own style, and the volume's in the volume's, or `null` when the product has
+/// no size. Like [WordWidth], measured once by the screen so the solver never
+/// touches the text engine.
+class PriceTag {
+  const PriceTag({required this.priceEm, this.volumeEm});
+
+  final double priceEm;
+  final double? volumeEm;
+}
+
 /// The fixed geometry of a product tile — everything that is not the name.
 ///
 /// One place for the numbers `ProductCard` draws with and the numbers
@@ -25,9 +36,11 @@ class ProductTileMetrics {
     this.pricePillPadding = 4.0,
     this.pricePillBorder = 1.0,
     this.nameLines = 1,
-    this.volumeRowScale = 0.67,
-    this.volumeTextScale = 0.4,
+    this.volumeTextScale = 0.6,
     this.priceScale = 0.9,
+    this.pillOuterPadding = 12.0,
+    this.pillInnerPadding = 8.0,
+    this.pillDivider = 1.0,
   });
 
   /// `Card`'s default margin, on every side.
@@ -44,8 +57,7 @@ class ProductTileMetrics {
   /// Pinned rather than left to the font: Roboto's natural line box is ~1.34
   /// em, and at a production scale that is 12 px per tile the grid could not
   /// spare. 1.2 is ordinary leading for a bold headline, and it makes the text
-  /// block *exactly* `lineHeight * (nameLines * name + price)`, over and above
-  /// the reserved volume row.
+  /// block *exactly* `lineHeight * (nameLines * name + price)`.
   final double lineHeight;
 
   /// Icon edge when the name is at the floor — the 52 that #369 settled,
@@ -83,23 +95,17 @@ class ProductTileMetrics {
   /// height the second line held goes to the price.
   final int nameLines;
 
-  /// Height of the volume badge's row, as a multiple of the name's font size.
+  /// The volume's text size, as a multiple of the name's font size.
   ///
-  /// The row is **reserved whether or not the product has a volume**, and that
-  /// is not cosmetic: it is what holds every price on a grid row at the same
-  /// height, which is the invariant the fixed two-line name box held before
-  /// (commit 2b4d50b5). A row that collapsed on a Sauna-Token would lift that
-  /// tile's price above its neighbours'.
+  /// The volume shares the price pill — `0,5 l │ 2,00 €`, one fact read as
+  /// "this much, for this price". It was a 0.4 x chip in a reserved row of its
+  /// own under the name, which put about 14 px of text on a panel read
+  /// standing up, and cost every tile 0.67 x the name in height. Beside the
+  /// price it has the width to be read, and still stays under the price.
   ///
-  /// Proportional rather than the prototype's flat 20 px: a club that raised
-  /// `productNameMax` raised the type, and a badge that stayed 20 px would
-  /// shrink beside it.
-  final double volumeRowScale;
-
-  /// The badge's own text size, as a multiple of the name's font size.
-  ///
-  /// Small on purpose. A member picks by name and checks the price; the size is
-  /// what they confirm once they have already found the drink.
+  /// The price keeps its height across a row without a reserved row: the pill
+  /// is one line tall whether or not it carries a volume, so a Sauna-Token's
+  /// price sits level with its neighbours'.
   final double volumeTextScale;
 
   /// The price's font size as a multiple of the name's, above [priceFloor].
@@ -112,6 +118,15 @@ class ProductTileMetrics {
   /// and 0.9 x the name spends the height the dropped second name line freed on
   /// the price without adding a config key nobody asked for.
   final double priceScale;
+
+  /// Horizontal padding at the pill's two rounded ends (`AppSpacing.md`).
+  final double pillOuterPadding;
+
+  /// Horizontal padding either side of the divider between volume and price.
+  final double pillInnerPadding;
+
+  /// The hairline between the volume and the price.
+  final double pillDivider;
 
   /// Horizontal room the chrome takes out of a tile.
   double get horizontalInset => 2 * (cardMargin + padding);
@@ -138,22 +153,54 @@ class ProductTileMetrics {
   double priceFontSize(double nameFontSize, double priceFloor) =>
       math.max(priceFloor, priceScale * nameFontSize);
 
-  /// Height of the reserved volume row for a name at [nameFontSize].
-  double volumeRowHeight(double nameFontSize) => volumeRowScale * nameFontSize;
-
-  /// The volume badge's text size for a name at [nameFontSize].
+  /// The volume's text size for a name at [nameFontSize].
   double volumeFontSize(double nameFontSize) => volumeTextScale * nameFontSize;
 
   /// The name size at which the price leaves [priceFloor] behind.
   double _priceKnee(double priceFloor) => priceFloor / priceScale;
 
-  /// Height a tile needs for a name at [nameFontSize] over a reserved volume
-  /// row and a price, when the name floor is [floor] and the price floor is
-  /// [priceFloor].
+  /// Width of the pill's chrome — border, padding and, with a volume, the
+  /// divider — which does not scale with the type.
+  double pillChromeWidth({required bool withVolume}) =>
+      2 * pricePillBorder +
+      2 * pillOuterPadding +
+      (withVolume ? 2 * pillInnerPadding + pillDivider : 0);
+
+  /// Width of [tag]'s pill for a name at [nameFontSize].
+  double pillWidth(PriceTag tag, double nameFontSize, double priceFloor) =>
+      pillChromeWidth(withVolume: tag.volumeEm != null) +
+      tag.priceEm * priceFontSize(nameFontSize, priceFloor) +
+      (tag.volumeEm ?? 0) * volumeFontSize(nameFontSize);
+
+  /// The largest name size at which [tag]'s pill fits a line [innerWidth]
+  /// wide; negative when it fits at no size, infinite when at every size.
+  ///
+  /// The inverse of [pillWidth], which is piecewise linear in the name size
+  /// for the same reason [tileHeight] is: the price sits flat on its floor
+  /// below the knee.
+  double maxNameForPill(PriceTag tag, double innerWidth, double priceFloor) {
+    final room = innerWidth - pillChromeWidth(withVolume: tag.volumeEm != null);
+    final volumeEm = tag.volumeEm ?? 0;
+
+    // Above the knee, where the price grows with the name.
+    final slope = priceScale * tag.priceEm + volumeTextScale * volumeEm;
+    if (slope > 0) {
+      final scaled = room / slope;
+      if (scaled >= _priceKnee(priceFloor)) return scaled;
+    }
+
+    // Below it, where only the volume grows.
+    final left = room - tag.priceEm * priceFloor;
+    if (left < 0) return -1;
+    if (volumeEm == 0) return double.infinity;
+    return left / (volumeTextScale * volumeEm);
+  }
+
+  /// Height a tile needs for a name at [nameFontSize] over its price pill,
+  /// when the name floor is [floor] and the price floor is [priceFloor].
   double tileHeight(double nameFontSize, double priceFloor, double floor) =>
       fixedHeight +
       iconSize(nameFontSize, floor) +
-      volumeRowHeight(nameFontSize) +
       lineHeight *
           (nameLines * nameFontSize + priceFontSize(nameFontSize, priceFloor));
 
@@ -165,7 +212,7 @@ class ProductTileMetrics {
   /// with its own branch condition — try the steeper one first and fall back.
   double nameFontSizeFor(double tileHeight, double priceFloor, double floor) {
     final base = tileHeight - fixedHeight - baseIconSize + iconScale * floor;
-    final common = iconScale + volumeRowScale + nameLines * lineHeight;
+    final common = iconScale + nameLines * lineHeight;
 
     // Above the knee, where the price is 0.9 x the name and grows with it.
     final scaled = base / (common + lineHeight * priceScale);
@@ -189,6 +236,7 @@ class ProductGridGeometry {
     required this.scrolls,
     required this.namesEllipsized,
     required this.wordsBroken,
+    this.pillsOverflow = false,
   });
 
   final int columns;
@@ -228,6 +276,11 @@ class ProductGridGeometry {
   /// broken as `Alkoholfreie` / `s` is what the screenshots in
   /// `docs/reviews/2026-09-10-product-card/` show.
   final bool wordsBroken;
+
+  /// True when some price pill is wider than its tile even at the minimum
+  /// size — a price floor too large for the tile, which no name size can
+  /// answer. The card scales that pill down rather than clipping it.
+  final bool pillsOverflow;
 
   /// Width the grid actually uses — less than the viewport when the tile cap
   /// bit, in which case the grid is centred.
@@ -302,6 +355,7 @@ class ProductGridLayout {
     required double ceiling,
     required double minimum,
     required double priceFloor,
+    List<PriceTag> tags = const [],
   }) {
     final count = names.length;
     final effectiveCeiling = math.max(ceiling, floor);
@@ -351,8 +405,17 @@ class ProductGridLayout {
       final namesEllipsized = byWidthRaw < effectiveMinimum;
       final wordsBroken = longestWordEm > 0 &&
           inner / longestWordEm < effectiveMinimum;
-      final byWidth =
-          byWidthRaw.clamp(effectiveMinimum, effectiveCeiling).toDouble();
+      // The pill is the tile's other wide line: `0,5 l │ 12,50 €` can be
+      // wider than a short name, so it bounds the size just as the name does.
+      final byPill = tags
+          .map((tag) =>
+              metrics.maxNameForPill(tag, inner, priceFloor))
+          .fold<double>(double.infinity, math.min);
+      final pillsOverflow = byPill < effectiveMinimum;
+      final byWidth = math
+          .min(byWidthRaw, byPill)
+          .clamp(effectiveMinimum, effectiveCeiling)
+          .toDouble();
       final byHeight =
           metrics.nameFontSizeFor(availableTileHeight, priceFloor, floor);
 
@@ -375,6 +438,7 @@ class ProductGridLayout {
         scrolls: scrolls,
         namesEllipsized: namesEllipsized,
         wordsBroken: wordsBroken,
+        pillsOverflow: pillsOverflow,
       );
       if (best == null || candidate.beats(best)) best = candidate;
     }
@@ -389,6 +453,7 @@ class ProductGridLayout {
       scrolls: chosen.scrolls,
       namesEllipsized: chosen.namesEllipsized,
       wordsBroken: chosen.wordsBroken,
+      pillsOverflow: chosen.pillsOverflow,
     );
   }
 
@@ -401,6 +466,7 @@ class ProductGridLayout {
     required bool scrolls,
     required bool namesEllipsized,
     required bool wordsBroken,
+    bool pillsOverflow = false,
   }) =>
       ProductGridGeometry(
         columns: columns,
@@ -413,6 +479,7 @@ class ProductGridLayout {
         scrolls: scrolls,
         namesEllipsized: namesEllipsized,
         wordsBroken: wordsBroken,
+        pillsOverflow: pillsOverflow,
       );
 
   /// Rounds down to the resolution, so the size the card renders is the one
@@ -478,6 +545,7 @@ class _Candidate {
     required this.scrolls,
     required this.namesEllipsized,
     required this.wordsBroken,
+    required this.pillsOverflow,
   });
 
   final int columns;
@@ -493,6 +561,7 @@ class _Candidate {
   final bool scrolls;
   final bool namesEllipsized;
   final bool wordsBroken;
+  final bool pillsOverflow;
 
   int get _rank => (size / ProductGridLayout._sizeResolution).round();
 

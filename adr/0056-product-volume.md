@@ -126,14 +126,24 @@ the backend in any case.
 
 Once a name no longer carries a suffix, the grid's names are single words or
 short phrases, and the card can be laid out the way the approved prototype draws
-it: **one** name line, a volume badge in a row of its own, and the price in a
-pill as the most prominent number on the tile.
+it: **one** name line, and the size and the price together in one pill —
+`0,5 l │ 2,00 €`, read as "this much, for this price" — as the most prominent
+thing on the tile.
 
-The volume row keeps its height whether or not the product has a volume. That is
-not cosmetic: it is what holds every price on a row at the same height, which is
-the invariant the fixed name box held before. A row that collapsed when a
-product had no volume would put that tile's price above its neighbours', which is
-the regression the screenshots in the review folder show.
+The pill is one line tall whether or not the product has a volume; a product
+with none shows the price alone. That is not cosmetic: it is what holds every
+price on a row at the same height, which is the invariant the fixed name box held
+before. A layout whose height depended on the volume would put that tile's price
+above its neighbours', which is the regression the screenshots in the review
+folder show.
+
+*Amended 2026-09-11.* The first version of this card put the volume in a small
+badge in a row of its own under the name, reserved even when empty. On the kiosk
+the badge's text came out at about 14 px — too small to read standing up — and
+the reserved row cost every tile 0.67 × the name size in height. Moving the size
+into the price pill makes it larger and returns that height to the name. The
+grid now sizes a category so every pill fits its tile, as it already did for
+every name.
 
 ---
 

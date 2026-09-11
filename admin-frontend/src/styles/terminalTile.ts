@@ -20,6 +20,9 @@
  * tests hold — one name line, a reserved volume row, a price derived from the
  * name — so a change made on one side and not the other fails the unit suite
  * rather than slowly making the preview a lie.
+ *
+ * The volume sits in the price pill — `0,5 l │ 2,00 €` — not in a row of its
+ * own under the name.
  */
 
 import { theme, withAlpha } from './design-system'
@@ -37,18 +40,19 @@ export const TERMINAL_TILE = {
   nameLines: 1,
   /** `metrics.baseIconSize` at the floor. */
   iconSize: 52,
-  /** `metrics.volumeRowScale` × the name size. */
-  volumeRowScale: 0.67,
-  /** `metrics.volumeTextScale` × the name size. */
-  volumeTextScale: 0.4,
+  /** `metrics.volumeTextScale` × the name size — the volume in the price pill. */
+  volumeTextScale: 0.6,
   /** `metrics.priceScale` × the name size, never below `priceFloor`. */
   priceScale: 0.9,
   /** `AppFontSizes.xxl` — the price's floor. */
   priceFloor: 24,
   /** `metrics.pricePillPadding` / `.pricePillBorder`. */
   pricePillPaddingY: 4,
-  pricePillPaddingX: 12,
   pricePillBorder: 1,
+  /** `metrics.pillOuterPadding` / `.pillInnerPadding` / `.pillDivider`. */
+  pillOuterPadding: 12,
+  pillInnerPadding: 8,
+  pillDivider: 1,
   /** `AppBorderRadius.lg` and `.full`. */
   radius: 16,
   radiusFull: 9999,
@@ -75,10 +79,7 @@ export const TERMINAL_TILE = {
 export const TILE_NAME_BOX_HEIGHT =
   TERMINAL_TILE.lineHeight * TERMINAL_TILE.nameLines * TERMINAL_TILE.nameFontSize
 
-/** The volume badge's row, reserved whether or not the product has a size. */
-export const TILE_VOLUME_ROW_HEIGHT = TERMINAL_TILE.volumeRowScale * TERMINAL_TILE.nameFontSize
-
-/** The badge's own text — small on purpose; a member confirms the size last. */
+/** The volume's text, beside the price in its pill and quieter than it. */
 export const TILE_VOLUME_FONT_SIZE = TERMINAL_TILE.volumeTextScale * TERMINAL_TILE.nameFontSize
 
 /** The price — the loudest thing on the tile, derived from the name's size. */

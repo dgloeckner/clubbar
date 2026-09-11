@@ -19,8 +19,8 @@ import 'package:clubbar_terminal/widgets/styled_components/secondary_button.dart
 class CartSummaryBar extends StatelessWidget {
   const CartSummaryBar({
     required this.totalCents,
-    required this.newBalanceCents,
     required this.locale,
+    this.isCartEmpty = false,
     required this.isCheckoutInFlight,
     required this.isBlockedByLimit,
     required this.onCheckout,
@@ -32,10 +32,12 @@ class CartSummaryBar extends StatelessWidget {
   /// What the cart costs right now.
   final int totalCents;
 
-  /// The member's tab once this cart is booked (Deckel + [totalCents]).
-  final int newBalanceCents;
-
   final String locale;
+
+  /// The bar is shown on an empty cart too, so the grid's height never depends
+  /// on the cart. With nothing in it there is nothing to review or pay for, so
+  /// both buttons are inert.
+  final bool isCartEmpty;
 
   /// While true the cart must not be edited or re-submitted; both buttons are
   /// inert and the checkout button says why.
@@ -89,36 +91,23 @@ class CartSummaryBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Running total, in the same shape the cart screen uses: label,
-          // projected tab, amount. A member who learns to read it there reads
-          // it here without looking twice.
+          // Running total: label and amount, nothing else. The projected tab
+          // used to sit under the label, and on a kiosk it was ellipsised to
+          // "Neuer offener Betrag: …" — a line nobody could read. A member who
+          // wants it can add the Deckel in the member bar to this total, and
+          // the cart screen still shows it in full.
           Expanded(
             flex: 5,
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.cartTotal,
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: AppFontSizes.lg,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        formatNewBalance(newBalanceCents, l10n, locale),
-                        style: TextStyle(
-                          color: balanceColor(newBalanceCents),
-                          fontSize: AppFontSizes.base,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                  child: Text(
+                    l10n.cartTotal,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: AppFontSizes.lg,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
@@ -139,7 +128,7 @@ class CartSummaryBar extends StatelessWidget {
           // Secondary: review and edit. Deliberately quieter than checkout —
           // most purchases never need it.
           _ViewCartButton(
-            onPressed: isCheckoutInFlight ? null : onViewCart,
+            onPressed: isCheckoutInFlight || isCartEmpty ? null : onViewCart,
           ),
           const SizedBox(width: AppSpacing.md),
 
@@ -151,6 +140,7 @@ class CartSummaryBar extends StatelessWidget {
             flex: 4,
             child: CheckoutButton(
               isLoading: isCheckoutInFlight,
+              isEmpty: isCartEmpty,
               isBlockedByLimit: isBlockedByLimit,
               isBlockedByCredential: isBlockedByCredential,
               onPressed: onCheckout,
