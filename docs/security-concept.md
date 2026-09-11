@@ -92,7 +92,10 @@ sequenceDiagram
   `credentials_changed_at` compared against each session's own timestamp, no
   session store to enumerate. When the email address changes, the *old*
   address is notified out-of-band — the one channel a hijacker who already
-  has the new address can't suppress.
+  has the new address can't suppress. A password change and a 2FA enrollment
+  or reset are announced the same way, to the address on file at the moment
+  of the change: mail is the one channel a hijacker holding the session, the
+  password and a fresh TOTP code cannot also redirect (#892).
 - No self-disable of 2FA and no recovery codes — recovery is admin-to-admin
   (Settings → Admin Users → Reset 2FA), which is why the README and
   [Admin Lockout Runbook](./runbook-admin-lockout.md) both say: keep at least

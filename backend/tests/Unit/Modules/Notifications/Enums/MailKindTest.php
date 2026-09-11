@@ -39,6 +39,28 @@ class MailKindTest extends TestCase
         $this->assertSame([AdminRole::ADMIN], MailKind::ADMIN_INVITATION->recipientRoles());
     }
 
+    /**
+     * The three personal security notices (#892) are addressed to the account
+     * they are about, never fanned out and never copied to the club — the
+     * same shape as {@see MailKind::ADMIN_EMAIL_CHANGED} and
+     * {@see MailKind::ADMIN_INVITATION}, for the same reason: the account
+     * holder is the one witness these notices exist for.
+     */
+    public function test_the_credential_notices_are_addressed_to_the_account_alone(): void
+    {
+        foreach ([
+            MailKind::ADMIN_PASSWORD_CHANGED,
+            MailKind::ADMIN_TOTP_ENROLLED,
+            MailKind::ADMIN_TOTP_RESET,
+        ] as $kind) {
+            $this->assertSame(MailSubject::ADMIN_USER, $kind->subjectType(), $kind->value);
+            $this->assertFalse($kind->addressesMember(), $kind->value);
+            $this->assertFalse($kind->addressesProspect(), $kind->value);
+            $this->assertFalse($kind->addressesClub(), $kind->value . ' is not a lifecycle event');
+            $this->assertSame([AdminRole::ADMIN], $kind->recipientRoles(), $kind->value);
+        }
+    }
+
     public function test_a_statement_is_about_the_member_it_is_addressed_to(): void
     {
         $this->assertSame(MailSubject::MEMBER, MailKind::DECKEL_STATEMENT->subjectType());
@@ -257,6 +279,9 @@ class MailKindTest extends TestCase
             MailKind::ADMIN_EMAIL_CHANGED,
             MailKind::ADMIN_ACCOUNT_CREATED,
             MailKind::ADMIN_ROLE_CHANGED,
+            MailKind::ADMIN_PASSWORD_CHANGED,
+            MailKind::ADMIN_TOTP_ENROLLED,
+            MailKind::ADMIN_TOTP_RESET,
         ];
 
         foreach ($adminOnly as $kind) {

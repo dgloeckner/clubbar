@@ -343,6 +343,10 @@ class AuthController
             adminUserId: $adminId,
         );
 
+        // #892: the out-of-band half — an enrollment nobody meant to make is
+        // otherwise invisible until the real owner's own next login attempt.
+        $this->adminUsersService->notifyTotpEnrolled($adminId);
+
         return $this->json($response, ['message' => 'Two-factor authentication enabled']);
     }
 
@@ -403,6 +407,12 @@ class AuthController
             newValues: ['target_email' => $target['email'] ?? null],
             adminUserId: $callerAdminId,
         );
+
+        // #892: reaches the target even when the actor is a different admin
+        // — the one recovery path ADR-0026 leaves, and also the one step that
+        // hands a compromised admin's step-up a way into every other
+        // account's second factor.
+        $this->adminUsersService->notifyTotpReset($body['userId'], $callerAdminId);
 
         return $this->json($response, ['message' => 'Two-factor authentication reset']);
     }

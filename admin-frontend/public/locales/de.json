@@ -1566,6 +1566,9 @@
       "admin_invitation": "Einladung",
       "admin_role_changed": "Rollen geändert",
       "admin_email_changed": "Anmeldeadresse geändert",
+      "admin_password_changed": "Passwort geändert",
+      "admin_totp_enrolled": "Zwei-Faktor-Authentifizierung eingerichtet",
+      "admin_totp_reset": "Zwei-Faktor-Authentifizierung zurückgesetzt",
       "backup_secret_expiry_warning": "Backup-Zugangsdaten laufen ab",
       "backup_health_warning": "Backup meldet sich nicht"
     },

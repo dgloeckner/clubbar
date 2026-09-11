@@ -135,4 +135,63 @@ class AdminSecurityMailBuilderTest extends TestCase
 
         $this->builder->build(self::row(), $this->mailConfig);
     }
+
+    /* ─────────────── Credential notices (#892) ─────────────── */
+
+    public function test_it_claims_the_credential_notice_kinds(): void
+    {
+        $this->assertTrue($this->builder->supports(MailKind::ADMIN_PASSWORD_CHANGED));
+        $this->assertTrue($this->builder->supports(MailKind::ADMIN_TOTP_ENROLLED));
+        $this->assertTrue($this->builder->supports(MailKind::ADMIN_TOTP_RESET));
+    }
+
+    public function test_a_password_changed_notice_addresses_the_snapshot_and_names_the_actor(): void
+    {
+        $this->adminUsersRepository->method('findById')->willReturnMap([
+            ['admin-1', ['id' => 'admin-1', 'email' => 'admin-1@example.org', 'display_name' => 'Erika Mustermann']],
+            ['actor-1', ['id' => 'actor-1', 'email' => 'actor@example.org', 'display_name' => 'Kassenwart Klaus']],
+        ]);
+
+        $message = $this->builder->build(self::row([
+            'kind' => MailKind::ADMIN_PASSWORD_CHANGED->value,
+            'recipient' => 'admin-1@example.org',
+            'actor_admin_user_id' => 'actor-1',
+        ]), $this->mailConfig);
+
+        $this->assertSame('admin-1@example.org', $message->to);
+        $this->assertStringContainsString('Klaus', $message->text);
+    }
+
+    public function test_a_totp_enrolled_notice_carries_no_actor_row(): void
+    {
+        $this->adminUsersRepository->method('findById')->willReturn([
+            'id' => 'admin-1',
+            'email' => 'admin-1@example.org',
+            'display_name' => 'Erika',
+        ]);
+
+        $message = $this->builder->build(self::row([
+            'kind' => MailKind::ADMIN_TOTP_ENROLLED->value,
+            'recipient' => 'admin-1@example.org',
+        ]), $this->mailConfig);
+
+        $this->assertSame('admin-1@example.org', $message->to);
+    }
+
+    public function test_a_totp_reset_notice_names_the_actor_when_it_differs_from_the_target(): void
+    {
+        $this->adminUsersRepository->method('findById')->willReturnMap([
+            ['admin-1', ['id' => 'admin-1', 'email' => 'admin-1@example.org', 'display_name' => 'Erika']],
+            ['actor-1', ['id' => 'actor-1', 'email' => 'actor@example.org', 'display_name' => 'Klaus']],
+        ]);
+
+        $message = $this->builder->build(self::row([
+            'kind' => MailKind::ADMIN_TOTP_RESET->value,
+            'recipient' => 'admin-1@example.org',
+            'actor_admin_user_id' => 'actor-1',
+        ]), $this->mailConfig);
+
+        $this->assertSame('admin-1@example.org', $message->to);
+        $this->assertStringContainsString('Klaus', $message->text);
+    }
 }

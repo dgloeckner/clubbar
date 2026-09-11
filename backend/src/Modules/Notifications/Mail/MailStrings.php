@@ -400,6 +400,53 @@ final class MailStrings
                                         . 'Administratorin oder einen anderen Administrator: '
                                         . 'nur sie können das Konto zurücksetzen.',
 
+            // ── Passwort und Zwei-Faktor-Authentifizierung (#892) ───────────
+            // Dieselbe Begründung wie bei der geänderten Anmeldeadresse oben,
+            // nur für die beiden Zugangsdaten, die die Anmeldung selbst sind:
+            // Mail ist der eine Kanal, den eine übernommene Sitzung nicht auch
+            // noch umleiten kann.
+            'password_changed.subject'   => 'Das Passwort Deines Admin-Kontos wurde geändert',
+            'password_changed.preheader' => 'Wenn das nicht Du warst, wende Dich sofort an eine andere Administratorin.',
+            'password_changed.eyebrow'   => 'Sicherheitshinweis',
+            'password_changed.title'     => 'Passwort geändert',
+            'password_changed.lede'      => 'das Passwort Deines Admin-Kontos wurde soeben geändert.',
+            'password_changed.lede_text' => 'das Passwort Deines Admin-Kontos wurde soeben geändert.',
+            'password_changed.label_when'  => 'Geändert am',
+            'password_changed.label_actor' => 'Ausgeführt von',
+            'password_changed.expected'   => 'Wenn Du das selbst warst, ist nichts weiter zu tun.',
+            'password_changed.unexpected' => 'Wenn nicht, wende Dich bitte sofort an eine andere '
+                                           . 'Administratorin oder einen anderen Administrator: '
+                                           . 'nur sie können das Konto zurücksetzen.',
+
+            'totp_enrolled.subject'   => 'Zwei-Faktor-Authentifizierung eingerichtet',
+            'totp_enrolled.preheader' => 'Dein Admin-Konto verlangt ab sofort einen zweiten Faktor.',
+            'totp_enrolled.eyebrow'   => 'Sicherheitshinweis',
+            'totp_enrolled.title'     => 'Zwei-Faktor-Authentifizierung eingerichtet',
+            'totp_enrolled.lede'      => 'für Dein Admin-Konto wurde soeben die '
+                                       . 'Zwei-Faktor-Authentifizierung eingerichtet.',
+            'totp_enrolled.lede_text' => 'für Dein Admin-Konto wurde soeben die '
+                                       . 'Zwei-Faktor-Authentifizierung eingerichtet.',
+            'totp_enrolled.label_when' => 'Eingerichtet am',
+            'totp_enrolled.expected'   => 'Wenn Du das selbst warst, ist nichts weiter zu tun.',
+            'totp_enrolled.unexpected' => 'Wenn nicht, wende Dich bitte sofort an eine andere '
+                                        . 'Administratorin oder einen anderen Administrator: nur sie '
+                                        . 'können die Zwei-Faktor-Authentifizierung zurücksetzen.',
+
+            'totp_reset.subject'   => 'Die Zwei-Faktor-Authentifizierung Deines Admin-Kontos wurde zurückgesetzt',
+            'totp_reset.preheader' => 'Dein Konto verlangt beim nächsten Login eine neue Einrichtung.',
+            'totp_reset.eyebrow'   => 'Sicherheitshinweis',
+            'totp_reset.title'     => 'Zwei-Faktor-Authentifizierung zurückgesetzt',
+            'totp_reset.lede'      => 'die Zwei-Faktor-Authentifizierung Deines Admin-Kontos wurde soeben '
+                                    . 'zurückgesetzt. Beim nächsten Login richtest Du sie neu ein.',
+            'totp_reset.lede_text' => 'die Zwei-Faktor-Authentifizierung Deines Admin-Kontos wurde soeben '
+                                    . 'zurückgesetzt. Beim nächsten Login richtest Du sie neu ein.',
+            'totp_reset.label_when'  => 'Zurückgesetzt am',
+            'totp_reset.label_actor' => 'Ausgeführt von',
+            'totp_reset.expected'    => 'Wenn Du das selbst veranlasst hast — etwa weil Dein Gerät verloren '
+                                      . 'ging —, ist nichts weiter zu tun.',
+            'totp_reset.unexpected'  => 'Wenn nicht, wende Dich bitte sofort an eine andere '
+                                      . 'Administratorin oder einen anderen Administrator.',
+
             // ── Einladung eines neuen Admin-Kontos (Migration 058) ──────────
             // Die einzige Nachricht, deren Text ein gültiges Zugangsmittel
             // enthält. Der Link steht deshalb zusätzlich als Klartext im
@@ -909,6 +956,44 @@ final class MailStrings
             'email_changed.expected'  => 'If this was you, there is nothing further to do.',
             'email_changed.unexpected' => 'If it was not, contact another administrator immediately: '
                                         . 'only they can reset the account.',
+
+            // ── Password and two-factor authentication (#892) ───────────────
+            'password_changed.subject'   => 'The password for your admin account was changed',
+            'password_changed.preheader' => 'If this was not you, contact another administrator immediately.',
+            'password_changed.eyebrow'   => 'Security notice',
+            'password_changed.title'     => 'Password changed',
+            'password_changed.lede'      => 'the password for your admin account was just changed.',
+            'password_changed.lede_text' => 'the password for your admin account was just changed.',
+            'password_changed.label_when'  => 'Changed on',
+            'password_changed.label_actor' => 'Performed by',
+            'password_changed.expected'   => 'If this was you, there is nothing further to do.',
+            'password_changed.unexpected' => 'If it was not, contact another administrator immediately: '
+                                           . 'only they can reset the account.',
+
+            'totp_enrolled.subject'   => 'Two-factor authentication set up',
+            'totp_enrolled.preheader' => 'Your admin account now requires a second factor.',
+            'totp_enrolled.eyebrow'   => 'Security notice',
+            'totp_enrolled.title'     => 'Two-factor authentication set up',
+            'totp_enrolled.lede'      => 'two-factor authentication was just set up for your admin account.',
+            'totp_enrolled.lede_text' => 'two-factor authentication was just set up for your admin account.',
+            'totp_enrolled.label_when' => 'Set up on',
+            'totp_enrolled.expected'   => 'If this was you, there is nothing further to do.',
+            'totp_enrolled.unexpected' => 'If it was not, contact another administrator immediately: '
+                                        . 'only they can reset two-factor authentication.',
+
+            'totp_reset.subject'   => 'Two-factor authentication for your admin account was reset',
+            'totp_reset.preheader' => 'Your account will ask you to set it up again at your next login.',
+            'totp_reset.eyebrow'   => 'Security notice',
+            'totp_reset.title'     => 'Two-factor authentication reset',
+            'totp_reset.lede'      => 'two-factor authentication for your admin account was just reset. '
+                                    . 'You will set it up again at your next login.',
+            'totp_reset.lede_text' => 'two-factor authentication for your admin account was just reset. '
+                                    . 'You will set it up again at your next login.',
+            'totp_reset.label_when'  => 'Reset on',
+            'totp_reset.label_actor' => 'Performed by',
+            'totp_reset.expected'    => 'If you asked for this yourself — for example because your device '
+                                      . 'was lost — there is nothing further to do.',
+            'totp_reset.unexpected'  => 'If not, contact another administrator immediately.',
 
             // ── Admin invitation (migration 058) ────────────────────────────
             'admin_invitation.subject'   => 'Your access to {org}',
