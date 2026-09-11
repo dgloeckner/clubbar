@@ -118,6 +118,8 @@ test.describe('Product volume — mobile', () => {
     // the name instead of pushing the price off a narrow card.
     const cell = page.getByTestId(`products-table-cell-volume-${row.id}`)
     await expect(cell).toBeVisible()
-    expect((await cell.innerText()).trim().replace(/ /g, ' ')).toBe('0,33 l')
+    // The unit is held to the number by a NO-BREAK SPACE, so the expectation
+    // spells it as an escape rather than as an invisible character.
+    expect((await cell.innerText()).trim().replace(/\u00a0/g, ' ')).toBe('0,33 l')
   })
 })
