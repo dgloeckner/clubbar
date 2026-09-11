@@ -38,6 +38,11 @@ final class SecurityCheckContext
      * @param string             $trustedProxies      `TRUSTED_PROXIES` (#886) — empty when unconfigured.
      * @param string|null        $remoteAddr          `REMOTE_ADDR` of the request that triggered this check.
      * @param string|null        $forwardedFor        `X-Forwarded-For` of the request that triggered this check.
+     * @param bool               $loginRateLimitingDisabled Whether DISABLE_LOGIN_RATE_LIMITING has switched off
+     *        the login, MFA and step-up limiters (#894). Defaults to false — the installer and the package smoke
+     *        test have no such switch to read, and "not disabled" is the correct assumption for both.
+     * @param bool               $terminalRateLimitingDisabled Whether DISABLE_TERMINAL_RATE_LIMITING has switched
+     *        off the terminal token limiter (#894). Same default reasoning as above.
      */
     public function __construct(
         public readonly string $documentRoot,
@@ -52,6 +57,8 @@ final class SecurityCheckContext
         public readonly string $trustedProxies = '',
         public readonly ?string $remoteAddr = null,
         public readonly ?string $forwardedFor = null,
+        public readonly bool $loginRateLimitingDisabled = false,
+        public readonly bool $terminalRateLimitingDisabled = false,
     ) {}
 
     /**

@@ -1399,7 +1399,7 @@ class ServiceFactory implements ContainerInterface
             $this->getLoginAttemptsRepository(),
             5,
             15,
-            $this->loginRateLimitDisabled(),
+            $this->isLoginRateLimitingDisabled(),
             static function (\Psr\Http\Message\ServerRequestInterface $request): ?string {
                 $body = $request->getParsedBody();
                 $email = is_array($body) ? ($body['email'] ?? null) : null;
@@ -1419,7 +1419,7 @@ class ServiceFactory implements ContainerInterface
             $this->getLoginAttemptsRepository(),
             5,
             15,
-            $this->loginRateLimitDisabled(),
+            $this->isLoginRateLimitingDisabled(),
             function (): ?string {
                 if (session_status() === PHP_SESSION_NONE) {
                     session_name($this->config->sessionCookieName);
@@ -1436,8 +1436,12 @@ class ServiceFactory implements ContainerInterface
      * Disabled via DISABLE_LOGIN_RATE_LIMITING=true (e.g. in test environments,
      * where the suite deliberately fails logins). The dedicated rate-limit specs
      * are excluded from the default E2E run and require it switched back on.
+     *
+     * Public so {@see SecurityCheckService} can report the resolved value
+     * (#894) instead of re-reading the environment variable itself, which
+     * would drift from this resolution if it ever grew a second condition.
      */
-    private function loginRateLimitDisabled(): bool
+    public function isLoginRateLimitingDisabled(): bool
     {
         return Env::get('DISABLE_LOGIN_RATE_LIMITING', 'false') === 'true';
     }
@@ -1455,7 +1459,7 @@ class ServiceFactory implements ContainerInterface
             $this->getLoginAttemptsRepository(),
             5,
             15,
-            $this->loginRateLimitDisabled(),
+            $this->isLoginRateLimitingDisabled(),
             static function (\Psr\Http\Message\ServerRequestInterface $request): ?string {
                 $admin = $request->getAttribute('admin_user');
                 $email = is_array($admin) ? ($admin['email'] ?? null) : null;
@@ -1470,15 +1474,24 @@ class ServiceFactory implements ContainerInterface
         // Not cached via resolve() — returns a fresh instance with terminal-specific config.
         // Uses a different table and higher threshold than the login rate limiter, and no
         // account dimension: terminal auth presents a token, not an account.
-        // Disabled via DISABLE_TERMINAL_RATE_LIMITING=true (e.g. in test environments).
-        $disabled = Env::get('DISABLE_TERMINAL_RATE_LIMITING', 'false') === 'true';
         return new RateLimitMiddleware(
             $this->getTerminalAuthAttemptsRepository(),
             10,
             15,
-            $disabled,
+            $this->isTerminalRateLimitingDisabled(),
             trustedProxies: $this->config->trustedProxies,
         );
+    }
+
+    /**
+     * Disabled via DISABLE_TERMINAL_RATE_LIMITING=true (e.g. in test
+     * environments). Public for the same reason as
+     * {@see isLoginRateLimitingDisabled()} — {@see SecurityCheckService}
+     * reports this resolved value rather than re-reading the environment.
+     */
+    public function isTerminalRateLimitingDisabled(): bool
+    {
+        return Env::get('DISABLE_TERMINAL_RATE_LIMITING', 'false') === 'true';
     }
 
     public function getTerminalOasValidator(): \Psr\Http\Server\MiddlewareInterface
@@ -1510,6 +1523,8 @@ class ServiceFactory implements ContainerInterface
                 $this->config,
                 $this->getMailDeliveryCheck(),
                 $this->getBackupStatusCheck(),
+                $this->isLoginRateLimitingDisabled(),
+                $this->isTerminalRateLimitingDisabled(),
             ),
         ));
     }
