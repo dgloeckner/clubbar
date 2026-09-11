@@ -669,6 +669,13 @@ test.describe('Package: Install Wizard', () => {
    * honouring `.htaccess`, ADR-0031's own threat model).
    */
   test('once installed, install.php refuses to re-arm itself', async ({ request }) => {
+    // Not assumed absent from the previous test's end state (Pattern 001) —
+    // the wizard run above legitimately re-mints this file the moment it
+    // touches a `&update=1` step with no key file present (e.g. step 6/7's
+    // own "still reachable after install" checks), so a stray one can be
+    // sitting here before this test's own requests run at all.
+    inPackageContainer('@unlink("/app/.installer-data");');
+
     const bare = await request.get(`${PACKAGE_URL}/install.php`);
     expect(await bare.text()).toContain('Already Installed');
 

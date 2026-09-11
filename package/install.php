@@ -145,10 +145,23 @@ if (isset($_GET['action']) && $_GET['action'] === 'reset') {
 // "already installed" visit. Named explicitly rather than "any `action`",
 // so a request cannot buy its way past this gate with an arbitrary
 // `&action=` tacked onto `?step=4`.
+//
+// A bare POST submitting `install_key` is exempted the same way, and for the
+// same reason renderKeyGate()'s own form posts one: verifying a key is
+// harmless on its own — a wrong or missing one still gets refused by
+// hash_equals() below — and step 1 (what a bare verified POST renders) is
+// read-only. Scoped to `$step === null` specifically, not "any POST carrying
+// install_key": a single request cannot smuggle both a key *and* `step=4` in
+// one body and have this exemption wave the admin-creation handler through
+// in the same breath.
 $step = $_GET['step'] ?? ($_POST['step'] ?? null);
 $isAjaxAction = isset($_GET['action']) && in_array($_GET['action'], ['test_db', 'check_cron'], true);
+$isBareKeySubmission = $step === null
+    && $_SERVER['REQUEST_METHOD'] === 'POST'
+    && isset($_POST['install_key']);
 if (!$isUpdate
     && !$isAjaxAction
+    && !$isBareKeySubmission
     && ($step === null || $step === '2' || $step === '4')
     && installerAdminAccountExists($configFile)
 ) {
