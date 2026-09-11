@@ -142,6 +142,28 @@ test.describe('Security self-check API', () => {
     expect(byId.get('session_strict_mode')?.observed).toContain('session.use_strict_mode=On')
   })
 
+  /**
+   * #894: docker-compose.yml sets both rate-limiter kill switches for this
+   * exact stack — DISABLE_TERMINAL_RATE_LIMITING so parallel API tests don't
+   * hit 429, DISABLE_LOGIN_RATE_LIMITING so the suite can fail logins on
+   * purpose. That makes this the one environment where both rows are
+   * expected to report the switch as active, rather than green.
+   */
+  test('reports the rate-limiter kill switches this stack deliberately sets', async ({
+    authenticatedRequest,
+  }) => {
+    const findings: Finding[] = (await (
+      await authenticatedRequest.get(`${API_BASE}/admin/security-check`)
+    ).json()).findings
+
+    const byId = new Map(findings.map((finding) => [finding.id, finding]))
+
+    expect(byId.get('login_rate_limiting_active')?.status).toBe('fail')
+    expect(byId.get('login_rate_limiting_active')?.observed).toContain('DISABLE_LOGIN_RATE_LIMITING=true')
+    expect(byId.get('terminal_rate_limiting_active')?.status).toBe('warn')
+    expect(byId.get('terminal_rate_limiting_active')?.observed).toContain('DISABLE_TERMINAL_RATE_LIMITING=true')
+  })
+
   test('never reports a row it could not measure as passing', async ({ authenticatedRequest }) => {
     const findings: Finding[] = (await (
       await authenticatedRequest.get(`${API_BASE}/admin/security-check`)
@@ -220,6 +242,12 @@ test.describe('Security self-check API', () => {
     // archive, so a red row here is a regression in the deployment, not a
     // property of the host.
     //
+    // `login_rate_limiting_active` is the one deliberate exception (#894):
+    // docker-compose.yml sets DISABLE_LOGIN_RATE_LIMITING=true for this exact
+    // stack so the suite can fail logins on purpose, and the row is doing its
+    // job by reporting that — covered on its own in the "reports the
+    // rate-limiter kill switches this stack deliberately sets" test above.
+    //
     // Polled rather than read once: `cron-backup.spec.ts` triggers runs against
     // the same stack, and a run in flight has already journalled its start
     // while its archive is still being written — a window of milliseconds in
@@ -233,7 +261,7 @@ test.describe('Security self-check API', () => {
           ).json()).findings
 
           return findings
-            .filter((finding) => finding.status === 'fail')
+            .filter((finding) => finding.status === 'fail' && finding.id !== 'login_rate_limiting_active')
             .map((finding) => `${finding.id}: ${finding.observed}`)
         },
         { timeout: 10_000 }
