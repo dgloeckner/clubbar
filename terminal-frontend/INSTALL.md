@@ -806,6 +806,23 @@ platform-specific and resolved automatically by the app:
 | macOS | `~/Library/Containers/de.clubbar.clubbarTerminal/Data/Library/Application Support/de.clubbar.clubbarTerminal/config.json` |
 | Windows | `%APPDATA%\de.clubbar.clubbar_terminal\config.json` |
 
+**Treat this file as the member database.** `apiToken` is a device credential
+with no user scoping — anyone holding it can pull every member's name, date of
+birth, balance and purchase history from the backend, and write bookings
+against any of them. This is not a generic "secret on disk" note: it is the
+one file on this machine that unlocks the whole club. Create it with
+`chmod 600` (owner read/write only, `-rw-------`) and keep it that way. The app
+checks the mode on every start and tightens it back to `600` if it finds the
+file group- or world-readable, logging a warning to stderr when it does — but
+that is a safety net, not a substitute for provisioning it correctly.
+
+A sibling `policy.json` in the same directory holds only the synced credit
+ceiling (ADR-0047) — a value learned from the backend, not one an operator
+sets by hand. The app rewrites it on every config sync; `config.json` itself
+is written once, at provisioning, and never touched again while the app runs,
+specifically so the credential file's permissions can't be lost to a routine
+rewrite (issue #885).
+
 Every key is optional except `terminalId`, `apiUrl`, and `apiToken` (required
 for the app to connect). Omitted keys fall back to the defaults shown below.
 
@@ -859,7 +876,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 |-----|------|---------|-------------|
 | `terminalId` | string | — | Human-readable terminal name (shown in admin panel). Alphanumeric, hyphens, underscores, spaces; 1–50 chars. |
 | `apiUrl` | string | — | Base URL of the Club Bar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
-| `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Stored with `chmod 600`. |
+| `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Unlocks the whole membership, not just this terminal — see the note above the table. Create the file with `chmod 600`; the app verifies and re-tightens the mode on every start. |
 | `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
 | `soundsEnabled` | bool | `true` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. Set `false` for a silent deployment. |
 | `seedTestData` | bool | `false` | Pre-populate the local database with mock members, categories, and products. **Development only — never enable in production.** |
