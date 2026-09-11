@@ -92,11 +92,15 @@ class AdminSessionAuth implements MiddlewareInterface
             SessionTimeout::markRegenerated($_SESSION);
         }
 
-        // Block access for authenticated-but-not-enrolled users, except on setup/confirm routes
+        // Block access for authenticated-but-not-enrolled users, except on setup/confirm routes.
+        // Keyed on the matched route *pattern*, not the concrete path — see
+        // routePattern() — so a base path (Slim's setBasePath(), for a
+        // subdirectory install) cannot make the exemption miss and lock the
+        // first admin out of the only routes that let them enrol (#888).
         if (($_SESSION['totp_setup_required'] ?? false) === true) {
-            $path = $request->getUri()->getPath();
+            $pattern = $this->routePattern($request);
             $exempted = ['/api/auth/2fa/setup', '/api/auth/2fa/confirm'];
-            if (!in_array($path, $exempted, true)) {
+            if (!in_array($pattern, $exempted, true)) {
                 return $this->totpSetupRequired();
             }
         }
@@ -244,10 +248,23 @@ class AdminSessionAuth implements MiddlewareInterface
      */
     private function permitted(ServerRequestInterface $request, array $roles): bool
     {
-        $route = $request->getAttribute(RouteContext::ROUTE);
-        $pattern = $route instanceof RouteInterface ? $route->getPattern() : '';
+        return RouteRoleMap::permits($roles, $request->getMethod(), $this->routePattern($request));
+    }
 
-        return RouteRoleMap::permits($roles, $request->getMethod(), $pattern);
+    /**
+     * The route pattern Slim matched — `/api/admin/members/{memberId}`, as
+     * written in `routes.php` — rather than the concrete request path.
+     *
+     * Base-path independent by construction: `setBasePath()` (bootstrap.php,
+     * for a subdirectory install) changes what `getUri()->getPath()` returns
+     * but never what a route was registered as, so anything keyed on the path
+     * instead silently stops matching under a base path (#888).
+     */
+    private function routePattern(ServerRequestInterface $request): string
+    {
+        $route = $request->getAttribute(RouteContext::ROUTE);
+
+        return $route instanceof RouteInterface ? $route->getPattern() : '';
     }
 
     /**
