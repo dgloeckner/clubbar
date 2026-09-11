@@ -28,8 +28,14 @@ class CheckoutButton extends StatelessWidget {
     required this.isBlockedByLimit,
     required this.onPressed,
     this.isBlockedByCredential = false,
+    this.isEmpty = false,
     super.key = const Key('checkout-button'),
   });
+
+  /// Nothing to pay for: the summary bar is shown on an empty cart too, and
+  /// its checkout is inert until the first item. Same label, greyed — the
+  /// member is not being refused anything, so no reason is stated.
+  final bool isEmpty;
 
   final bool isLoading;
   final bool isBlockedByLimit;
@@ -58,6 +64,11 @@ class CheckoutButton extends StatelessWidget {
           Colors.black,
           l10n.checkoutProcessing,
         ),
+      _ when isEmpty => (
+          AppColors.borderLight,
+          AppColors.textSecondary,
+          l10n.checkout,
+        ),
       _ => (AppColors.semanticSuccess, Colors.black, l10n.checkout),
     };
 
@@ -65,7 +76,9 @@ class CheckoutButton extends StatelessWidget {
       color: background,
       borderRadius: borderRadius,
       child: InkWell(
-        onTap: isLoading || isBlockedByLimit || isBlockedByCredential ? null : onPressed,
+        onTap: isLoading || isEmpty || isBlockedByLimit || isBlockedByCredential
+            ? null
+            : onPressed,
         borderRadius: borderRadius,
         child: SizedBox(
           height: 67,

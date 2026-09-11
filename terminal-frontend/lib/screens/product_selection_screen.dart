@@ -17,6 +17,7 @@ import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/product_grid_layout.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
@@ -98,7 +99,9 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   /// sub-pixel precision at the sizes the grid actually renders.
   static const double _measureFontSize = 100.0;
 
-  WordWidth _wordWidthIn(BuildContext context) {
+  /// Measures text in [weight] — w700 for a name and a volume, w900 for a
+  /// price, which are the weights the card draws them in.
+  WordWidth _emWidthIn(BuildContext context, FontWeight weight) {
     final base = DefaultTextStyle.of(context).style;
     final scaler = MediaQuery.textScalerOf(context);
     if (base != _measuredBase || scaler != _measuredScaler) {
@@ -108,10 +111,11 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
     }
     final style = base.merge(TextStyle(
       fontSize: _measureFontSize,
-      fontWeight: FontWeight.w700,
+      fontWeight: weight,
       height: ProductCard.textLineHeight,
     ));
-    return (String word) => _wordWidths.putIfAbsent(word, () {
+    return (String word) =>
+        _wordWidths.putIfAbsent('${weight.value}:$word', () {
           final painter = TextPainter(
             text: TextSpan(text: word, style: style),
             textDirection: TextDirection.ltr,
@@ -288,23 +292,26 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               ),
 
               // Running total and checkout, right where the tapping happens
-              // (#34). Absent on an empty cart: there is nothing to total and
-              // nothing to pay for, and the grid gets the height back.
-              if (cartProvider.items.isNotEmpty)
-                CartSummaryBar(
-                  totalCents: cartProvider.total,
-                  newBalanceCents: limitCheck.projectedBalanceCents,
-                  locale: locale,
-                  isCheckoutInFlight: isCheckoutInFlight,
-                  isBlockedByLimit: limitCheck.blocksCheckout,
-                  // Watched rather than read: the block has to appear the
-                  // moment a background sync cycle discovers the credential is
-                  // gone, not on the next rebuild that happens to occur.
-                  isBlockedByCredential:
-                      context.watch<SyncProvider>().credentialExpired,
-                  onCheckout: () => runCheckout(context),
-                  onViewCart: () => context.go('/cart'),
-                ),
+              // (#34). Always there, empty cart included: a bar that appeared
+              // with the first item took its height from the grid at exactly
+              // that tap, and the tiles re-flowed under the member's finger —
+              // or the grid, sized for the taller viewport, lost its last row
+              // behind the bar. On an empty cart it shows 0,00 € and both
+              // buttons are inert.
+              CartSummaryBar(
+                totalCents: cartProvider.total,
+                locale: locale,
+                isCartEmpty: cartProvider.items.isEmpty,
+                isCheckoutInFlight: isCheckoutInFlight,
+                isBlockedByLimit: limitCheck.blocksCheckout,
+                // Watched rather than read: the block has to appear the
+                // moment a background sync cycle discovers the credential is
+                // gone, not on the next rebuild that happens to occur.
+                isBlockedByCredential:
+                    context.watch<SyncProvider>().credentialExpired,
+                onCheckout: () => runCheckout(context),
+                onViewCart: () => context.go('/cart'),
+              ),
             ],
           );
       },
@@ -345,15 +352,28 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final bold = _emWidthIn(context, FontWeight.w700);
+        final black = _emWidthIn(context, FontWeight.w900);
         final geometry = _gridLayout.solve(
           names: names,
           width: constraints.maxWidth,
           height: constraints.maxHeight,
-          wordWidth: _wordWidthIn(context),
+          wordWidth: bold,
           floor: AppFontSizes.productNameFloor,
           ceiling: AppFontSizes.productNameCeiling,
           minimum: AppFontSizes.xxl,
           priceFloor: AppFontSizes.xxl,
+          // Each tile's `0,5 l │ 2,00 €` pill, which bounds the size just as
+          // the name does.
+          tags: [
+            for (final product in products)
+              PriceTag(
+                priceEm: black(formatPrice(product.priceCents, memberLang)),
+                volumeEm: product.volumeMl == null
+                    ? null
+                    : bold(formatVolume(product.volumeMl!, memberLang)),
+              ),
+          ],
         );
 
         final grid = GridView.builder(

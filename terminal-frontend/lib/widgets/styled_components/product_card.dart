@@ -47,7 +47,8 @@ class ProductCard extends StatefulWidget {
   /// the grid solved the tile's height from.
   final double priceFontSize;
 
-  /// Size of the volume badge's text, likewise derived from [nameFontSize].
+  /// Size of the volume's text in the price pill, likewise derived from
+  /// [nameFontSize].
   final double volumeFontSize;
 
   /// Edge of the product icon — 52 at the floor, growing with whatever room
@@ -142,6 +143,81 @@ class _ProductCardState extends State<ProductCard>
     _animationController.reverse();
   }
 
+  /// The pill: an optional volume segment on a slate wash, a hairline, and
+  /// the price on the sky tint. Its widths are [ProductTileMetrics.pillWidth],
+  /// which is what the grid sized the tile against.
+  Widget _pricePill() {
+    const metrics = ProductCard.metrics;
+    final volumeMl = widget.product.volumeMl;
+
+    return Container(
+      key: const ValueKey('product-card-price-pill'),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppBorderRadius.full),
+        border: Border.all(
+          color: AppColors.borderPricePill,
+          width: metrics.pricePillBorder,
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (volumeMl != null) ...[
+              Container(
+                // A faint slate wash — opacity-only, not a swept colour (#302).
+                color: AppColors.bgVolumeBadge,
+                alignment: Alignment.center,
+                padding: EdgeInsets.only(
+                  left: metrics.pillOuterPadding,
+                  right: metrics.pillInnerPadding,
+                ),
+                child: Text(
+                  formatVolume(volumeMl, widget.locale),
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: widget.volumeFontSize,
+                    fontWeight: FontWeight.w700,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+              Container(
+                width: metrics.pillDivider,
+                color: AppColors.borderPricePill,
+              ),
+            ],
+            Container(
+              color: AppColors.bgPricePill,
+              padding: EdgeInsets.only(
+                left: volumeMl != null
+                    ? metrics.pillInnerPadding
+                    : metrics.pillOuterPadding,
+                right: metrics.pillOuterPadding,
+                top: metrics.pricePillPadding,
+                bottom: metrics.pricePillPadding,
+              ),
+              child: Text(
+                formatPrice(widget.product.priceCents, widget.locale),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: TextStyle(
+                  color: AppColors.infoOnTint,
+                  fontSize: widget.priceFontSize,
+                  fontWeight: FontWeight.w900,
+                  height: ProductCard.textLineHeight,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isInCart = widget.quantity > 0;
@@ -222,84 +298,27 @@ class _ProductCardState extends State<ProductCard>
                         ),
                       ),
 
-                      // Volume badge — the size the name no longer carries
-                      // (ADR-0056), in the member's own notation.
-                      //
-                      // The row keeps its height whether or not this product
-                      // has a volume. That is the invariant, not the badge: a
-                      // row that collapsed on a Sauna-Token would lift that
-                      // tile's price above its neighbours', which is exactly
-                      // the misalignment commit 2b4d50b5 fixed by pinning the
-                      // name box.
-                      SizedBox(
-                        height: ProductCard.metrics
-                            .volumeRowHeight(widget.nameFontSize),
-                        child: Center(
-                          child: widget.product.volumeMl == null
-                              ? const SizedBox.shrink()
-                              : Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    // A faint slate wash — opacity-only, not a
-                                    // swept colour (#302).
-                                    color: AppColors.bgVolumeBadge,
-                                    borderRadius: BorderRadius.circular(
-                                        AppBorderRadius.full),
-                                  ),
-                                  child: Text(
-                                    formatVolume(widget.product.volumeMl!,
-                                        widget.locale),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: widget.volumeFontSize,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.4,
-                                      height: 1.0,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
                       SizedBox(height: ProductCard.metrics.gap),
 
-                      // Price — a pill, and the loudest thing on the tile.
+                      // Size and price — one pill, `0,5 l │ 2,00 €`, and the
+                      // loudest thing on the tile.
                       //
-                      // The member picks by name and then checks the price, so
-                      // once the name fits on one line the height that freed is
-                      // spent here. `semanticInfo` on a fill of its own with a
-                      // 1 px border: the contrast of that pairing is asserted
-                      // in `contrast_test.dart` rather than eyeballed.
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                          vertical: ProductCard.metrics.pricePillPadding,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgPricePill,
-                          borderRadius:
-                              BorderRadius.circular(AppBorderRadius.full),
-                          border: Border.all(
-                            color: AppColors.borderPricePill,
-                            width: ProductCard.metrics.pricePillBorder,
-                          ),
-                        ),
-                        child: Text(
-                          formatPrice(widget.product.priceCents, widget.locale),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          style: TextStyle(
-                            color: AppColors.infoOnTint,
-                            fontSize: widget.priceFontSize,
-                            fontWeight: FontWeight.w900,
-                            height: ProductCard.textLineHeight,
-                          ),
-                        ),
+                      // The member picks by name and then checks the price;
+                      // the size (ADR-0056) is read with it, as "this much,
+                      // for this price". The pill is one line tall with or
+                      // without a volume, so a Sauna-Token's price sits level
+                      // with its neighbours' — the invariant commit 2b4d50b5
+                      // pinned the name box for. `semanticInfo` on a fill of
+                      // its own with a 1 px border: the contrast of that
+                      // pairing is asserted in `contrast_test.dart`.
+                      //
+                      // The grid sizes the type so the pill fits the tile;
+                      // `scaleDown` is only the fallback for a price floor too
+                      // large for the tile (`pillsOverflow`), which would
+                      // otherwise clip the amount.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _pricePill(),
                       ),
                     ],
                   ),

@@ -453,6 +453,7 @@ void main() {
         int productCount, {
         Size surface = const Size(1280, 800),
         String Function(int index)? name,
+        bool withItemInCart = false,
       }) async {
         await setSurface(tester, surface);
 
@@ -494,8 +495,23 @@ void main() {
           // Two-line names are the worst case for vertical fit.
           return 'Ein ziemlich langer Produktname ${product.id}';
         });
-        when(() => mockCartProvider.itemCount).thenReturn(0);
-        when(() => mockCartProvider.items).thenReturn([]);
+        if (withItemInCart) {
+          // One item is what brings the summary bar up under the grid.
+          when(() => mockCartProvider.items).thenReturn([
+            CartItem(
+              productId: 'prod-0',
+              productName: 'Produkt 0',
+              quantity: 1,
+              priceCents: 250,
+              language: 'de',
+            ),
+          ]);
+          when(() => mockCartProvider.itemCount).thenReturn(1);
+          when(() => mockCartProvider.total).thenReturn(250);
+        } else {
+          when(() => mockCartProvider.itemCount).thenReturn(0);
+          when(() => mockCartProvider.items).thenReturn([]);
+        }
 
         await tester.pumpWidget(
           createTestApp(
@@ -531,6 +547,49 @@ void main() {
           expect(tester.takeException(), isNull);
           expect(find.byType(ProductCard), findsWidgets);
         });
+      }
+
+      /// The first tap used to re-flow the grid. The summary bar appears with
+      /// the first item in the cart, and a grid solved against the taller
+      /// empty-cart viewport picked a different layout than the one it had
+      /// once the bar took its height — the tiles moved under the finger that
+      /// had just touched one. The grid is solved as if the bar were always
+      /// there, so the cart's state never changes the layout.
+      for (final surface in const [
+        Size(1280, 800),
+        Size(975, 650),
+        Size(1024, 600),
+        Size(1920, 1080),
+      ]) {
+      testWidgets(
+          'the first item in the cart does not re-flow the grid at '
+          '${surface.width.toInt()}x${surface.height.toInt()}',
+          (WidgetTester tester) async {
+        String name(int i) =>
+            ['Apfelschorle', 'Bier 0%', 'Wasser', 'Wasser'][i];
+
+        await pumpCatalog(tester, 4, name: name, surface: surface);
+        final empty = tester.widget<ProductCard>(find.byType(ProductCard).first);
+        final emptyTile = tester.getSize(find.byType(ProductCard).first);
+        // The bar is there on an empty cart too — which is the whole fix.
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+
+        // A fresh tree: the mocks never notify, so re-pumping the same tree
+        // would not rebuild the screen against the cart stubbed below.
+        await tester.pumpWidget(const SizedBox());
+        await pumpCatalog(tester, 4,
+            name: name, surface: surface, withItemInCart: true);
+        final filled =
+            tester.widget<ProductCard>(find.byType(ProductCard).first);
+        final filledTile = tester.getSize(find.byType(ProductCard).first);
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+
+        expect(tester.takeException(), isNull);
+        expect(filledTile.width, emptyTile.width,
+            reason: 'the same number of columns');
+        expect(filledTile.height, emptyTile.height);
+        expect(filled.nameFontSize, empty.nameFontSize);
+      });
       }
 
       testWidgets('survives a screen too narrow for four columns',
@@ -895,7 +954,9 @@ void main() {
           (WidgetTester tester) async {
         await pumpCatalog(tester, productCount: 40, cartHasItems: false);
 
-        expect(find.byType(CartSummaryBar), findsNothing);
+        // The bar stays up on an empty cart, so the grid's height never
+        // depends on the cart; the padding under the grid is still only `md`.
+        expect(find.byType(CartSummaryBar), findsOneWidget);
         final grid = tester.widget<GridView>(find.byType(GridView));
         expect(grid.padding, const EdgeInsets.only(bottom: AppSpacing.md));
       });
@@ -1688,11 +1749,20 @@ void main() {
           .widget<Text>(find.byKey(const Key('cart-summary-total')))
           .data!;
 
-      testWidgets('stays away while the cart is empty',
+      // Always there: a bar that appeared with the first item took its height
+      // from the grid at that tap, and the tiles re-flowed under the finger.
+      testWidgets('is there on an empty cart, at zero, with nothing to press',
           (WidgetTester tester) async {
         await pumpScreen(tester);
 
-        expect(find.byType(CartSummaryBar), findsNothing);
+        expect(find.byType(CartSummaryBar), findsOneWidget);
+        expect(runningTotal(tester), formatPrice(0, 'de'));
+        expect(checkoutInkWell(tester).onTap, isNull,
+            reason: 'nothing to pay for');
+        await tester.tap(find.byKey(const Key('view-cart-button')));
+        await tester.pumpAndSettle();
+        expect(find.text('CART SCREEN'), findsNothing,
+            reason: 'nothing to review');
       });
 
       testWidgets('shows the running total once the cart is not empty',
@@ -1717,7 +1787,7 @@ void main() {
         );
 
         await pumpScreen(tester, cart: cart);
-        expect(find.byType(CartSummaryBar), findsNothing);
+        expect(runningTotal(tester), formatPrice(0, 'de'));
 
         await tester.tap(find.text('Bier'));
         await tester.pump();
@@ -1746,7 +1816,9 @@ void main() {
         });
       }
 
-      testWidgets('the projected tab is shown next to the total',
+      // The bar shows the total and nothing else: the projected tab was
+      // ellipsised on the kiosk, and the cart screen still shows it in full.
+      testWidgets('shows the total, not the projected tab',
           (WidgetTester tester) async {
         withCart(2);
         when(() => mockMembersProvider.memberDeckel).thenReturn(1000);
@@ -1754,9 +1826,15 @@ void main() {
         await pumpScreen(tester);
 
         final l10n = await AppLocalizations.delegate.load(const Locale('de'));
+        final bar = find.byType(CartSummaryBar);
         expect(
-          find.text(formatNewBalance(1700, l10n, 'de')),
+          find.descendant(of: bar, matching: find.text(l10n.cartTotal)),
           findsOneWidget,
+        );
+        expect(
+          find.descendant(
+              of: bar, matching: find.text(formatNewBalance(1700, l10n, 'de'))),
+          findsNothing,
         );
       });
 

@@ -594,23 +594,16 @@ export class ProductsPage extends BasePage {
     return (await cell.first().innerText()).trim()
   }
 
-  /** The preview tile's badge, or `null` when the previewed product has no size. */
+  /** The size in the preview's price pill, or `null` when the product has none. */
   async getPreviewVolume(): Promise<string | null> {
-    const badge = this.page.getByTestId('products-preview-volume')
-    if ((await badge.count()) === 0) return null
-    return (await badge.first().innerText()).trim()
+    const volume = this.page.getByTestId('products-preview-volume')
+    if ((await volume.count()) === 0) return null
+    return (await volume.first().innerText()).trim()
   }
 
-  /**
-   * Is the preview's volume row there at all?
-   *
-   * It is reserved whether or not the product has a size, because on the
-   * terminal that row is what holds every price on a grid row at the same
-   * height. A preview that collapsed it would show an admin a tile the terminal
-   * will never draw.
-   */
-  async isPreviewVolumeRowPresent(): Promise<boolean> {
-    return (await this.page.getByTestId('products-preview-volume-row').count()) > 0
+  /** The preview's price pill, size included — `0,5 l 2,00 €` — as the member reads it. */
+  async getPreviewPricePill(): Promise<string> {
+    return (await this.page.getByTestId('products-preview-price-pill').innerText()).trim()
   }
 
   /**
