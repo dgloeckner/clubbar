@@ -178,11 +178,13 @@ stat -c '%a %n' .                  # 755, in the document root — never 777
 `session.regeneration_interval` (default 900s) is separate from those: it is how
 often a signed-in admin's session ID is replaced, so that a leaked cookie stops
 working sooner than the session itself does. The previous ID keeps forwarding to
-its replacement for 60 seconds afterwards — without that, a request the browser
-had already sent, or one the panel cancelled, would arrive on an ID the server
-had just deleted and sign the admin out mid-session. Set it below 60 seconds and
-those forwarding records start chaining, which works but keeps an old ID usable
-for longer than the 60 seconds suggests; there is no reason to go near that.
+its replacement for 10 seconds afterwards (`SessionRotation::GRACE_SECONDS`,
+[ADR-0025](../adr/0025-session-fixation-protection.md)) — without that, a
+request the browser had already sent, or one the panel cancelled, would arrive
+on an ID the server had just deleted and sign the admin out mid-session. Set it
+below 10 seconds and those forwarding records start chaining, which works but
+keeps an old ID usable for longer than the 10 seconds suggests; there is no
+reason to go near that.
 
 Two consequences worth knowing about:
 
