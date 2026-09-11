@@ -104,7 +104,7 @@ class AdminInvitationsRepository
     public function markAccepted(string $id): bool
     {
         $stmt = $this->db->prepare(
-            'UPDATE admin_user_invitations SET accepted_at = ? '
+            'UPDATE admin_user_invitations SET accepted_at = ?, token_cipher = \'\' '
             . 'WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL'
         );
         $stmt->execute([date('Y-m-d H:i:s'), $id]);
@@ -121,12 +121,34 @@ class AdminInvitationsRepository
     public function revokeOutstandingFor(string $adminUserId): int
     {
         $stmt = $this->db->prepare(
-            'UPDATE admin_user_invitations SET revoked_at = ? '
+            'UPDATE admin_user_invitations SET revoked_at = ?, token_cipher = \'\' '
             . 'WHERE admin_user_id = ? AND accepted_at IS NULL AND revoked_at IS NULL'
         );
         $stmt->execute([date('Y-m-d H:i:s'), $adminUserId]);
 
         return $stmt->rowCount();
+    }
+
+    /**
+     * Null out the sealed token once it has served its one purpose — see the
+     * class comment (#891). Called from two places: `NotificationsService`,
+     * right after the mail that renders the link is confirmed sent, and
+     * `AdminInvitationService::requireValid()`, the first time anybody
+     * presents a link past `expires_at`. There is deliberately no third,
+     * scheduled sweep for an invitation that expires unpresented — nothing
+     * reads `token_cipher` again after either of those two moments, so a row
+     * nobody ever touches costs nothing beyond what accepting or revoking
+     * already bounds it to (7 days, {@see InvitationLink::TTL_DAYS}).
+     *
+     * Unconditional and idempotent — no `WHERE token_cipher <> ''` guard,
+     * because racing this against itself is harmless and a guard would only
+     * make "already cleared" indistinguishable from "row gone" in the return
+     * value for no benefit.
+     */
+    public function clearTokenCipher(string $id): void
+    {
+        $stmt = $this->db->prepare('UPDATE admin_user_invitations SET token_cipher = \'\' WHERE id = ?');
+        $stmt->execute([$id]);
     }
 
     /** Whether this account has ever completed an invitation. */

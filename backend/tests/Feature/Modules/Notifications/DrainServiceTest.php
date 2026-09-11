@@ -22,6 +22,7 @@ use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Settlements\Repositories\SettlementAnnouncementsRepository;
 use App\Modules\Notifications\Contracts\MailContentBuilder;
 use App\Modules\Notifications\Services\MailContentRegistry;
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Shared\Config\PhpRuntime;
@@ -537,6 +538,7 @@ class DrainServiceTest extends DatabaseTestCase
             // A delivered announcement leaves a durable settlement-side record
             // (#408); this suite drains real rows, so it gets the real one.
             new SettlementAnnouncementsRepository($this->db, $queueLogger),
+            $this->createMock(AdminInvitationsRepository::class),
             $queueLogger,
         );
 
@@ -605,6 +607,7 @@ class DrainServiceTest extends DatabaseTestCase
                 $this->createMock(AuditService::class),
                 $this->createMock(AdminUsersRepository::class),
                 new SettlementAnnouncementsRepository($this->db, $this->logger),
+                $this->createMock(AdminInvitationsRepository::class),
                 $this->logger,
             ),
             new MailContentRegistry(new FixedContentBuilder()),

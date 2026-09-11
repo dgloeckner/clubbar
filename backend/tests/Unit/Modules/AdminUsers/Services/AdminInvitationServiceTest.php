@@ -303,6 +303,52 @@ class AdminInvitationServiceTest extends TestCase
         ];
     }
 
+    /**
+     * A revoked or accepted invitation already had its sealed token cleared —
+     * by `revokeOutstandingFor()` and `markAccepted()` respectively (#891).
+     * Expiry is the one path nothing else ever touches, because nothing
+     * revokes or accepts a link that simply goes stale in somebody's inbox —
+     * so the first presentation past `expires_at` is what clears it.
+     */
+    public function test_an_expired_link_clears_its_sealed_token(): void
+    {
+        $this->givenAccount();
+        $this->invitations->method('findByTokenHash')->willReturn(
+            self::invitationRow(['expires_at' => date('Y-m-d H:i:s', time() - 60)])
+        );
+
+        $this->invitations->expects($this->once())->method('clearTokenCipher')->with('inv-1');
+
+        try {
+            $this->service->describe(InvitationLink::mintToken());
+            $this->fail('expected a refusal');
+        } catch (BusinessRuleException $e) {
+            $this->assertSame(BusinessRuleReason::INVITATION_INVALID, $e->getReason());
+        }
+    }
+
+    /**
+     * An already-accepted link's cipher was cleared at acceptance, not here —
+     * clearing it again on every later presentation would just be a write
+     * nobody needed.
+     */
+    public function test_a_link_refused_for_a_reason_other_than_expiry_does_not_clear_the_cipher_again(): void
+    {
+        $this->givenAccount();
+        $this->invitations->method('findByTokenHash')->willReturn(
+            self::invitationRow(['accepted_at' => '2026-08-01 10:00:00'])
+        );
+
+        $this->invitations->expects($this->never())->method('clearTokenCipher');
+
+        try {
+            $this->service->describe(InvitationLink::mintToken());
+            $this->fail('expected a refusal');
+        } catch (BusinessRuleException $e) {
+            $this->assertSame(BusinessRuleReason::INVITATION_INVALID, $e->getReason());
+        }
+    }
+
     public function test_a_malformed_token_never_reaches_the_database(): void
     {
         $this->invitations->expects($this->never())->method('findByTokenHash');

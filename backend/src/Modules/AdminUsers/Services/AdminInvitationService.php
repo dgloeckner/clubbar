@@ -327,6 +327,12 @@ class AdminInvitationService
         }
 
         if (strtotime((string) $invitation['expires_at']) < time()) {
+            // Lazily, the first time anybody presents the dead link — the
+            // sealed token has no remaining purpose once nothing can accept
+            // it (#891). Best effort: an unpresented expired invitation still
+            // gets swept by retention.
+            $this->invitations->clearTokenCipher((string) $invitation['id']);
+
             throw $this->invalid('expired');
         }
 

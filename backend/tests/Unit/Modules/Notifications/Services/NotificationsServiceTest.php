@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\MailRequestDto;
@@ -38,6 +39,7 @@ class NotificationsServiceTest extends TestCase
     private AuditService $audit;
     private AdminUsersRepository $admins;
     private SettlementAnnouncementsRepository $announcements;
+    private AdminInvitationsRepository $invitations;
     private NotificationsService $service;
 
     private const SETTLEMENT = '11111111-1111-4111-8111-111111111111';
@@ -53,6 +55,7 @@ class NotificationsServiceTest extends TestCase
         $this->audit = $this->createMock(AuditService::class);
         $this->admins = $this->createMock(AdminUsersRepository::class);
         $this->announcements = $this->createMock(SettlementAnnouncementsRepository::class);
+        $this->invitations = $this->createMock(AdminInvitationsRepository::class);
 
         $this->service = new NotificationsService(
             $this->outbox,
@@ -60,6 +63,7 @@ class NotificationsServiceTest extends TestCase
             $this->audit,
             $this->admins,
             $this->announcements,
+            $this->invitations,
             $this->createMock(Logger::class),
         );
     }
@@ -521,6 +525,61 @@ class NotificationsServiceTest extends TestCase
             MailSendResult::permanentFailure('550 no such mailbox'),
             CronInterval::HOURLY,
         );
+    }
+
+    /**
+     * The sealed token has no remaining purpose once the mail carrying its
+     * link is confirmed delivered (#891) — so a *sent* invitation message
+     * clears it, keyed by the dedup key, which is the invitation's own id
+     * (see `AdminSecurityMailBuilder::buildInvitation()`).
+     */
+    public function test_a_sent_invitation_clears_the_invitations_sealed_token(): void
+    {
+        $this->outbox->method('markSent')->willReturn('2026-08-15 10:00:00');
+
+        $this->invitations->expects($this->once())
+            ->method('clearTokenCipher')
+            ->with('invitation-7');
+
+        $this->service->recordResult(
+            $this->claimed([
+                'kind' => MailKind::ADMIN_INVITATION->value,
+                'member_id' => null,
+                'subject_id' => 'admin-9',
+                'dedup_key' => 'invitation-7',
+            ]),
+            MailSendResult::sent('mid-9'),
+            CronInterval::HOURLY,
+        );
+    }
+
+    /** A message that never sent leaves the invitation's link usable for a retry. */
+    public function test_a_failed_invitation_send_leaves_the_sealed_token_alone(): void
+    {
+        $this->outbox->method('attemptsFor')->willReturn(0);
+        $this->outbox->method('markFailed')->willReturn(MailStatus::PENDING);
+
+        $this->invitations->expects($this->never())->method('clearTokenCipher');
+
+        $this->service->recordResult(
+            $this->claimed([
+                'kind' => MailKind::ADMIN_INVITATION->value,
+                'member_id' => null,
+                'subject_id' => 'admin-9',
+                'dedup_key' => 'invitation-7',
+            ]),
+            MailSendResult::transientFailure('451 greylisted'),
+            CronInterval::HOURLY,
+        );
+    }
+
+    /** Every other kind's send is untouched — only an invitation carries a secret to clear. */
+    public function test_a_non_invitation_sent_message_never_touches_the_invitations_repository(): void
+    {
+        $this->outbox->method('markSent')->willReturn('2026-08-15 10:00:00');
+        $this->invitations->expects($this->never())->method('clearTokenCipher');
+
+        $this->service->recordResult($this->claimed(), MailSendResult::sent('mid-9'), CronInterval::HOURLY);
     }
 
     /**
