@@ -19,7 +19,7 @@ import {
 
 describe('VOLUME_PRESETS_ML', () => {
   it('offers the sizes a club pours, largest first', () => {
-    expect([...VOLUME_PRESETS_ML]).toEqual([1000, 500, 330, 250, 200])
+    expect([...VOLUME_PRESETS_ML]).toEqual([1000, 500, 330, 300, 250, 200])
   })
 
   it('offers only sizes the API will take', () => {
@@ -33,9 +33,9 @@ describe('VOLUME_PRESETS_ML', () => {
 
 describe('volumeOptionsFor', () => {
   it('offers the presets for a product with no size, and for one that has a listed size', () => {
-    expect(volumeOptionsFor(null)).toEqual([1000, 500, 330, 250, 200])
-    expect(volumeOptionsFor(undefined)).toEqual([1000, 500, 330, 250, 200])
-    expect(volumeOptionsFor(500)).toEqual([1000, 500, 330, 250, 200])
+    expect(volumeOptionsFor(null)).toEqual([1000, 500, 330, 300, 250, 200])
+    expect(volumeOptionsFor(undefined)).toEqual([1000, 500, 330, 300, 250, 200])
+    expect(volumeOptionsFor(500)).toEqual([1000, 500, 330, 300, 250, 200])
   })
 
   it('keeps a size the list does not contain, in its place among them', () => {
@@ -43,13 +43,13 @@ describe('volumeOptionsFor', () => {
     // 750 ml, the picker shows the presets only, the select falls back to the
     // empty option — and the next save of an unrelated field clears a column
     // nobody touched.
-    expect(volumeOptionsFor(750)).toEqual([1000, 750, 500, 330, 250, 200])
-    expect(volumeOptionsFor(300)).toEqual([1000, 500, 330, 300, 250, 200])
+    expect(volumeOptionsFor(750)).toEqual([1000, 750, 500, 330, 300, 250, 200])
+    expect(volumeOptionsFor(400)).toEqual([1000, 500, 400, 330, 300, 250, 200])
   })
 
   it('puts a size larger than any preset first and a smaller one last', () => {
-    expect(volumeOptionsFor(5000)).toEqual([5000, 1000, 500, 330, 250, 200])
-    expect(volumeOptionsFor(20)).toEqual([1000, 500, 330, 250, 200, 20])
+    expect(volumeOptionsFor(5000)).toEqual([5000, 1000, 500, 330, 300, 250, 200])
+    expect(volumeOptionsFor(20)).toEqual([1000, 500, 330, 300, 250, 200, 20])
   })
 
   it('never repeats a size', () => {
@@ -61,7 +61,7 @@ describe('volumeOptionsFor', () => {
 
   it('leaves the preset list itself alone', () => {
     volumeOptionsFor(750)
-    expect([...VOLUME_PRESETS_ML]).toEqual([1000, 500, 330, 250, 200])
+    expect([...VOLUME_PRESETS_ML]).toEqual([1000, 500, 330, 300, 250, 200])
   })
 })
 

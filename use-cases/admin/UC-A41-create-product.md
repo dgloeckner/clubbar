@@ -35,15 +35,15 @@ Admin clicks "New Product"
 | Price | Yes | > 0, max 2 decimals |
 | Category | Yes | Existing category |
 | Minimum age | No | Integer 1–99. Empty = unrestricted |
-| Size | No | Chosen from the sizes the club pours — 1000, 500, 330, 250 or 200 ml. Stored as whole millilitres. Empty = the product has no size |
+| Size | No | Chosen from the sizes the club pours — 1000, 500, 330, 300, 250 or 200 ml. Stored as whole millilitres. Empty = the product has no size |
 
 ## Size ([ADR-0056](../../adr/0056-product-volume.md))
 
 The size does **not** go in the name. `Weizenbier (0,5l)` is entered as
 `Weizenbier` plus a size of `500 ml`.
 
-- **Chosen from a list**, not typed: `1000 ml`, `500 ml`, `330 ml`, `250 ml`,
-  `200 ml` — the sizes a club pours, labelled the way a crate is. Stored and sent
+- **Chosen from a list**, not typed: `1000 ml`, `500 ml`, `330 ml`, `300 ml`,
+  `250 ml`, `200 ml` — the sizes a club pours, labelled the way a crate is. Stored and sent
   as whole **millilitres**, which is what the option carries.
 - **Empty means the product has no size** — a Sauna-Token, a Kaffee — which is
   not a size of zero. `0` is refused for that reason, and the empty option is

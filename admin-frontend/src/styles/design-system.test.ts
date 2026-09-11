@@ -193,6 +193,7 @@ describe('formatMillilitres', () => {
       '1000 ml',
       '500 ml',
       '330 ml',
+      '300 ml',
       '250 ml',
       '200 ml',
     ])
@@ -206,6 +207,7 @@ describe('formatMillilitres', () => {
       '1 l',
       '0,5 l',
       '0,33 l',
+      '0,3 l',
       '0,25 l',
       '0,2 l',
     ])
@@ -213,6 +215,7 @@ describe('formatMillilitres', () => {
       '1 l',
       '0.5 l',
       '0.33 l',
+      '0.3 l',
       '0.25 l',
       '0.2 l',
     ])

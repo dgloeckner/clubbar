@@ -46,7 +46,7 @@ mask, and nothing left for the form to refuse.
 
 | Decision | Why |
 |----------|-----|
-| **Picked from `VOLUME_PRESETS_ML`** — 1000, 500, 330, 250, 200 ml, largest first | The sizes a club pours, in the order a drinks list is read. The list *is* the validation: every option is inside the API's 1–10 000 ml range by construction |
+| **Picked from `VOLUME_PRESETS_ML`** — 1000, 500, 330, 300, 250, 200 ml, largest first | The sizes a club pours, in the order a drinks list is read. The list *is* the validation: every option is inside the API's 1–10 000 ml range by construction |
 | **Labelled in millilitres, read in litres** | A Getränkewart picks a size off a crate, which says `330 ml`; a member reads one on a terminal, which says `0,33 l`. Both come from the same stored number, and the preview beside the picker shows the second half so the pairing is visible while choosing |
 | **A size from outside the list is kept** | `volumeOptionsFor(value)` adds the product's own size to the options when it is not a preset, in descending order. Without it, a product saved with 750 ml would open showing *no* size and the next unrelated save would clear the column |
 | **`null` means the product has no size** | A Sauna-Token, a Kaffee — and the default, first in the list. Not `0`: zero would print as a size while meaning none, which is why the API refuses it |

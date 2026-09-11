@@ -518,6 +518,31 @@ the litres a member will read.
 />
 ```
 
+#### ProductPreview Component
+
+The tile the terminal will draw, drawn in the product form: the icon, the name
+on **one line**, the volume badge in a row whose height is reserved, and the
+price in a pill. It is the terminal's `ProductCard`
+(`terminal-frontend/lib/widgets/styled_components/product_card.dart`) laid out
+from the same numbers, at the smallest scale a terminal is configured for — not
+a panel-styled approximation of it, which is why it is the one component using
+the terminal's colours rather than `theme`.
+
+**File**: `src/components/forms/ProductPreview.tsx` (metrics: the exported
+`TERMINAL_TILE`, mirroring `ProductTileMetrics` and `AppColors`)
+
+**Props**:
+- `name` (string, required), `price` (string, required — the form's raw input),
+  `iconName` (string | null, required)
+- `volumeMl` (number | null, optional): whole millilitres, or `null` for a
+  product with no size — the badge row stays either way (ADR-0056)
+
+**Keeping it honest**: `ProductPreview.test.tsx` pins the relationships the
+terminal's own widget tests hold — one name line, the reserved row, the price
+derived from the name size — so a change to the Dart card that is not mirrored
+here fails the unit suite. Test IDs: `products-preview-card`, `-name`,
+`-volume-row`, `-volume`, `-price`.
+
 #### CharacterCounter Component
 
 Displays character count with color warning based on limit.
@@ -1366,8 +1391,9 @@ theme.colors.border.subtle = 'rgba(255, 255, 255, 0.08)' // derived via withAlph
 
 A translucent slate border — a different hue from the white/primary tints
 above — used on empty-state panels (`ExcludedFromCollectionPage.tsx`'s dashed
-border), `ProductPreview.tsx`'s solid border, and `PillFilter.tsx`'s idle
-border:
+border) and `PillFilter.tsx`'s idle border. (`ProductPreview.tsx` is the one
+component that deliberately does *not* use the panel's tokens: it draws the
+terminal's tile, so it carries the terminal's own colours.)
 
 ```typescript
 theme.colors.border.slate = 'rgba(71, 85, 105, 0.4)' // derived via withAlpha('#475569', 0.4)

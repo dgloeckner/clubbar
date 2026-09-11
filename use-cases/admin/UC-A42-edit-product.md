@@ -30,7 +30,7 @@ Admin clicks "Edit" on product
 | Price | Price in cents |
 | Category | Product category assignment |
 | Minimum age | Legal minimum age for this product (Jugendschutz, [ADR-0045](../../adr/0045-age-restricted-products.md)). Empty = unrestricted; clearing it removes the restriction |
-| Size | The product's volume, chosen from the sizes the club pours (1000, 500, 330, 250, 200 ml) and stored as whole millilitres ([ADR-0056](../../adr/0056-product-volume.md)). Empty = the product has no size; choosing the empty option removes it. A size from outside the list is offered back unchanged |
+| Size | The product's volume, chosen from the sizes the club pours (1000, 500, 330, 300, 250, 200 ml) and stored as whole millilitres ([ADR-0056](../../adr/0056-product-volume.md)). Empty = the product has no size; choosing the empty option removes it. A size from outside the list is offered back unchanged |
 | Status | Active / Inactive toggle |
 
 ## Renaming a Product That Carries Its Size

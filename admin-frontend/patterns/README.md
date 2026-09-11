@@ -123,7 +123,7 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 ### [Volume Select Pattern](./volume-select.md)
 **Purpose**: one size control for a product, picked from a predefined list and stored in millilitres
 
-- ✅ The list is the validation — 1000, 500, 330, 250, 200 ml; nothing to type, nothing to refuse
+- ✅ The list is the validation — 1000, 500, 330, 300, 250, 200 ml; nothing to type, nothing to refuse
 - ✅ Labelled in millilitres (the crate), read in litres (the member); hidden `{testId}-value` for E2E
 - ✅ `null` is "this product has no size" — never `0`, which would print as one
 - ✅ A size from outside the list is kept and offered back, so an unrelated save cannot clear it

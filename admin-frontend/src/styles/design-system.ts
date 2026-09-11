@@ -60,7 +60,7 @@ export const theme = {
       violet: '#a855f7',       // Violet - a third category alongside primary/purple (e.g. payout transactions)
       amber: '#f59e0b',        // Amber - a third warning-adjacent category, distinct from `warning`
       amberHover: '#d97706',   // Amber - amber hover state
-      teal: '#14b8a6',         // Teal - mirrors the terminal UI's price color (product preview)
+      infoLight: '#38bdf8',    // Sky - the terminal's price text on its own tint (AppColors.infoOnTint)
     },
 
     // Text colors

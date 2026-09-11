@@ -64,7 +64,7 @@ test.describe('Product volume — mobile', () => {
     const offered = await field.locator('option').evaluateAll((options) =>
       options.map((option) => (option as HTMLOptionElement).value).filter((v) => v !== ''),
     )
-    expect(offered).toEqual(['1000', '500', '330', '250', '200'])
+    expect(offered).toEqual(['1000', '500', '330', '300', '250', '200'])
 
     // Picking one sets the millilitres the API will receive…
     await field.selectOption('500')

@@ -140,7 +140,7 @@ one-off pass through the product list, by hand.
 2. Delete the size from the name, **in every language tab** — `Weizenbier (0,5l)`
    becomes `Weizenbier`, `Wheat beer (0.5l)` becomes `Wheat beer`.
 3. Choose the size in **Größe**: `500 ml`. The list offers the sizes a club
-   pours — 1000, 500, 330, 250 and 200 ml — and the preview beside the form
+   pours — 1000, 500, 330, 300, 250 and 200 ml — and the preview beside the form
    shows what a member will read on the terminal: `0,5 l`.
 4. Save.
 

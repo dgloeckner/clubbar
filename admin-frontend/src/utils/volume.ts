@@ -35,7 +35,7 @@
  * already carrying another size keeps it, and this list is one edit away from
  * carrying it too.
  */
-export const VOLUME_PRESETS_ML: readonly number[] = [1000, 500, 330, 250, 200]
+export const VOLUME_PRESETS_ML: readonly number[] = [1000, 500, 330, 300, 250, 200]
 
 /** The API's bounds (ADR-0056). Ten litres is a typo guard, not a business rule. */
 export const VOLUME_MIN_ML = 1

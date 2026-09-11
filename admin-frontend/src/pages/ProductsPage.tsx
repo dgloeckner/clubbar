@@ -1311,9 +1311,15 @@ export function ProductsPage() {
               </form>
             </div>
 
-            {/* Right Column: Preview - hidden on mobile */}
+            {/* Right Column: Preview - hidden on mobile.
+
+                200 px, because the preview draws the terminal's tile at the
+                terminal's own numbers rather than a shrunken imitation of it
+                (see `ProductPreview`): a name at the floor size of 26 px needs
+                the room, and a narrower column would start ellipsising names the
+                terminal shows in full. */}
             {!isMobile && (
-              <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <div style={{ marginBottom: '12px', color: theme.colors.text.muted, fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {t('common.terminalPreview')}
                 </div>

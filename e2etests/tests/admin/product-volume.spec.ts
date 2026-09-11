@@ -12,8 +12,8 @@ import { csrfHeaders } from '../../utils/csrf'
  *
  * What has to hold end to end, and why each is asserted rather than assumed:
  *
- * - **The list is the predefined one** — 1000, 500, 330, 250 and 200 ml, in
- *   that order. It is the requirement, so it is asserted on the control itself
+ * - **The list is the predefined one** — 1000, 500, 330, 300, 250 and 200 ml,
+ *   in that order. It is the requirement, so it is asserted on the control itself
  *   rather than inferred from one lucky pick.
  * - **Picked in millilitres, read in litres.** The option says `500 ml`,
  *   because that is what the crate says; the preview and the list say `0,5 l`,
@@ -45,6 +45,7 @@ const SIZES = [
   { ml: 1000, label: '1000 ml', read: '1 l' },
   { ml: 500, label: '500 ml', read: '0,5 l' },
   { ml: 330, label: '330 ml', read: '0,33 l' },
+  { ml: 300, label: '300 ml', read: '0,3 l' },
   { ml: 250, label: '250 ml', read: '0,25 l' },
   { ml: 200, label: '200 ml', read: '0,2 l' },
 ]
@@ -255,6 +256,7 @@ test.describe('Product volume', () => {
       '750',
       '500',
       '330',
+      '300',
       '250',
       '200',
     ])
