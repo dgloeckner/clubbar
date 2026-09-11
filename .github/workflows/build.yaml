@@ -68,7 +68,7 @@ env:
   # it is `flutter-sdk-lag.yaml`, which opens one issue when this falls behind
   # the stable channel or below the lockfile's floor, and closes it again once
   # the pin is current.
-  FLUTTER_VERSION: '3.47.1'
+  FLUTTER_VERSION: '3.47.3'
 
 # Superseded runs on the same branch are pointless — cancel them. main is
 # exempt because its runs deploy, and a half-finished deploy is worse than a
