@@ -976,8 +976,12 @@ test.describe('Package: Runtime hardening', () => {
 test.describe('Package: .htaccess access rules', () => {
   test.skip(!process.env.PACKAGE_TEST, 'Skipped unless PACKAGE_TEST=1');
 
-  test('config.php, a stray log file and a dotfile are all denied', async ({ request }) => {
-    for (const path of ['/config.php', '/test.log', '/.env']) {
+  test('config.php, a stray log file, a source map and a dotfile are all denied', async ({ request }) => {
+    // The map path stands in for a copy unpacked from an older release
+    // (#895) — the current build never ships one (see "Package: Data
+    // placement" below), so this asserts the rule holds even when the file
+    // is absent.
+    for (const path of ['/config.php', '/test.log', '/assets/index.js.map', '/.env']) {
       const response = await request.get(`${PACKAGE_URL}${path}`);
       expect([403, 404], `${path} returned ${response.status()}`).toContain(response.status());
     }
@@ -1244,6 +1248,18 @@ test.describe.serial('Package: Data placement', () => {
         true
       );
     }
+  });
+
+  /**
+   * #895: vite.config.ts sets `sourcemap: 'hidden'`, so a build still produces
+   * `.js.map` files next to the bundles it emits — build-package.sh is what
+   * has to strip them before assembling the release ZIP. This is the
+   * regression guard for that step, run against the package as built rather
+   * than trusting the script never regresses.
+   */
+  test('no JavaScript source maps ship in the release', () => {
+    const count = inContainer([`echo count(glob("${DOCUMENT_ROOT}/assets/*.map"));`]);
+    expect(Number(count), 'a *.map file shipped in assets/ (#895)').toBe(0);
   });
 
   /**
