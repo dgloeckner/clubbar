@@ -224,6 +224,22 @@ void main() async {
     exit(1);
   }
 
+  if (configService.apiUrlIsInsecure) {
+    stderr.writeln('clubbar-terminal: insecure apiUrl');
+    stderr.writeln('');
+    stderr.writeln('apiUrl is "${configService.apiUrl}", which is not '
+        'https:// (ADR-0016).');
+    stderr.writeln('');
+    stderr.writeln(
+        'Every sync would send the bearer token — effectively the whole '
+        'member database — in clear text (issue #893).');
+    stderr.writeln('');
+    stderr.writeln('Set apiUrl to an https:// URL in config.json. '
+        'http:// is only accepted for localhost/127.0.0.1 during '
+        'development.');
+    exit(1);
+  }
+
   // Initialize window manager for desktop (Linux/macOS/Windows)
   try {
     await windowManager.ensureInitialized();

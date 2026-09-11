@@ -875,7 +875,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `terminalId` | string | — | Human-readable terminal name (shown in admin panel). Alphanumeric, hyphens, underscores, spaces; 1–50 chars. |
-| `apiUrl` | string | — | Base URL of the Club Bar backend API, e.g. `https://club.example.com/api`. No trailing slash. |
+| `apiUrl` | string | — | Base URL of the Club Bar backend API, e.g. `https://club.example.com/api`. No trailing slash. Must be `https://` (ADR-0016) — the app refuses to start otherwise, since the bearer token would go out in clear text on the first request, before an `.htaccess` redirect could ever come back (issue #893). `http://localhost` / `http://127.0.0.1` are exempted for local development, as in the Terminal Onboarding section of `README.md`. |
 | `apiToken` | string | — | 64-character hex device token generated in the Admin Panel under *Terminals*. Unlocks the whole membership, not just this terminal — see the note above the table. Create the file with `chmod 600`; the app verifies and re-tightens the mode on every start. |
 | `fullscreen` | bool | `false` | Run the app fullscreen / kiosk mode on startup. Recommended for production deployments. |
 | `soundsEnabled` | bool | `true` | Enable audio feedback sounds. Natural/warm UI sounds at key interactions. Set `false` for a silent deployment. |

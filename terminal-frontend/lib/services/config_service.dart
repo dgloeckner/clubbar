@@ -98,6 +98,27 @@ class ConfigService {
       _apiUrl?.isNotEmpty == true &&
       _apiToken?.isNotEmpty == true;
 
+  /// Loopback hosts exempt from the `https://` requirement below — what keeps
+  /// the dev workflow in `README.md` (`http://localhost:8080/api`) working.
+  static const Set<String> _loopbackHosts = {'localhost', '127.0.0.1', '::1'};
+
+  /// True when [apiUrl] would send the bearer token — effectively the whole
+  /// member database, see issue #885 — over plaintext HTTP to a non-loopback
+  /// host (issue #893).
+  ///
+  /// ADR-0016 makes HTTPS mandatory and the backend's `.htaccess` redirects
+  /// plain HTTP to HTTPS, but a 301 does not help here: the terminal's first
+  /// request has already put the token on the wire before the redirect comes
+  /// back. Checked separately from [isConfigured] — and not inside [load] —
+  /// so a malformed value is refused at startup with a named reason rather
+  /// than treated as a parse error.
+  bool get apiUrlIsInsecure {
+    final uri = Uri.tryParse(_apiUrl ?? '');
+    if (uri == null) return true;
+    if (_loopbackHosts.contains(uri.host)) return false;
+    return uri.scheme != 'https';
+  }
+
   String? get terminalId => _terminalId;
   String? get apiUrl => _apiUrl;
   String? get apiToken => _apiToken;
