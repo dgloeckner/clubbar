@@ -249,10 +249,11 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - Both separators accepted whichever language is on; the locale's is written back as you type
   - Canonical `12.34` on the wire, `12,34` on screen; assert on `{testId}-value` in E2E
   - Never format an amount by hand — `useFormatters().formatPrice()` goes through `Intl`
-- **Volume Field Pattern**: one size control for a product — typed in litres, stored in whole millilitres
-  - `<input type="number">` reports a comma as `''`, so a German admin typing `0,5` handed the form nothing (the #863 failure, one unit over)
-  - Litres on screen, whole millilitres on the wire; assert on `{testId}-value` in E2E
+- **Volume Select Pattern**: one size control for a product — picked from a predefined list, stored in whole millilitres
+  - The list is the validation: 1000, 500, 330, 250, 200 ml (`VOLUME_PRESETS_ML`). Nothing is typed, so there is no decimal separator to misread — the failure #863 named, one unit over
+  - Labelled in millilitres (what the crate says), read in litres (what the member reads); assert on `{testId}-value` in E2E
   - `null` is "this product has no size" (a Sauna-Token, a Kaffee) — never `0`, which would print as a size
+  - A size from outside the list is offered back rather than dropped, so an unrelated save cannot clear a product's own size
   - Never format a size by hand — `useFormatters().formatVolume()` goes through the rule shared with the backend and the terminal (ADR-0056)
 - **API Error Messages Pattern**: show an admin *why* an action failed, in their language
   - `useApiError()` — never render `err.response.data.message`, which the backend always writes in English

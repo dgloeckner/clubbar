@@ -485,32 +485,35 @@ and the full test-ID list).
 />
 ```
 
-#### VolumeField Component
+#### VolumeSelect Component
 
-The size control for a product — typed in litres, stored in whole millilitres
-(see [Volume Field Pattern](./volume-field.md) for the reasoning).
-`<input type="number">` is not used here either: it reports a comma to script as
-the empty string.
+The size control for a product — picked from the sizes a club pours, stored in
+whole millilitres (see [Volume Select Pattern](./volume-select.md) for the
+reasoning). No number is typed, so there is no decimal separator to read: the
+options are labelled in millilitres, and the preview beside the control shows
+the litres a member will read.
 
-**File**: `src/components/forms/VolumeField.tsx` (logic: `src/utils/volume.ts`)
+**File**: `src/components/forms/VolumeSelect.tsx` (logic: `src/utils/volume.ts`)
 
 **Props**:
 - `value` (number | null, required): whole millilitres, or `null` for a product
   with no size
 - `onChange` ((millilitres: number | null) => void, required): millilitres, or
-  `null` when the field is empty
-- `testId` (string, required): base for the field's test IDs; the hidden
+  `null` when the empty option is chosen
+- `testId` (string, required): base for the control's test IDs; the hidden
   `{testId}-value` carries the millilitres for E2E
-- `placeholder` (string, optional): overrides the locale's example size
+- `emptyLabel` (string, required): the empty option's wording — "this product
+  has no size"
 - `disabled`, `invalid`, `describedBy`, `ariaLabel`, `name`, `style`, `onBlur`
 
 **Example**:
 ```typescript
-<VolumeField
-  id="products-form-volume-input"
-  testId="products-form-volume-input"
+<VolumeSelect
+  id="products-form-volume-select"
+  testId="products-form-volume-select"
   value={formData.volumeMl}
   onChange={(volumeMl) => setFormData({ ...formData, volumeMl })}
+  emptyLabel={t('products.volumeNone')}
   invalid={!isVolumeInRange(formData.volumeMl)}
 />
 ```

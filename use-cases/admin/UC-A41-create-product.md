@@ -19,7 +19,7 @@ Admin clicks "New Product"
    - Names (per enabled language) — **without the size**
    - Price
    - Category
-   - Size, in litres (optional)
+   - Size, chosen from the predefined sizes (optional)
 4. Admin submits form
 5. System validates input
 6. System generates UUID
@@ -35,18 +35,22 @@ Admin clicks "New Product"
 | Price | Yes | > 0, max 2 decimals |
 | Category | Yes | Existing category |
 | Minimum age | No | Integer 1–99. Empty = unrestricted |
-| Size | No | Litres, either decimal separator (`0,5` or `0.5`). Stored as whole millilitres, 1–10 000. Empty = the product has no size |
+| Size | No | Chosen from the sizes the club pours — 1000, 500, 330, 250 or 200 ml. Stored as whole millilitres. Empty = the product has no size |
 
 ## Size ([ADR-0056](../../adr/0056-product-volume.md))
 
 The size does **not** go in the name. `Weizenbier (0,5l)` is entered as
-`Weizenbier` plus a size of `0,5`.
+`Weizenbier` plus a size of `500 ml`.
 
-- Typed in **litres**, in whichever notation the admin's language writes — a
-  numeric keypad emits a dot in a German panel and both are read as the same
-  size. Stored and sent as whole **millilitres**.
+- **Chosen from a list**, not typed: `1000 ml`, `500 ml`, `330 ml`, `250 ml`,
+  `200 ml` — the sizes a club pours, labelled the way a crate is. Stored and sent
+  as whole **millilitres**, which is what the option carries.
 - **Empty means the product has no size** — a Sauna-Token, a Kaffee — which is
-  not a size of zero. `0` is refused for that reason.
+  not a size of zero. `0` is refused for that reason, and the empty option is
+  what the form starts on.
+- A product that already carries a size the list does not contain keeps it: the
+  size is offered back alongside the others, so an edit to anything else cannot
+  quietly clear it.
 - The preview tile shows the badge the terminal will draw, in a row whose height
   is reserved even when there is no size.
 - Every surface that prints the product's name prints the size after it, each in

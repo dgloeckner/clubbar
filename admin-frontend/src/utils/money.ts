@@ -85,9 +85,10 @@ export function getMoneyFormat(locale: string): MoneyFormatSpec {
  *   difference between a €1,000 ceiling and a €1 one.
  * - **At most `maxDecimals` decimal digits** (two, for money), and a trailing
  *   separator survives so that `3,` is a state you can keep typing from. The
- *   parameter exists because `VolumeField` types litres, where the bottom of
- *   the validated range — 1 ml — is `0,001`; the masking rules are otherwise
- *   identical, and a second copy of them is how the two drift apart.
+ *   parameter is a generalisation the product size field used while sizes were
+ *   typed in litres, where the bottom of the range — 1 ml — is `0,001`; it
+ *   stays because the alternative to one parameterised mask is a second copy of
+ *   these rules, which is how two of them drift apart.
  * - **A leading `-` survives.** The mask is not the validator: a negative
  *   amount has to reach the form's own refusal, beside the field, rather than
  *   being silently turned into a positive one.

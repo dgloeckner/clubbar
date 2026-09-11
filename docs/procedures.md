@@ -139,8 +139,9 @@ one-off pass through the product list, by hand.
 1. Open the product in *Produkte*.
 2. Delete the size from the name, **in every language tab** — `Weizenbier (0,5l)`
    becomes `Weizenbier`, `Wheat beer (0.5l)` becomes `Wheat beer`.
-3. Type the size into **Größe**, in litres: `0,5`. Either decimal separator is
-   accepted; the field writes back the one your language uses.
+3. Choose the size in **Größe**: `500 ml`. The list offers the sizes a club
+   pours — 1000, 500, 330, 250 and 200 ml — and the preview beside the form
+   shows what a member will read on the terminal: `0,5 l`.
 4. Save.
 
 Doing both in one save is what keeps a product from being left half-renamed.
@@ -157,6 +158,10 @@ Doing both in one save is what keeps a product from being left half-renamed.
   Portion Nüsse. Empty is not the same as `0`, and `0` is refused.
 - Something that is not a volume — a Portion, a Stück — stays in the name. This
   field is millilitres only.
+- A size the list does not offer stays on any product that already has one, and
+  can be re-selected there; it just cannot be set on a new product. If your club
+  pours a size that is missing, ask for it to be added to the list rather than
+  writing it back into the name.
 - Editing a size changes how *past* bookings read, exactly as renaming a product
   already does. That is worth knowing before you edit a product with a long
   history; it is not new behaviour.
