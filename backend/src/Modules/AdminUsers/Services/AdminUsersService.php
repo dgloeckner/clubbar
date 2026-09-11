@@ -645,6 +645,11 @@ class AdminUsersService
             adminUserId: $currentAdminId,
         );
 
+        // #892: the out-of-band half of the change, carrying who did it — the
+        // write above never touches `email`, so the row it just returned still
+        // holds the address to tell.
+        $this->announcePasswordChanged($targetAdminId, (string) ($admin['email'] ?? ''), $currentAdminId);
+
         // UC-A63 has always said a reset invalidates the target's sessions; now
         // it does. The target is someone else, so no session of the caller's is
         // affected — unless they reset their own, which the epoch handles the
@@ -680,10 +685,109 @@ class AdminUsersService
             adminUserId: $adminId,
         );
 
+        // #892: the same out-of-band notice a reset gets, from the address
+        // read above, before the write — this change never touches `email`
+        // either, so it is still current.
+        $this->announcePasswordChanged($adminId, (string) ($admin['email'] ?? ''), $adminId);
+
         // Every other session on this account stops working. The caller keeps
         // theirs: `AuthController::changePassword` re-stamps it immediately
         // after this returns.
         $this->adminUsersRepository->touchCredentialsEpoch($adminId);
+    }
+
+    /**
+     * Queue "your password was changed" (#892), and never let it fail the
+     * change it describes.
+     *
+     * Mirrors {@see onEmailChanged()}'s own best-effort notice: the write has
+     * already committed by the time this runs, so a queue that refuses the
+     * notice is a smaller problem than an admin told their password did not
+     * change when it did. The failure is audited rather than silently
+     * swallowed, for the same reason `onEmailChanged()`'s is — this is a
+     * security notice, and its own failure to send is itself worth a record.
+     */
+    private function announcePasswordChanged(string $adminId, string $recipientEmail, ?string $actorAdminId): void
+    {
+        try {
+            $this->notificationsService->notifyPasswordChanged(
+                adminUserId: $adminId,
+                recipient: $recipientEmail,
+                occasion: 'changed:' . time(),
+                actorAdminUserId: $actorAdminId,
+            );
+        } catch (\Throwable $e) {
+            $this->auditService->log(
+                action: AuditAction::PASSWORD_CHANGED,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $adminId,
+                newValues: ['notification_failed' => $e->getMessage()],
+                adminUserId: $actorAdminId,
+            );
+        }
+    }
+
+    /**
+     * Queue "two-factor authentication was set up" (#892), for
+     * {@see \App\Modules\Auth\Controllers\AuthController::confirm2fa()}.
+     *
+     * Lives here rather than being called straight from the controller so
+     * that only this service, which already holds {@see NotificationsService},
+     * needs to know mail exists — the same separation `changeOwnPassword()`
+     * and `resetAdminPassword()` already give the controller.
+     */
+    public function notifyTotpEnrolled(string $adminId): void
+    {
+        $admin = $this->adminUsersRepository->findById($adminId);
+        if (!$admin) {
+            return;
+        }
+
+        try {
+            $this->notificationsService->notifyTotpEnrolled(
+                adminUserId: $adminId,
+                recipient: (string) ($admin['email'] ?? ''),
+                occasion: 'enrolled:' . time(),
+            );
+        } catch (\Throwable $e) {
+            $this->auditService->log(
+                action: AuditAction::TOTP_ENROLLED,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $adminId,
+                newValues: ['notification_failed' => $e->getMessage()],
+                adminUserId: $adminId,
+            );
+        }
+    }
+
+    /**
+     * Queue "two-factor authentication was reset" (#892), for
+     * {@see \App\Modules\Auth\Controllers\AuthController::reset2fa()} — to the
+     * target, which may be a different admin than whoever performed the reset.
+     */
+    public function notifyTotpReset(string $targetAdminId, ?string $currentAdminId): void
+    {
+        $admin = $this->adminUsersRepository->findById($targetAdminId);
+        if (!$admin) {
+            return;
+        }
+
+        try {
+            $this->notificationsService->notifyTotpReset(
+                adminUserId: $targetAdminId,
+                recipient: (string) ($admin['email'] ?? ''),
+                occasion: 'reset:' . time(),
+                actorAdminUserId: $currentAdminId,
+            );
+        } catch (\Throwable $e) {
+            $this->auditService->log(
+                action: AuditAction::TOTP_RESET,
+                entityType: EntityType::ADMIN_USER,
+                entityId: $targetAdminId,
+                newValues: ['notification_failed' => $e->getMessage()],
+                adminUserId: $currentAdminId,
+            );
+        }
     }
 
     /**

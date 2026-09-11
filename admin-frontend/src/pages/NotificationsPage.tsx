@@ -445,6 +445,9 @@ const KINDS = [
   'admin_invitation',
   'admin_role_changed',
   'admin_email_changed',
+  'admin_password_changed',
+  'admin_totp_enrolled',
+  'admin_totp_reset',
   // Backups
   'backup_secret_expiry_warning',
   'backup_health_warning',

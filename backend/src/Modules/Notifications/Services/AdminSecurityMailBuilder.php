@@ -14,6 +14,7 @@ use App\Modules\Notifications\DTOs\MailConfigDto;
 use App\Modules\Notifications\Enums\MailKind;
 use App\Modules\Notifications\Enums\MailLanguage;
 use App\Modules\Notifications\Enums\MailSubject;
+use App\Modules\Notifications\Mail\AdminCredentialEventMail;
 use App\Modules\Notifications\Mail\AdminEmailChangedMail;
 use App\Modules\Notifications\Mail\AdminInvitationMail;
 use App\Modules\Notifications\Mail\AdminLifecycleMail;
@@ -113,6 +114,34 @@ class AdminSecurityMailBuilder implements MailContentBuilder
                 branding: $this->mailConfigService->getConfig()->toBranding(),
             ),
             MailKind::ADMIN_INVITATION => $this->buildInvitation($outboxRow, $admin, $recipient, $language, $mailConfig),
+            // The two credential notices (#892): addressed to the account
+            // itself, like ADMIN_EMAIL_CHANGED above, and for the same
+            // reason the recipient is the row's snapshot rather than
+            // `admin_users.email` — read at enqueue time, before anything
+            // else about the account can have moved again.
+            MailKind::ADMIN_PASSWORD_CHANGED => AdminCredentialEventMail::renderPasswordChanged(
+                recipientAddress: $recipient,
+                recipientName: $admin['display_name'] ?? null,
+                occurredAt: (string) ($outboxRow['queued_at'] ?? ''),
+                actorLabel: $this->actorLabel($outboxRow),
+                language: $language,
+                branding: $mailConfig->toBranding(),
+            ),
+            MailKind::ADMIN_TOTP_ENROLLED => AdminCredentialEventMail::renderTotpEnrolled(
+                recipientAddress: $recipient,
+                recipientName: $admin['display_name'] ?? null,
+                occurredAt: (string) ($outboxRow['queued_at'] ?? ''),
+                language: $language,
+                branding: $mailConfig->toBranding(),
+            ),
+            MailKind::ADMIN_TOTP_RESET => AdminCredentialEventMail::renderTotpReset(
+                recipientAddress: $recipient,
+                recipientName: $admin['display_name'] ?? null,
+                occurredAt: (string) ($outboxRow['queued_at'] ?? ''),
+                actorLabel: $this->actorLabel($outboxRow),
+                language: $language,
+                branding: $mailConfig->toBranding(),
+            ),
             default => throw new \InvalidArgumentException(
                 sprintf('%s has no content builder yet', $kind->value)
             ),

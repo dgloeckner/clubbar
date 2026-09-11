@@ -753,4 +753,92 @@ class NotificationsServiceTest extends TestCase
 
         $this->service->notifyFormerAddress(self::ADMIN, 'former@club.example', 'changed:1000', 'actor-1');
     }
+
+    /* ─────────────── Credential notices (#892) ─────────────── */
+
+    public function test_notifyPasswordChanged_queues_one_row_to_the_address_given(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'en']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyPasswordChanged(self::ADMIN, 'admin@club.example', 'changed:1000', 'actor-1')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_PASSWORD_CHANGED, $queued[0]->kind);
+        $this->assertSame('admin@club.example', $queued[0]->recipient);
+        $this->assertSame(self::ADMIN, $queued[0]->subjectId);
+        $this->assertSame(self::ADMIN, $queued[0]->adminUserId);
+        $this->assertSame('actor-1', $queued[0]->actorAdminUserId);
+    }
+
+    public function test_notifyPasswordChanged_queues_nothing_without_an_address(): void
+    {
+        $this->outbox->expects($this->never())->method('enqueue');
+
+        $this->assertFalse($this->service->notifyPasswordChanged(self::ADMIN, '   ', 'changed:1000'));
+    }
+
+    public function test_notifyTotpEnrolled_queues_one_row_with_no_actor(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyTotpEnrolled(self::ADMIN, 'admin@club.example', 'enrolled:1000')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_TOTP_ENROLLED, $queued[0]->kind);
+        $this->assertNull($queued[0]->actorAdminUserId, 'enrollment always names its own account');
+    }
+
+    public function test_notifyTotpReset_queues_one_row_to_the_target_naming_the_actor(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+
+        $queued = [];
+        $this->outbox->method('enqueue')->willReturnCallback(
+            function (MailRequestDto $request) use (&$queued): bool {
+                $queued[] = $request;
+                return true;
+            }
+        );
+
+        $this->assertTrue(
+            $this->service->notifyTotpReset(self::ADMIN, 'admin@club.example', 'reset:1000', 'actor-1')
+        );
+
+        $this->assertCount(1, $queued);
+        $this->assertSame(MailKind::ADMIN_TOTP_RESET, $queued[0]->kind);
+        $this->assertSame(self::ADMIN, $queued[0]->subjectId);
+        $this->assertSame('actor-1', $queued[0]->actorAdminUserId);
+    }
+
+    public function test_credential_notices_audit_only_a_row_that_was_queued(): void
+    {
+        $this->admins->method('findById')->willReturn(['id' => self::ADMIN, 'locale' => 'de']);
+        $this->outbox->method('enqueue')->willReturn(false);
+
+        $this->audit->expects($this->never())->method('log');
+
+        $this->assertFalse($this->service->notifyPasswordChanged(self::ADMIN, 'a@club.example', 'changed:1'));
+        $this->assertFalse($this->service->notifyTotpEnrolled(self::ADMIN, 'a@club.example', 'enrolled:1'));
+        $this->assertFalse($this->service->notifyTotpReset(self::ADMIN, 'a@club.example', 'reset:1'));
+    }
 }

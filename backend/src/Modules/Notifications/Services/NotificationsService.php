@@ -843,4 +843,114 @@ class NotificationsService
 
         return $queued;
     }
+
+    /**
+     * "Your password was changed" (#892), sent to the account it belongs to.
+     *
+     * The recipient is passed in explicitly rather than re-read from
+     * `admin_users` here, for the same reason {@see notifyFormerAddress()}
+     * takes one: the caller has already read the address at the moment the
+     * password was written, and freezing that value into `mail_outbox.recipient`
+     * is what keeps the notice honest if the address itself moves again before
+     * the drain runs.
+     *
+     * Fires for both write paths — a self-change and a cross-account reset —
+     * which is why the actor is a parameter rather than always `$adminUserId`:
+     * the body needs to say which of the two this was.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), and the password change it describes has already happened.
+     */
+    public function notifyPasswordChanged(
+        string $adminUserId,
+        string $recipient,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): bool {
+        return $this->queueAdminSecurityNotice(
+            MailKind::ADMIN_PASSWORD_CHANGED,
+            $adminUserId,
+            $recipient,
+            $occasion,
+            $actorAdminUserId,
+        );
+    }
+
+    /**
+     * "Two-factor authentication was set up on your account" (#892).
+     *
+     * Always self-triggered — enrollment names no other account — so there is
+     * no actor to report beyond the account itself, unlike its sibling
+     * {@see notifyTotpReset()}.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), and the enrollment it describes has already happened.
+     */
+    public function notifyTotpEnrolled(
+        string $adminUserId,
+        string $recipient,
+        string $occasion,
+    ): bool {
+        return $this->queueAdminSecurityNotice(MailKind::ADMIN_TOTP_ENROLLED, $adminUserId, $recipient, $occasion, null);
+    }
+
+    /**
+     * "Two-factor authentication was reset on your account" (#892), sent to
+     * the target — which may be a different admin than whoever performed the
+     * reset.
+     *
+     * Best effort, and never a gate. It queues; it does not send (ADR-0038
+     * rule 3), and the reset it describes has already happened.
+     */
+    public function notifyTotpReset(
+        string $adminUserId,
+        string $recipient,
+        string $occasion,
+        ?string $actorAdminUserId = null,
+    ): bool {
+        return $this->queueAdminSecurityNotice(MailKind::ADMIN_TOTP_RESET, $adminUserId, $recipient, $occasion, $actorAdminUserId);
+    }
+
+    /**
+     * The shared shape behind the three notices above: one account, one
+     * address snapshotted at enqueue, no fan-out — the same mechanics
+     * {@see notifyFormerAddress()} uses for `ADMIN_EMAIL_CHANGED`, generalised
+     * over the kind so the three do not each repeat it.
+     */
+    private function queueAdminSecurityNotice(
+        MailKind $kind,
+        string $adminUserId,
+        string $recipient,
+        string $occasion,
+        ?string $actorAdminUserId,
+    ): bool {
+        $recipient = trim($recipient);
+        if ($recipient === '') {
+            return false;
+        }
+
+        $admin = $this->adminUsersRepository->findById($adminUserId);
+
+        $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forAdmin(
+            kind: $kind,
+            subjectId: $adminUserId,
+            adminUserId: $adminUserId,
+            recipient: $recipient,
+            language: MailLanguage::fromPreferred($admin['locale'] ?? null),
+            occasion: $occasion,
+            actorAdminUserId: $actorAdminUserId,
+        ));
+
+        if ($queued) {
+            $this->auditService->log(
+                action: AuditAction::MAIL_ENQUEUED,
+                entityType: $kind->subjectType()->auditEntityType(),
+                entityId: $adminUserId,
+                newValues: ['kind' => $kind->value, 'occasion' => $occasion],
+                adminUserId: $actorAdminUserId,
+            );
+        }
+
+        return $queued;
+    }
 }

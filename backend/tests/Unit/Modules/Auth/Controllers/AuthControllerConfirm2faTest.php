@@ -32,16 +32,18 @@ class AuthControllerConfirm2faTest extends TestCase
 {
     private AdminUsersRepository $adminUsersRepository;
     private TotpService $totpService;
+    private AdminUsersService $adminUsersService;
     private AuthController $controller;
 
     protected function setUp(): void
     {
         $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
         $this->totpService = $this->createMock(TotpService::class);
+        $this->adminUsersService = $this->createMock(AdminUsersService::class);
 
         $this->controller = new AuthController(
             $this->createMock(AuthService::class),
-            $this->createMock(AdminUsersService::class),
+            $this->adminUsersService,
             $this->adminUsersRepository,
             $this->totpService,
             $this->createMock(AuditService::class),
@@ -156,5 +158,29 @@ class AuthControllerConfirm2faTest extends TestCase
         $response = $this->controller->confirm2fa($this->request(), new Response());
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /** #892: a successful enrollment queues the out-of-band notice. */
+    public function test_a_successful_enrollment_queues_the_totp_enrolled_notice(): void
+    {
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(1000);
+        $this->totpService->method('encrypt')->willReturn('encrypted-secret');
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin(null));
+
+        $this->adminUsersService->expects($this->once())
+            ->method('notifyTotpEnrolled')
+            ->with('admin-1');
+
+        $this->controller->confirm2fa($this->request(), new Response());
+    }
+
+    /** A rejected code must never queue the notice. */
+    public function test_a_rejected_code_never_queues_the_totp_enrolled_notice(): void
+    {
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(null);
+
+        $this->adminUsersService->expects($this->never())->method('notifyTotpEnrolled');
+
+        $this->controller->confirm2fa($this->request(), new Response());
     }
 }

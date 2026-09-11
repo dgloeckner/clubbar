@@ -350,4 +350,89 @@ class AdminUsersServiceUpdateTest extends TestCase
 
         $this->service->resetAdminPassword('nobody', 'admin-1');
     }
+
+    /* ─────────────── Password-changed notice (#892) ─────────────── */
+
+    public function test_changing_your_own_password_notifies_yourself_as_the_actor(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'admin-2@example.org']));
+        $this->repository->method('updateById')->willReturn(self::row());
+
+        $this->notifications->expects($this->once())
+            ->method('notifyPasswordChanged')
+            ->with('admin-2', 'admin-2@example.org', $this->stringStartsWith('changed:'), 'admin-2');
+
+        $this->service->changeOwnPassword('admin-2', 'BrandNewPass1');
+    }
+
+    public function test_resetting_a_peers_password_notifies_them_naming_the_resetter(): void
+    {
+        $this->repository->method('updateById')->willReturn(self::row(['email' => 'admin-2@example.org']));
+
+        $this->notifications->expects($this->once())
+            ->method('notifyPasswordChanged')
+            ->with('admin-2', 'admin-2@example.org', $this->stringStartsWith('changed:'), 'admin-1');
+
+        $this->service->resetAdminPassword('admin-2', 'admin-1');
+    }
+
+    /**
+     * The password change is already committed by the time the notice is
+     * queued; a queue that refuses it must not turn a successful change into
+     * a failure.
+     */
+    public function test_a_failed_password_notification_does_not_fail_the_change(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row());
+        $this->repository->method('updateById')->willReturn(self::row());
+
+        $this->notifications->method('notifyPasswordChanged')
+            ->willThrowException(new \RuntimeException('outbox unavailable'));
+
+        $this->repository->expects($this->once())->method('touchCredentialsEpoch')->with('admin-2');
+
+        $this->service->changeOwnPassword('admin-2', 'BrandNewPass1');
+    }
+
+    /* ─────────────── TOTP notices (#892) ─────────────── */
+
+    public function test_notify_totp_enrolled_queues_a_notice_to_the_account(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'admin-2@example.org']));
+
+        $this->notifications->expects($this->once())
+            ->method('notifyTotpEnrolled')
+            ->with('admin-2', 'admin-2@example.org', $this->stringStartsWith('enrolled:'));
+
+        $this->service->notifyTotpEnrolled('admin-2');
+    }
+
+    public function test_notify_totp_enrolled_does_nothing_for_a_vanished_account(): void
+    {
+        $this->repository->method('findById')->willReturn(null);
+
+        $this->notifications->expects($this->never())->method('notifyTotpEnrolled');
+
+        $this->service->notifyTotpEnrolled('nobody');
+    }
+
+    public function test_notify_totp_reset_names_the_admin_who_performed_it(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row(['email' => 'admin-2@example.org']));
+
+        $this->notifications->expects($this->once())
+            ->method('notifyTotpReset')
+            ->with('admin-2', 'admin-2@example.org', $this->stringStartsWith('reset:'), 'admin-1');
+
+        $this->service->notifyTotpReset('admin-2', 'admin-1');
+    }
+
+    public function test_a_failed_totp_notification_is_swallowed(): void
+    {
+        $this->repository->method('findById')->willReturn(self::row());
+        $this->notifications->method('notifyTotpReset')->willThrowException(new \RuntimeException('down'));
+
+        $this->service->notifyTotpReset('admin-2', 'admin-1');
+        $this->addToAssertionCount(1);
+    }
 }
