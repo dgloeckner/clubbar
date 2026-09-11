@@ -979,7 +979,10 @@ keeps the last card taps and what it made of each, in two places:
   reporting the problem.
 - **`error.log`** — the lost ones are written there as `scan: <kind> …`, so
   they survive the session. (The kiosk starts from a `.desktop` entry, so
-  stdout goes nowhere; this file is the durable record.)
+  stdout goes nowhere; this file is the durable record.) `<uid>` below is
+  shown only as its last few characters, in both places — enough to tell two
+  taps apart, never enough to identify the member (issue #889). The file is
+  also capped in size, so it stays bounded rather than growing forever.
 
 What the kinds mean, and what to do:
 

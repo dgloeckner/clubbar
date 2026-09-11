@@ -454,7 +454,7 @@ void main() {
 
         expect(find.text('Letzte Chip-Erkennungen'), findsOneWidget);
         expect(
-          find.textContaining('rejected ABCD1234 unknownCard'),
+          find.textContaining('rejected …1234 unknownCard'),
           findsOneWidget,
         );
         expect(
@@ -478,7 +478,24 @@ void main() {
         ScanLog.instance.record(ScanEventKind.uidCaptured, uid: 'ABCD1234');
         await tester.pump();
 
-        expect(find.textContaining('uidCaptured ABCD1234'), findsOneWidget);
+        expect(find.textContaining('uidCaptured …1234'), findsOneWidget);
+      });
+
+      // Issue #889: any patron can open this modal from the header pill, so
+      // a full card UID must never render — only the masked tail that lets
+      // staff tell two taps apart.
+      testWidgets('no full card UID reaches the screen', (tester) async {
+        ScanLog.instance.record(ScanEventKind.rejected,
+            uid: 'ABCD1234', detail: 'unknownCard');
+
+        await openModal(tester);
+        final rendered = tester
+            .widgetList<Text>(find.byType(Text))
+            .map((w) => w.data ?? '')
+            .join('\n');
+
+        expect(rendered, isNot(contains('ABCD1234')));
+        expect(rendered, contains('…1234'));
       });
     });
 

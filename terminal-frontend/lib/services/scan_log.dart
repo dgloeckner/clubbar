@@ -99,12 +99,32 @@ class ScanEvent {
   bool _sameOccurrenceAs(ScanEventKind kind, String? uid, String? detail) =>
       this.kind == kind && this.uid == uid && this.detail == detail;
 
+  /// How many trailing characters of a UID survive into [summary].
+  ///
+  /// A canonical UID is 8-20 hex characters (ADR-0014's 4-to-10-byte range);
+  /// this is enough to tell two cards apart within a session — which is all
+  /// the diagnostic value in this line ever was — and nowhere near enough to
+  /// look a member up (issue #889).
+  static const _uidTailChars = 4;
+
+  /// The tail of a UID, or the whole thing when it is already this short.
+  static String _maskUid(String uid) => uid.length <= _uidTailChars
+      ? uid
+      : '…${uid.substring(uid.length - _uidTailChars)}';
+
   /// A single line for the status modal and the log, deliberately technical
   /// and untranslated: it exists to be read out to whoever is debugging the
   /// terminal, and the enum name is the thing to search the source for.
+  ///
+  /// The UID is masked here rather than in [uid] itself (issue #889): this is
+  /// the one place both consumers of a line go through — [ScanLog._log],
+  /// which is what ends up in `error.log`, a file with no retention policy,
+  /// and the status modal, which any patron can open. [uid] stays the full
+  /// value for as long as the event lives in memory, which is what a
+  /// technician on the phone actually needs.
   String get summary {
     final parts = <String>[kind.name];
-    if (uid != null) parts.add(uid!);
+    if (uid != null) parts.add(_maskUid(uid!));
     if (detail != null) parts.add(detail!);
     if (count > 1) parts.add('x$count');
     return parts.join(' ');
