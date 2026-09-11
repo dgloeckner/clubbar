@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Auth\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Auth\Services\StepUpAuthService;
@@ -27,6 +28,7 @@ class StepUpAuthServiceTest extends TestCase
     private TotpService $totpService;
     private AuditService $auditService;
     private LoginAttemptsRepository $loginAttempts;
+    private AdminUsersRepository $adminUsersRepository;
     private StepUpAuthService $service;
 
     protected function setUp(): void
@@ -35,12 +37,14 @@ class StepUpAuthServiceTest extends TestCase
         $this->totpService = $this->createMock(TotpService::class);
         $this->auditService = $this->createMock(AuditService::class);
         $this->loginAttempts = $this->createMock(LoginAttemptsRepository::class);
+        $this->adminUsersRepository = $this->createMock(AdminUsersRepository::class);
 
         $this->service = new StepUpAuthService(
             $this->adminUsersService,
             $this->totpService,
             $this->auditService,
             $this->loginAttempts,
+            $this->adminUsersRepository,
         );
     }
 
@@ -51,6 +55,7 @@ class StepUpAuthServiceTest extends TestCase
             'email' => 'admin@example.com',
             'totp_enabled' => 0,
             'totp_secret' => null,
+            'totp_last_timestep' => null,
         ], $overrides);
     }
 
@@ -110,7 +115,11 @@ class StepUpAuthServiceTest extends TestCase
     {
         $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
         $this->totpService->method('decrypt')->with('encrypted-secret')->willReturn('plain-secret');
-        $this->totpService->method('verifyCode')->with('plain-secret', '123456')->willReturn(true);
+        $this->totpService->method('verifyCodeWithTimestep')->with('plain-secret', '123456')->willReturn(100);
+
+        $this->adminUsersRepository->expects($this->once())
+            ->method('updateTotpLastTimestep')
+            ->with('admin-1', 100);
 
         $result = $this->service->verify(
             $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret']),
@@ -125,8 +134,9 @@ class StepUpAuthServiceTest extends TestCase
     {
         $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
         $this->totpService->method('decrypt')->willReturn('plain-secret');
-        $this->totpService->method('verifyCode')->willReturn(false);
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(null);
 
+        $this->adminUsersRepository->expects($this->never())->method('updateTotpLastTimestep');
         $this->loginAttempts->expects($this->once())->method('record');
         $this->auditService->expects($this->once())->method('log');
 
@@ -142,7 +152,7 @@ class StepUpAuthServiceTest extends TestCase
     public function test_correct_password_but_missing_code_fails_when_caller_has_totp(): void
     {
         $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
-        $this->totpService->expects($this->never())->method('verifyCode');
+        $this->totpService->expects($this->never())->method('verifyCodeWithTimestep');
 
         $result = $this->service->verify(
             $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret']),
@@ -156,7 +166,7 @@ class StepUpAuthServiceTest extends TestCase
     public function test_totp_is_never_checked_when_the_password_is_already_wrong(): void
     {
         $this->adminUsersService->method('verifyCurrentPassword')->willReturn(false);
-        $this->totpService->expects($this->never())->method('verifyCode');
+        $this->totpService->expects($this->never())->method('verifyCodeWithTimestep');
 
         $result = $this->service->verify(
             $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret']),
@@ -165,6 +175,65 @@ class StepUpAuthServiceTest extends TestCase
         );
 
         $this->assertFalse($result);
+    }
+
+    // ─── Replay protection (#882) — a structurally-valid code within the same
+    //     ±1 window as one already consumed (by step-up or login) is refused ─
+
+    public function test_a_code_whose_timestep_was_already_consumed_is_refused(): void
+    {
+        $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
+        $this->totpService->method('decrypt')->willReturn('plain-secret');
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(100);
+
+        $this->adminUsersRepository->expects($this->never())->method('updateTotpLastTimestep');
+        $this->loginAttempts->expects($this->once())->method('record');
+        $this->auditService->expects($this->once())->method('log');
+
+        $result = $this->service->verify(
+            $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret', 'totp_last_timestep' => 100]),
+            ['current_password' => 'correct', 'totp_code' => '123456'],
+            $this->request(),
+        );
+
+        $this->assertFalse($result);
+    }
+
+    public function test_the_same_code_presented_twice_is_refused_the_second_time(): void
+    {
+        $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
+        $this->totpService->method('decrypt')->willReturn('plain-secret');
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(100);
+
+        $caller = $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret']);
+        $body = ['current_password' => 'correct', 'totp_code' => '123456'];
+
+        $this->assertTrue($this->service->verify($caller, $body, $this->request()));
+
+        // The repository row is what actually advances between calls in
+        // production; the mock caller array is not mutated by the first
+        // call, so the test supplies the now-persisted marker itself.
+        $replayedCaller = $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret', 'totp_last_timestep' => 100]);
+        $this->assertFalse($this->service->verify($replayedCaller, $body, $this->request()));
+    }
+
+    public function test_a_code_one_timestep_newer_than_the_last_consumed_one_still_passes(): void
+    {
+        $this->adminUsersService->method('verifyCurrentPassword')->willReturn(true);
+        $this->totpService->method('decrypt')->willReturn('plain-secret');
+        $this->totpService->method('verifyCodeWithTimestep')->willReturn(101);
+
+        $this->adminUsersRepository->expects($this->once())
+            ->method('updateTotpLastTimestep')
+            ->with('admin-1', 101);
+
+        $result = $this->service->verify(
+            $this->caller(['totp_enabled' => 1, 'totp_secret' => 'encrypted-secret', 'totp_last_timestep' => 100]),
+            ['current_password' => 'correct', 'totp_code' => '123456'],
+            $this->request(),
+        );
+
+        $this->assertTrue($result);
     }
 
     public function test_failure_is_recorded_against_the_callers_own_ip_and_email_not_the_targets(): void

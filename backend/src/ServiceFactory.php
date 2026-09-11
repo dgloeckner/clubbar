@@ -657,6 +657,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTotpService(),
             $this->getAuditService(),
             $this->getLoginAttemptsRepository(),
+            $this->getAdminUsersRepository(),
         ));
     }
 
