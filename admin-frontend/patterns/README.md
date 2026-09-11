@@ -120,20 +120,20 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 
 ---
 
-### [Volume Field Pattern](./volume-field.md)
-**Purpose**: one size control for a product, typed in litres and stored in millilitres
+### [Volume Select Pattern](./volume-select.md)
+**Purpose**: one size control for a product, picked from a predefined list and stored in millilitres
 
-- ✅ Why `<input type="number">` is gone here too (a comma reaches script as `''`)
-- ✅ Litres on screen, whole millilitres on the wire; hidden `{testId}-value` for E2E
+- ✅ The list is the validation — 1000, 500, 330, 300, 250, 200 ml; nothing to type, nothing to refuse
+- ✅ Labelled in millilitres (the crate), read in litres (the member); hidden `{testId}-value` for E2E
 - ✅ `null` is "this product has no size" — never `0`, which would print as one
-- ✅ The mask is not the validator: 50 l reaches the page's own refusal
+- ✅ A size from outside the list is kept and offered back, so an unrelated save cannot clear it
 - ✅ Never format a size by hand — `useFormatters().formatVolume`, one rule shared with the backend and the terminal
 
-**When to use**: the product form's size field (ADR-0056)
+**When to use**: the product form's size control (ADR-0056)
 
 **Quick Start**:
 ```typescript
-<VolumeField testId="products-form-volume-input"
+<VolumeSelect testId="products-form-volume-select" emptyLabel={t('products.volumeNone')}
   value={formData.volumeMl} onChange={(volumeMl) => setFormData({ ...formData, volumeMl })} />
 ```
 
@@ -234,4 +234,4 @@ To add a new pattern:
 | [Role-Aware Navigation](./role-visibility.md) | 1.0 | Active | 2026-08-19 |
 | [Date Field](./date-field.md) | 1.0 | Active | 2026-08-21 |
 | [Money Field](./money-field.md) | 1.0 | Active | 2026-09-09 |
-| [Volume Field](./volume-field.md) | 1.0 | Active | 2026-09-10 |
+| [Volume Select](./volume-select.md) | 2.0 | Active | 2026-09-11 |

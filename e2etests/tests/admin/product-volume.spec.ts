@@ -2,27 +2,30 @@ import { test, expect } from '../../fixtures/pageObjects'
 import { csrfHeaders } from '../../utils/csrf'
 
 /**
- * Admin Panel — a product's size, typed in litres and stored in millilitres
- * (#878 M4, ADR-0056).
+ * Admin Panel — a product's size, picked from a list and stored in millilitres
+ * (ADR-0056).
  *
- * The size used to live inside the name. Moving it into `volume_ml` means an
- * admin types a number rather than punctuation, and each reader is shown that
- * number in their own notation.
+ * The size used to live inside the name, then briefly in a typed litres field.
+ * It is now picked from the sizes a club pours, which is what removes the last
+ * way to get it wrong: no decimal separator to read, no `50` where `0,5` was
+ * meant, nothing to refuse.
  *
  * What has to hold end to end, and why each is asserted rather than assumed:
  *
- * - **A German admin can type `0,5`.** This is the whole reason the field is
- *   not `<input type="number">`: that control reports a comma to script as the
- *   *empty string*, so a price typed the way German writes one silently handed
- *   the form nothing (#863). German is the panel's default language, so the
- *   comma is the default case, not the edge one.
+ * - **The list is the predefined one** — 1000, 500, 330, 300, 250 and 200 ml,
+ *   in that order. It is the requirement, so it is asserted on the control itself
+ *   rather than inferred from one lucky pick.
+ * - **Picked in millilitres, read in litres.** The option says `500 ml`,
+ *   because that is what the crate says; the preview and the list say `0,5 l`,
+ *   because that is what the member reads on the terminal. Both halves are
+ *   asserted, for every size on offer.
  * - **What travels is millilitres.** The hidden `-value` input carries the
  *   canonical number, so the assertion is about what the API receives rather
- *   than about the locale's rendering of it.
- * - **The list shows the reader's notation.** That is the payoff of storing one
- *   language-neutral number.
+ *   than about anybody's rendering of it.
  * - **Clearing works.** Saying "this product has no size after all" must reach
  *   the column, not return a 200 over an unchanged row.
+ * - **A size from before the list survives.** A product saved with 750 ml must
+ *   still offer and hold 750 ml, or an unrelated edit would silently clear it.
  *
  * Patterns: 001 (test data isolation), 004 (parallel safety), 005 (test IDs),
  *           006 (page object), 007 (fixtures), 008 (expect assertions),
@@ -30,6 +33,22 @@ import { csrfHeaders } from '../../utils/csrf'
  */
 
 const API_BASE = 'http://localhost:8080/api'
+
+/**
+ * The sizes the picker offers, and what each one is read as.
+ *
+ * The German column, because the panel's default language is German and these
+ * tests run in it. The full locale matrix is the formatter's own business and
+ * is checked against `api/fixtures/volume-format.json` in the unit suites.
+ */
+const SIZES = [
+  { ml: 1000, label: '1000 ml', read: '1 l' },
+  { ml: 500, label: '500 ml', read: '0,5 l' },
+  { ml: 330, label: '330 ml', read: '0,33 l' },
+  { ml: 300, label: '300 ml', read: '0,3 l' },
+  { ml: 250, label: '250 ml', read: '0,25 l' },
+  { ml: 200, label: '200 ml', read: '0,2 l' },
+]
 
 /**
  * The rendered size, with its NO-BREAK SPACE turned into an ordinary one.
@@ -77,10 +96,10 @@ async function volumeOf(
 
 test.describe('Product volume', () => {
   /**
-   * The flow this milestone exists for: type a size the German way, see it on
-   * the list the German way, confirm the API got a number, then clear it.
+   * The flow this feature exists for: pick a size off the list, see the litres
+   * a member will read, confirm the API got millilitres, then clear it.
    */
-  test('a size typed as 0,5 is stored as 500 ml, listed as 0,5 l, and can be cleared', async ({
+  test('a size picked as 500 ml is stored as 500, read as 0,5 l, and can be cleared', async ({
     authenticatedProductsPage,
     page,
   }) => {
@@ -91,20 +110,16 @@ test.describe('Product volume', () => {
     await authenticatedProductsPage.openCreateModal()
     await authenticatedProductsPage.expectFormModalVisible()
 
-    // A product with no size is the default: nothing typed, nothing sent.
+    // A product with no size is the default: nothing picked, nothing sent.
     expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('')
 
     await authenticatedProductsPage.fillProductForm(productName, '4.20')
     await authenticatedProductsPage.selectCategory(category.id)
-    // The German notation, which is what the panel defaults to and what the
-    // native number input could not read.
-    await authenticatedProductsPage.setVolume('0,5')
+    await authenticatedProductsPage.setVolume(500)
 
-    // Millilitres on the wire, litres on screen.
+    // Millilitres on the wire, millilitres on the option, litres in the preview.
     expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('500')
-    expect(await authenticatedProductsPage.getFormVolumeText()).toBe('0,5')
-
-    // The preview shows the badge the terminal will draw.
+    expect(plain(await authenticatedProductsPage.getFormVolumeText())).toBe('500 ml')
     expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('0,5 l')
 
     await authenticatedProductsPage.submitForm()
@@ -114,7 +129,7 @@ test.describe('Product volume', () => {
     const productId = await authenticatedProductsPage.getProductIdByName(productName)
     expect(productId, 'the created product must be findable by name').toBeTruthy()
 
-    // The list prints the size after the name, in the reader's notation.
+    // The list prints the size after the name, in litres.
     expect(plain(await authenticatedProductsPage.getVolumeInList(productId!))).toBe('0,5 l')
     // …and the unit is held to the number by a NO-BREAK SPACE, so a narrow
     // column cannot leave `0,5` on one line and `l` on the next.
@@ -123,11 +138,11 @@ test.describe('Product volume', () => {
     // And the number that actually travelled is millilitres.
     expect(await volumeOf(page, productId!)).toBe(500)
 
-    // --- Reopen: the stored value comes back reading the way it was typed.
+    // --- Reopen: the stored size comes back selected.
     await authenticatedProductsPage.clickEditButton(productId!)
     await authenticatedProductsPage.expectFormModalVisible()
     expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('500')
-    expect(await authenticatedProductsPage.getFormVolumeText()).toBe('0,5')
+    expect(plain(await authenticatedProductsPage.getFormVolumeText())).toBe('500 ml')
 
     // --- Clear it: "this product has no size after all".
     await authenticatedProductsPage.setVolume(null)
@@ -142,37 +157,36 @@ test.describe('Product volume', () => {
   })
 
   /**
-   * A numeric keypad emits a dot in a German panel, so the dot has to be
-   * accepted and rewritten as the locale's separator while it is typed.
+   * The predefined list itself, and the pairing that makes it readable: a size
+   * is *chosen* in the unit a crate is labelled in and *read* in the unit a
+   * member drinks in.
    */
-  test('a dot typed into the German panel is read as the same size', async ({
+  test('the picker offers the predefined sizes in millilitres, and previews each in litres', async ({
     authenticatedProductsPage,
-    page,
   }) => {
-    const category = await createCategoryViaApi(page)
-    const productName = `Apfelschorle ${unique()}`
-
     await authenticatedProductsPage.reloadPage()
     await authenticatedProductsPage.openCreateModal()
-    await authenticatedProductsPage.fillProductForm(productName, '2.50')
-    await authenticatedProductsPage.selectCategory(category.id)
-    await authenticatedProductsPage.setVolume('0.33')
+    await authenticatedProductsPage.expectFormModalVisible()
 
-    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('330')
-    expect(await authenticatedProductsPage.getFormVolumeText()).toBe('0,33')
+    expect(await authenticatedProductsPage.getVolumeOptionValues()).toEqual(
+      SIZES.map((size) => String(size.ml)),
+    )
+    expect(await authenticatedProductsPage.getVolumeOptionLabels()).toEqual(
+      SIZES.map((size) => size.label.replace(' ', '\u00a0')),
+    )
 
-    await authenticatedProductsPage.submitForm()
-    await authenticatedProductsPage.expectFormModalHidden()
-
-    await authenticatedProductsPage.search(productName)
-    const productId = await authenticatedProductsPage.getProductIdByName(productName)
-    expect(await volumeOf(page, productId!)).toBe(330)
-    expect(plain(await authenticatedProductsPage.getVolumeInList(productId!))).toBe('0,33 l')
+    for (const size of SIZES) {
+      await authenticatedProductsPage.setVolume(size.ml)
+      expect(await authenticatedProductsPage.getFormVolumeValue()).toBe(String(size.ml))
+      // The preview is what the admin checks the choice against, and it speaks
+      // the terminal's language: litres.
+      expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe(size.read)
+    }
   })
 
   /**
    * A product with no size is the ordinary state of a snacks list. It must be
-   * saveable with the field untouched, and the preview must still reserve the
+   * saveable with the picker untouched, and the preview must still reserve the
    * badge's row — on the terminal that row is what holds every price on a grid
    * row level, and a preview that collapsed it would show a tile the terminal
    * will never draw.
@@ -202,31 +216,59 @@ test.describe('Product volume', () => {
   })
 
   /**
-   * The mask is not the validator: a size above ten litres reaches the page's
-   * own refusal, in the admin's language, rather than being silently clamped or
-   * handed to the backend for a 422 nobody can read.
+   * A size from before the list existed.
+   *
+   * Sizes were typed once, so a club can hold 750 ml on a wine bottle. A picker
+   * that offered only the presets would show that product as having *no* size,
+   * and the next save of an unrelated field would clear a column nobody
+   * touched. The size is offered back instead — kept, selected, and saved
+   * unchanged.
    */
-  test('a size above ten litres is refused by the form, in a sentence', async ({
+  test('a size the list does not contain is offered back and survives an unrelated edit', async ({
     authenticatedProductsPage,
     page,
   }) => {
     const category = await createCategoryViaApi(page)
-    const productName = `Fass ${unique()}`
+    const productName = `Weinflasche ${unique()}`
+
+    const created = await page.request.post(`${API_BASE}/admin/products`, {
+      data: {
+        names: { de: productName, en: productName },
+        category_id: category.id,
+        price_cents: 1450,
+        volume_ml: 750,
+      },
+      headers: await csrfHeaders(page),
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    const productId = (await created.json()).id
 
     await authenticatedProductsPage.reloadPage()
-    await authenticatedProductsPage.openCreateModal()
-    await authenticatedProductsPage.fillProductForm(productName, '50.00')
-    await authenticatedProductsPage.selectCategory(category.id)
-    await authenticatedProductsPage.setVolume('50')
-
-    // Not clamped to 10 000 — the number the admin typed is still there.
-    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('50000')
-
-    await authenticatedProductsPage.submitFormExpectingRefusal()
-
-    // The form stays open with its own message, rather than closing on a 422.
+    await authenticatedProductsPage.search(productName)
+    await authenticatedProductsPage.clickEditButton(productId)
     await authenticatedProductsPage.expectFormModalVisible()
-    const error = await authenticatedProductsPage.getFormError()
-    expect(error, 'the form must say why it refused').toBeTruthy()
+
+    // Selected, and on the list — between the sizes it sits between.
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('750')
+    expect(plain(await authenticatedProductsPage.getFormVolumeText())).toBe('750 ml')
+    expect(await authenticatedProductsPage.getVolumeOptionValues()).toEqual([
+      '1000',
+      '750',
+      '500',
+      '330',
+      '300',
+      '250',
+      '200',
+    ])
+    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('0,75 l')
+
+    // An edit that says nothing about the size must leave it alone.
+    await authenticatedProductsPage.fillPrice('15.00')
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    await authenticatedProductsPage.search(productName)
+    expect(await volumeOf(page, productId)).toBe(750)
+    expect(plain(await authenticatedProductsPage.getVolumeInList(productId))).toBe('0,75 l')
   })
 })

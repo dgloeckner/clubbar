@@ -1,7 +1,8 @@
 # Product Volume: A Size Beside the Name
 
 **Issue**: [#878](https://github.com/dgloeckner/clubbar/issues/878)
-**Status**: Implemented — M1–M8 complete, each verified (see `plans/INDEX.md` for the suite counts)
+**Status**: Implemented — M1–M8 complete, each verified (see `plans/INDEX.md` for the suite counts).
+M9 follows up: the size is picked from a predefined list rather than typed
 **Design**: ADR-0056 (to be written in M1)
 **Branch**: stacked on `claude/terminal-product-card-layout-tr5rue`. M6 needs that branch's
 `ProductGridLayout` solver and its price-alignment change to `ProductCard`. One PR per
@@ -208,6 +209,47 @@ formats it with M3's formatter:
 - [x] `plans/INDEX.md` — the status
 
 **Verified by**: every suite named above green on the stacked branch, and CI green on each PR.
+
+### M9 — Admin: the size becomes a choice
+
+Follow-up to M4, after the first club used it. A size is now **picked** from the sizes a club
+pours rather than typed, which removes the last way to get one wrong: `50` where `0,5` was meant
+passed the mask and reached a refusal, and `0,33` where the crate says `330` passed everything.
+The predefined list is **1000, 500, 330, 300, 250, 200 ml**, labelled in the unit a crate is
+labelled in; every reader still sees litres, which is what the preview beside the picker shows —
+and the preview now draws the terminal's own tile rather than an approximation of it.
+
+- [x] `utils/volume.ts` — `VOLUME_PRESETS_ML`, `volumeOptionsFor` (a product's own size is added
+      to the options when the list does not contain it) and `parseVolumeOption`. The litres
+      masking goes: with nothing typed there is no separator to read
+- [x] `VolumeSelect` replaces `VolumeField` — a native `<select>`, so a phone draws it as a wheel
+      and the size is set with a thumb. `{testId}-value` stays, carrying the millilitres
+- [x] `design-system.ts` — `formatMillilitres()` for an option's label, beside `formatVolume()`
+      for what a reader sees. One module owns the no-break space between a size and its unit
+- [x] `ProductsPage` — the picker in the create/edit form; the range check stays, because a
+      product saved before the list can still carry a size from outside it
+- [x] `public/locales/de.json` / `en.json` — `volumeNone` for the empty option, and a hint that
+      says the terminal prints litres
+- [x] `ProductPreview` — the terminal's own tile rather than an approximation of it: one name
+      line bottom-aligned in a fixed box, the reserved volume row, and the price in its pill,
+      drawn from `ProductTileMetrics` at the name floor (exported as `TERMINAL_TILE`). The
+      preview column widens to 200 px to hold it
+- [x] `admin-frontend/patterns/volume-select.md` (was `volume-field.md`), the component index,
+      `CLAUDE.md`, `UC-A41`, `UC-A42` and `docs/procedures.md`
+
+**Verified by**:
+
+- vitest: the preset list, `volumeOptionsFor` keeping a 750 ml product's size in its place among
+  the presets, `parseVolumeOption`, and the pairing that every preset labelled in millilitres
+  reads back as litres in both languages; `ProductPreview.test.tsx` for the tile's layout — one
+  name line, the reserved badge row, and a price derived from the name size
+- `admin-chromium` `product-volume.spec.ts`: the picker offers exactly the five sizes; each one
+  previews as its litres; 500 ml round-trips to the API, the list and back into the form; the
+  size clears; and a product created with 750 ml keeps it through a price-only edit
+- `admin-mobile`: the picker fits the 390 px modal, is 44 px tall, and offers the same five sizes
+
+**Deliberately not done**: no data migration. The presets are what can be *created*; every
+existing size stays exactly as it is.
 
 ---
 

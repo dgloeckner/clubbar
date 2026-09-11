@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { setClubTimeZone, resetClubTimeZone } from '../utils/clubTimeZone'
-import { formatDate, formatDateTime, theme, withAlpha } from './design-system'
+import {
+  formatDate,
+  formatDateTime,
+  formatMillilitres,
+  formatVolume,
+  theme,
+  withAlpha,
+} from './design-system'
+import { VOLUME_PRESETS_ML } from '../utils/volume'
 
 describe('withAlpha', () => {
   it('composes a black hex color with an alpha channel', () => {
@@ -158,5 +166,58 @@ describe('rendering in the club’s zone rather than the reader’s', () => {
     // Unset: whatever Intl does by default, which is what this replaced. The
     // point is that it renders rather than throwing.
     expect(formatDateTime('2026-09-02T18:42:12Z', 'de-DE')).toMatch(/^02\.09\.2026, \d{2}:\d{2}$/)
+  })
+})
+
+/**
+ * The two directions a size is written in (ADR-0056).
+ *
+ * A Getränkewart *picks* a size off a crate, which is labelled in millilitres;
+ * a member *reads* one on the terminal, which prints litres. Both come from the
+ * same stored number, and the pairing is asserted here so a change to one of
+ * them cannot quietly become a change to both.
+ */
+describe('formatMillilitres', () => {
+  it('writes a size in the unit a crate is labelled in', () => {
+    expect(formatMillilitres(500)).toBe('500\u00a0ml')
+    expect(formatMillilitres(1000)).toBe('1000\u00a0ml')
+  })
+
+  it('holds the unit to the number with a no-break space', () => {
+    // A plain space would let a dropdown option wrap between `330` and `ml`.
+    expect(formatMillilitres(330)).not.toContain(' ')
+  })
+
+  it('labels every size the picker offers', () => {
+    expect(VOLUME_PRESETS_ML.map((ml) => formatMillilitres(ml).replace('\u00a0', ' '))).toEqual([
+      '1000 ml',
+      '500 ml',
+      '330 ml',
+      '300 ml',
+      '250 ml',
+      '200 ml',
+    ])
+  })
+
+  it('is not what a reader is shown — every preset reads as litres', () => {
+    // The preview beside the picker, the product list and the terminal badge
+    // all go through `formatVolume`, which is litres from 100 ml up. Picking
+    // `500 ml` must show the member `0,5 l`.
+    expect(VOLUME_PRESETS_ML.map((ml) => formatVolume(ml, 'de-DE').replace('\u00a0', ' '))).toEqual([
+      '1 l',
+      '0,5 l',
+      '0,33 l',
+      '0,3 l',
+      '0,25 l',
+      '0,2 l',
+    ])
+    expect(VOLUME_PRESETS_ML.map((ml) => formatVolume(ml, 'en-GB').replace('\u00a0', ' '))).toEqual([
+      '1 l',
+      '0.5 l',
+      '0.33 l',
+      '0.3 l',
+      '0.25 l',
+      '0.2 l',
+    ])
   })
 })

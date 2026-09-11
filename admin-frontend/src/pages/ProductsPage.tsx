@@ -63,7 +63,7 @@ import { ageRestrictionOf } from '../utils/ageRestriction'
 import { getLocalizedName, hasAnyName } from '../utils/i18n-helpers'
 import { parseMoneyToCents } from '../utils/money'
 import { MoneyField } from '../components/forms/MoneyField'
-import { VolumeField } from '../components/forms/VolumeField'
+import { VolumeSelect } from '../components/forms/VolumeSelect'
 import { VOLUME_MAX_ML, VOLUME_MIN_ML } from '../utils/volume'
 import { useFormatters } from '../hooks/useFormatters'
 import { useLatestRequest } from '../hooks/useLatestRequest'
@@ -97,13 +97,17 @@ function parseMinAge(value: string): number | null | 'invalid' {
 }
 
 /**
- * Is the typed size one the API will take (ADR-0056)?
+ * Is the chosen size one the API will take (ADR-0056)?
  *
- * `null` — an empty field — is a valid answer and the ordinary one: most of a
- * snacks list has no size, and a Sauna-Token has none either. What this catches
- * is the two typos worth a sentence rather than a 422: a size above ten litres
- * (litres typed where the field asked for a drink) and a fractional millilitre,
- * which `VolumeField`'s three-decimal mask already makes hard to produce.
+ * `null` — no size — is a valid answer and the ordinary one: most of a snacks
+ * list has no size, and a Sauna-Token has none either.
+ *
+ * Since the size is picked from a list rather than typed, nothing an admin can
+ * do produces an out-of-range value; what this still catches is a size a
+ * product was *saved* with before the list existed. Such a value is offered
+ * back unchanged (`volumeOptionsFor`), so it has to be checked rather than
+ * assumed — and the check has to pass for the ones the API would accept, or
+ * editing a legacy product's price would be blocked by its size.
  */
 function isVolumeInRange(millilitres: number | null): boolean {
   if (millilitres === null) return true
@@ -1128,34 +1132,42 @@ export function ProductsPage() {
                 requirement="optional"
               />
 
-              {/* The product's size (ADR-0056). Typed in litres, stored as
-                  whole millilitres, and shown to each reader in their own
-                  notation. The hint has to say where the size goes, because the
-                  habit this replaces is writing it into the name — a club with
-                  `Weizenbier (0,5l)` on its list has to be told to move it here
-                  and shorten the name, in one save. */}
+              {/* The product's size (ADR-0056). Picked from the sizes a club
+                  pours, stored as whole millilitres, and shown to each reader
+                  in their own notation — the preview below spells out what the
+                  member will see. The hint has to say where the size goes,
+                  because the habit this replaces is writing it into the name —
+                  a club with `Weizenbier (0,5l)` on its list has to be told to
+                  move it here and shorten the name, in one save. */}
               <div style={{ marginBottom: isMobile ? '12px' : '20px' }}>
                 <FieldLabel
-                  htmlFor="products-form-volume-input"
+                  htmlFor="products-form-volume-select"
                   label={t('products.volume')}
                   requirement="optional"
                   testId="products-form-volume-label"
                 />
-                <VolumeField
-                  id="products-form-volume-input"
-                  testId="products-form-volume-input"
+                <VolumeSelect
+                  id="products-form-volume-select"
+                  testId="products-form-volume-select"
                   value={formData.volumeMl}
                   onChange={(volumeMl) => setFormData({ ...formData, volumeMl })}
+                  emptyLabel={t('products.volumeNone')}
                   invalid={!isVolumeInRange(formData.volumeMl)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    // A native select draws its own chevron inside the padding
+                    // box, so the right side gets room for it rather than
+                    // letting it sit on top of a size.
+                    padding: '10px 32px 10px 12px',
                     border: `1px solid ${theme.colors.border.muted}`,
                     borderRadius: '6px',
                     backgroundColor: theme.colors.bg.inputAlt,
                     color: tableColors.cellText,
                     fontSize: '14px',
                     boxSizing: 'border-box',
+                    // 44 px on a phone, because this is the one control in the
+                    // form that is operated by thumb rather than typed into.
+                    minHeight: isMobile ? '44px' : undefined,
                   }}
                 />
                 {!isMobile && (
@@ -1299,9 +1311,15 @@ export function ProductsPage() {
               </form>
             </div>
 
-            {/* Right Column: Preview - hidden on mobile */}
+            {/* Right Column: Preview - hidden on mobile.
+
+                200 px, because the preview draws the terminal's tile at the
+                terminal's own numbers rather than a shrunken imitation of it
+                (see `ProductPreview`): a name at the floor size of 26 px needs
+                the room, and a narrower column would start ellipsising names the
+                terminal shows in full. */}
             {!isMobile && (
-              <div style={{ width: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <div style={{ marginBottom: '12px', color: theme.colors.text.muted, fontSize: '12px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {t('common.terminalPreview')}
                 </div>

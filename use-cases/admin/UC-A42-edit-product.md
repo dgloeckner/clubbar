@@ -30,7 +30,7 @@ Admin clicks "Edit" on product
 | Price | Price in cents |
 | Category | Product category assignment |
 | Minimum age | Legal minimum age for this product (Jugendschutz, [ADR-0045](../../adr/0045-age-restricted-products.md)). Empty = unrestricted; clearing it removes the restriction |
-| Size | The product's volume, typed in litres and stored as whole millilitres ([ADR-0056](../../adr/0056-product-volume.md)). Empty = the product has no size; clearing it removes the size |
+| Size | The product's volume, chosen from the sizes the club pours (1000, 500, 330, 300, 250, 200 ml) and stored as whole millilitres ([ADR-0056](../../adr/0056-product-volume.md)). Empty = the product has no size; choosing the empty option removes it. A size from outside the list is offered back unchanged |
 | Status | Active / Inactive toggle |
 
 ## Renaming a Product That Carries Its Size
@@ -41,7 +41,8 @@ setting the size are one save**, so nothing is ever left half-renamed:
 
 1. Open the product. The name still reads `Weizenbier (0,5l)`.
 2. Delete the suffix from **every** language tab: `Weizenbier`, `Wheat beer`.
-3. Type the size into the Size field: `0,5`.
+3. Choose the size in the Size field: `500 ml`. The preview beside the form
+   shows what a member will read — `0,5 l`.
 4. Save.
 
 Nothing is backfilled automatically, and that is deliberate: a regex cannot tell
@@ -118,10 +119,12 @@ Activating a product in an inactive category will NOT make it visible until the 
 
 **Size ([ADR-0056](../../adr/0056-product-volume.md)):**
 - Set a size on a product that had none: stored, and the list shows it
-- Reopen the form: `500` comes back reading `0,5`, not `0,500`
+- Reopen the form: the stored size comes back selected, labelled `500 ml`, while
+  the preview and the list read `0,5 l`
 - Clear the size: an explicit null reaches the column, and the list shows the
   name alone
-- A size out of range on update: refused, and the stored size is left alone
+- A size the list does not contain (a product saved before the list existed):
+  offered back, selected, and left alone by an edit to anything else
 - A price-only edit says nothing about the size
 
 **Validation:**

@@ -60,7 +60,7 @@ export const theme = {
       violet: '#a855f7',       // Violet - a third category alongside primary/purple (e.g. payout transactions)
       amber: '#f59e0b',        // Amber - a third warning-adjacent category, distinct from `warning`
       amberHover: '#d97706',   // Amber - amber hover state
-      teal: '#14b8a6',         // Teal - mirrors the terminal UI's price color (product preview)
+      infoLight: '#38bdf8',    // Sky - the terminal's price text on its own tint (AppColors.infoOnTint)
     },
 
     // Text colors
@@ -361,6 +361,22 @@ const VOLUME_MILLILITRE_THRESHOLD = 100
 
 /** A NO-BREAK SPACE, so a size never wraps between its number and its unit. */
 const VOLUME_UNIT_SEPARATOR = '\u00A0'
+
+/**
+ * A size written in whole millilitres, for choosing one rather than reading one.
+ *
+ * `formatVolume()` is what a *reader* sees — litres from 100 ml up, because that
+ * is how a member reads a drink's size. The product form's picker is the other
+ * direction: a Getränkewart buys `330 ml` bottles and picks the size off the
+ * crate, so the option is labelled in the unit it was bought in and the preview
+ * beside it shows what the member will read (ADR-0056).
+ *
+ * The unit separator is the same NO-BREAK SPACE, kept here rather than in the
+ * picker so one module owns how a size and its unit are held together.
+ */
+export function formatMillilitres(millilitres: number): string {
+  return `${millilitres}${VOLUME_UNIT_SEPARATOR}ml`
+}
 
 /**
  * A product's size, written the way the reader's language writes it.

@@ -485,35 +485,63 @@ and the full test-ID list).
 />
 ```
 
-#### VolumeField Component
+#### VolumeSelect Component
 
-The size control for a product — typed in litres, stored in whole millilitres
-(see [Volume Field Pattern](./volume-field.md) for the reasoning).
-`<input type="number">` is not used here either: it reports a comma to script as
-the empty string.
+The size control for a product — picked from the sizes a club pours, stored in
+whole millilitres (see [Volume Select Pattern](./volume-select.md) for the
+reasoning). No number is typed, so there is no decimal separator to read: the
+options are labelled in millilitres, and the preview beside the control shows
+the litres a member will read.
 
-**File**: `src/components/forms/VolumeField.tsx` (logic: `src/utils/volume.ts`)
+**File**: `src/components/forms/VolumeSelect.tsx` (logic: `src/utils/volume.ts`)
 
 **Props**:
 - `value` (number | null, required): whole millilitres, or `null` for a product
   with no size
 - `onChange` ((millilitres: number | null) => void, required): millilitres, or
-  `null` when the field is empty
-- `testId` (string, required): base for the field's test IDs; the hidden
+  `null` when the empty option is chosen
+- `testId` (string, required): base for the control's test IDs; the hidden
   `{testId}-value` carries the millilitres for E2E
-- `placeholder` (string, optional): overrides the locale's example size
+- `emptyLabel` (string, required): the empty option's wording — "this product
+  has no size"
 - `disabled`, `invalid`, `describedBy`, `ariaLabel`, `name`, `style`, `onBlur`
 
 **Example**:
 ```typescript
-<VolumeField
-  id="products-form-volume-input"
-  testId="products-form-volume-input"
+<VolumeSelect
+  id="products-form-volume-select"
+  testId="products-form-volume-select"
   value={formData.volumeMl}
   onChange={(volumeMl) => setFormData({ ...formData, volumeMl })}
+  emptyLabel={t('products.volumeNone')}
   invalid={!isVolumeInRange(formData.volumeMl)}
 />
 ```
+
+#### ProductPreview Component
+
+The tile the terminal will draw, drawn in the product form: the icon, the name
+on **one line**, the volume badge in a row whose height is reserved, and the
+price in a pill. It is the terminal's `ProductCard`
+(`terminal-frontend/lib/widgets/styled_components/product_card.dart`) laid out
+from the same numbers, at the smallest scale a terminal is configured for — not
+a panel-styled approximation of it, which is why it is the one component using
+the terminal's colours rather than `theme`.
+
+**File**: `src/components/forms/ProductPreview.tsx` (metrics: the exported
+`TERMINAL_TILE`, mirroring `ProductTileMetrics` and `AppColors`)
+
+**Props**:
+- `name` (string, required), `price` (string, required — the form's raw input),
+  `iconName` (string | null, required)
+- `volumeMl` (number | null, optional): whole millilitres, or `null` for a
+  product with no size — the badge row stays either way (ADR-0056)
+
+**Keeping it honest**: `ProductPreview.test.tsx` pins the relationships the
+terminal's own widget tests hold — one name line, the reserved row, the price
+derived from the name size — so a change to the Dart card that is not mirrored
+here fails the unit suite. Test IDs: `products-preview-card`, `-name`,
+`-volume-row`, `-volume`, `-price`.
 
 #### CharacterCounter Component
 
@@ -1363,8 +1391,9 @@ theme.colors.border.subtle = 'rgba(255, 255, 255, 0.08)' // derived via withAlph
 
 A translucent slate border — a different hue from the white/primary tints
 above — used on empty-state panels (`ExcludedFromCollectionPage.tsx`'s dashed
-border), `ProductPreview.tsx`'s solid border, and `PillFilter.tsx`'s idle
-border:
+border) and `PillFilter.tsx`'s idle border. (`ProductPreview.tsx` is the one
+component that deliberately does *not* use the panel's tokens: it draws the
+terminal's tile, so it carries the terminal's own colours.)
 
 ```typescript
 theme.colors.border.slate = 'rgba(71, 85, 105, 0.4)' // derived via withAlpha('#475569', 0.4)

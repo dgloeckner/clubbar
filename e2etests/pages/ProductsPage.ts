@@ -59,8 +59,8 @@ export class ProductsPage extends BasePage {
   private readonly priceValue = () => this.page.getByTestId('products-form-price-input-value')
   private readonly requiresDispenserCheckbox = () => this.page.getByTestId('products-form-requires-dispenser-checkbox')
   private readonly minAgeInput = () => this.page.getByTestId('products-form-min-age-input')
-  private readonly volumeInput = () => this.page.getByTestId('products-form-volume-input')
-  private readonly volumeValue = () => this.page.getByTestId('products-form-volume-input-value')
+  private readonly volumeSelect = () => this.page.getByTestId('products-form-volume-select')
+  private readonly volumeValue = () => this.page.getByTestId('products-form-volume-select-value')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
   private readonly iconSelectDropdown = () => this.page.getByTestId('products-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
@@ -517,40 +517,67 @@ export class ProductsPage extends BasePage {
   }
 
   /**
-   * Set the product's size, typed the way an admin types it — in **litres**,
-   * with either decimal separator (ADR-0056).
+   * Pick the product's size, in **whole millilitres** — the way the crate is
+   * labelled and the way the picker offers it (ADR-0056).
    *
-   * Pass `null` to clear it, which is what "this product has no size" looks
-   * like from the form: an empty input, sent as an explicit null so the column
-   * is actually cleared rather than left alone.
+   * Pass `null` for the empty option, which is what "this product has no size"
+   * looks like from the form: sent as an explicit null so the column is
+   * actually cleared rather than left alone.
    */
-  async setVolume(litres: string | null) {
-    await this.volumeInput().fill(litres ?? '')
-    // Leave the field, so the mask settles the value the way a real admin's
-    // next click would. The field completes `0,500` to `0,5` on blur.
-    await this.volumeInput().blur()
+  async setVolume(millilitres: number | null) {
+    await this.volumeSelect().selectOption(millilitres === null ? '' : String(millilitres))
   }
 
   /**
    * The volume the form will send, in whole millilitres ('' when there is none).
    *
-   * Read from the field's hidden value rather than from the visible input, for
-   * the same reason `getFormPriceValue()` is: `VolumeField` renders litres the
-   * way the admin's language writes them ("0,5" in German), so an assertion on
-   * the visible text would be an assertion about the locale.
+   * Read from the control's hidden value rather than from its label, for the
+   * same reason `getFormPriceValue()` is: the option is *labelled* `500 ml`
+   * while the preview beside it says `0,5 l`, and an assertion on either is an
+   * assertion about presentation.
    */
   async getFormVolumeValue(): Promise<string> {
     return (await this.volumeValue().inputValue()) || ''
   }
 
   /**
-   * The size as the admin sees it in the field — the locale's notation ("0,5").
+   * The chosen option's label as the admin reads it in the picker ("500 ml").
    *
    * The counterpart to `getFormVolumeValue()`, and the only assertion that is
-   * *about* the localisation rather than about the size.
+   * *about* the wording rather than about the size.
    */
   async getFormVolumeText(): Promise<string> {
-    return (await this.volumeInput().inputValue()) || ''
+    return (
+      await this.volumeSelect().evaluate((select) => {
+        const el = select as HTMLSelectElement
+        return el.selectedIndex < 0 ? '' : el.options[el.selectedIndex].text
+      })
+    ).trim()
+  }
+
+  /**
+   * Every size the picker offers, in the order it offers them, by value.
+   *
+   * The empty option is dropped: what this is for is the predefined list, and
+   * what a legacy size has to prove is that it is still *in* that list rather
+   * than silently gone.
+   */
+  async getVolumeOptionValues(): Promise<string[]> {
+    const values = await this.volumeSelect().locator('option').evaluateAll((options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+    )
+    return values.filter((value) => value !== '')
+  }
+
+  /** Every size the picker offers, as an admin reads them ("500 ml"). */
+  async getVolumeOptionLabels(): Promise<string[]> {
+    const labels = await this.volumeSelect().locator('option').evaluateAll((options) =>
+      options.map((option) => ({
+        value: (option as HTMLOptionElement).value,
+        label: (option as HTMLOptionElement).text,
+      })),
+    )
+    return labels.filter((o) => o.value !== '').map((o) => o.label.trim())
   }
 
   /**
