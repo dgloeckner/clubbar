@@ -35,6 +35,9 @@ final class SecurityCheckContext
      * @param bool               $debug               Whether this deployment runs with APP_DEBUG on.
      * @param list<string>       $baseUrlCandidates   URLs this installation may answer on, most likely first.
      * @param list<string>       $controlPaths        Paths that must return 200, used to validate a base URL.
+     * @param string             $trustedProxies      `TRUSTED_PROXIES` (#886) — empty when unconfigured.
+     * @param string|null        $remoteAddr          `REMOTE_ADDR` of the request that triggered this check.
+     * @param string|null        $forwardedFor        `X-Forwarded-For` of the request that triggered this check.
      */
     public function __construct(
         public readonly string $documentRoot,
@@ -46,6 +49,9 @@ final class SecurityCheckContext
         public readonly bool $debug = false,
         public readonly array $baseUrlCandidates = [],
         public readonly array $controlPaths = ['/README.txt'],
+        public readonly string $trustedProxies = '',
+        public readonly ?string $remoteAddr = null,
+        public readonly ?string $forwardedFor = null,
     ) {}
 
     /**

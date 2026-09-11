@@ -233,6 +233,14 @@ curl -I https://your-domain.com/api/health
 # network tab: the _session Set-Cookie must carry Secure; HttpOnly; SameSite=Lax
 ```
 
+### Reverse Proxies
+
+Left alone, every IP-keyed decision — the login rate limiter, `audit_log.ip_address`, terminal anomaly detection (ADR-0041) — reads the address PHP sees directly. That is correct on the shared hosting this guide targets, where nothing sits between the visitor and PHP.
+
+If this installation is instead reached through a reverse proxy, a CDN, or a TLS-terminating load balancer (Cloudflare, an nginx front end, a host-level balancer), every request otherwise arrives from *that proxy's own address* — collapsing the per-IP rate limiter into one shared budget for your whole admin team, and writing the proxy's address into every audit-log row instead of the real one.
+
+Set `app.trusted_proxies` in `config.php` (or `TRUSTED_PROXIES` in `.env`) to the proxy's own address or network, and the real client address is read from the `X-Forwarded-For` header it sets instead — never trusted from anything not listed here. See the commented example in `config.sample.php`. The Security Self-Check (*Checking It Actually Applied*, above) reports which mode is active and what address it resolved for its own request, so a misconfigured proxy address shows up rather than silently collapsing every client onto one IP.
+
 ### Application Security
 
 - **Protect `config.php`** — best done by having it outside the document root entirely (see *Where Your Data Is Kept* above). If your host forced the fallback layout, verify it is not downloadable by requesting `https://your-domain.com/config.php` in a browser: you must get an empty page or an error, never the file's text

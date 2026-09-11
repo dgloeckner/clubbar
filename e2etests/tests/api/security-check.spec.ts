@@ -41,7 +41,7 @@ type Finding = {
 // the admin panel's CATEGORY_ORDER have to agree. They are checked separately
 // because disagreeing costs something different in each place: here a red
 // build, in the panel a row that was measured and never shown.
-const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport', 'delivery', 'backup']
+const CATEGORIES = ['runtime', 'session', 'data', 'exposure', 'transport', 'delivery', 'backup', 'network']
 
 test.describe('Security self-check API', () => {
   /**

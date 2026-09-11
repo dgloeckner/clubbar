@@ -8,6 +8,7 @@ use App\Modules\AdminUsers\Services\AdminInvitationService;
 use App\Modules\Auth\Domain\BrowserSession;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Shared\Config\AppConfig;
+use App\Shared\Http\ClientIp;
 use App\Shared\Http\JsonResponder;
 use App\Shared\Validation\Validator;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -169,7 +170,7 @@ class InvitationController
      */
     private function recordRefusal(Request $request): void
     {
-        $ip = $request->getServerParams()['REMOTE_ADDR'] ?? '127.0.0.1';
+        $ip = ClientIp::resolve($request->getServerParams(), $this->config->trustedProxies) ?: '127.0.0.1';
         $this->loginAttempts->record($ip, null);
     }
 }

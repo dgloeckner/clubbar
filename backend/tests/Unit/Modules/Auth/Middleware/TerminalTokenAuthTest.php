@@ -246,6 +246,39 @@ class TerminalTokenAuthTest extends TestCase
     }
 
     /**
+     * #886: with a trusted proxy configured, the sighting is recorded against
+     * the address X-Forwarded-For names — not the proxy that relayed it —
+     * which is the whole point of ADR-0041's per-terminal overlap detection.
+     */
+    public function test_process_records_a_sighting_for_the_address_a_trusted_proxy_forwarded(): void
+    {
+        $this->terminalsRepository->method('findByTokenHash')->willReturn($this->terminal());
+
+        $middleware = new TerminalTokenAuth(
+            $this->terminalsRepository,
+            $this->authAttempts,
+            new TerminalTokenAuthenticator($this->terminalsRepository, $this->auditService),
+            $this->ipSightings,
+            $this->createMock(Logger::class),
+            '10.0.0.5',
+        );
+
+        $this->ipSightings->expects($this->once())
+            ->method('record')
+            ->with('terminal-1', '198.51.100.1', $this->anything());
+
+        $request = (new ServerRequestFactory())->createServerRequest('GET', '/api/sync/members', [
+            'REMOTE_ADDR' => '10.0.0.5',
+            'HTTP_X_FORWARDED_FOR' => '198.51.100.1',
+        ])->withHeader('Authorization', 'Bearer valid-token');
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturn(new Response(200));
+
+        $middleware->process($request, $handler);
+    }
+
+    /**
      * A rejected request has no terminal to attribute a sighting to — that is
      * what `terminal_auth_attempts` is for, and it is keyed by IP alone.
      */

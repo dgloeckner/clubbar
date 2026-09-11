@@ -53,6 +53,7 @@ class AppConfigTest extends TestCase
             $_ENV['SESSION_SAVE_PATH'],
             $_ENV['APP_URL'],
             $_ENV['CORS_ORIGINS'],
+            $_ENV['TRUSTED_PROXIES'],
             $_SERVER['HTTPS'],
             $_SERVER['HTTP_X_FORWARDED_PROTO'],
             $_SERVER['SERVER_PORT'],
@@ -348,5 +349,29 @@ class AppConfigTest extends TestCase
         $_ENV['CORS_ORIGINS'] = '  ,  ';
 
         $this->assertSame(['https://bar.example.org'], (new AppConfig())->corsAllowedOrigins);
+    }
+
+    /**
+     * Empty by default (#886) — the same "no existing installation changes
+     * behaviour" guarantee CORS_ORIGINS carries: unset means every IP-keyed
+     * decision keeps reading REMOTE_ADDR as-is.
+     */
+    public function test_trusted_proxies_is_empty_when_unset(): void
+    {
+        $this->assertSame('', (new AppConfig())->trustedProxies);
+    }
+
+    public function test_trusted_proxies_reads_the_configured_value(): void
+    {
+        $_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8, 172.16.0.5';
+
+        $this->assertSame('10.0.0.0/8, 172.16.0.5', (new AppConfig())->trustedProxies);
+    }
+
+    public function test_trusted_proxies_is_trimmed(): void
+    {
+        $_ENV['TRUSTED_PROXIES'] = '  10.0.0.0/8  ';
+
+        $this->assertSame('10.0.0.0/8', (new AppConfig())->trustedProxies);
     }
 }

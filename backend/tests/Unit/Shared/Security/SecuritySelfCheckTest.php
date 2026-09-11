@@ -514,6 +514,64 @@ class SecuritySelfCheckTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+    // Network — is TRUSTED_PROXIES (#886) doing what an operator expects?
+    // ------------------------------------------------------------------
+
+    public function test_unconfigured_trusted_proxies_passes_as_the_safe_default(): void
+    {
+        $finding = $this->finding('client_ip_source', $this->context(trustedProxies: ''));
+
+        $this->assertSame(SecurityFinding::PASS, $finding->status);
+        $this->assertStringContainsString('REMOTE_ADDR', $finding->observed);
+    }
+
+    public function test_a_request_from_an_untrusted_address_is_a_warning(): void
+    {
+        $finding = $this->finding('client_ip_source', $this->context(
+            trustedProxies: '10.0.0.0/8',
+            remoteAddr: '203.0.113.7',
+        ));
+
+        $this->assertSame(SecurityFinding::WARN, $finding->status);
+        $this->assertStringContainsString('203.0.113.7', $finding->observed);
+        $this->assertNotNull($finding->remedy);
+    }
+
+    public function test_a_trusted_proxy_with_no_forwarded_header_is_a_warning(): void
+    {
+        $finding = $this->finding('client_ip_source', $this->context(
+            trustedProxies: '10.0.0.5',
+            remoteAddr: '10.0.0.5',
+            forwardedFor: null,
+        ));
+
+        $this->assertSame(SecurityFinding::WARN, $finding->status);
+        $this->assertNotNull($finding->remedy);
+    }
+
+    public function test_a_trusted_proxy_with_a_forwarded_header_passes_and_names_the_resolved_address(): void
+    {
+        $finding = $this->finding('client_ip_source', $this->context(
+            trustedProxies: '10.0.0.5',
+            remoteAddr: '10.0.0.5',
+            forwardedFor: '198.51.100.1',
+        ));
+
+        $this->assertSame(SecurityFinding::PASS, $finding->status);
+        $this->assertStringContainsString('198.51.100.1', $finding->observed);
+    }
+
+    public function test_no_remote_addr_at_all_is_unknown_rather_than_passed(): void
+    {
+        $finding = $this->finding('client_ip_source', $this->context(
+            trustedProxies: '10.0.0.0/8',
+            remoteAddr: null,
+        ));
+
+        $this->assertSame(SecurityFinding::UNKNOWN, $finding->status);
+    }
+
+    // ------------------------------------------------------------------
     // The report as a whole
     // ------------------------------------------------------------------
 
@@ -560,6 +618,9 @@ class SecuritySelfCheckTest extends TestCase
         bool $https = false,
         bool $debug = false,
         array $baseUrlCandidates = [],
+        string $trustedProxies = '',
+        ?string $remoteAddr = null,
+        ?string $forwardedFor = null,
     ): SecurityCheckContext {
         return new SecurityCheckContext(
             documentRoot: $this->documentRoot,
@@ -570,6 +631,9 @@ class SecuritySelfCheckTest extends TestCase
             https: $https,
             debug: $debug,
             baseUrlCandidates: $baseUrlCandidates,
+            trustedProxies: $trustedProxies,
+            remoteAddr: $remoteAddr,
+            forwardedFor: $forwardedFor,
         );
     }
 

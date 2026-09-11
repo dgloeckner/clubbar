@@ -50,6 +50,22 @@ final class PublicControllerTest extends TestCase
         return $this->controller->store($request, new Response());
     }
 
+    /** @param array<string, mixed> $body */
+    private function postFrom(PublicController $controller, array $body, string $remoteAddr, ?string $forwardedFor = null): Response
+    {
+        $serverParams = ['REMOTE_ADDR' => $remoteAddr];
+        if ($forwardedFor !== null) {
+            $serverParams['HTTP_X_FORWARDED_FOR'] = $forwardedFor;
+        }
+
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/public/registrations', $serverParams)
+            ->withParsedBody($body)
+            ->withHeader('Content-Type', 'application/json');
+
+        return $controller->store($request, new Response());
+    }
+
     /**
      * @param array<string, mixed> $overrides
      * @return array<string, mixed>
@@ -93,6 +109,29 @@ final class PublicControllerTest extends TestCase
         $this->post($this->validBody(['secret' => 'the-poster-secret']));
 
         self::assertSame('the-poster-secret', $this->service->lastSecret);
+    }
+
+    /**
+     * #886: with no trusted proxies configured, the recorded IP is REMOTE_ADDR
+     * as before, even when a caller sends its own X-Forwarded-For.
+     */
+    public function test_with_no_trusted_proxies_the_recorded_ip_ignores_forwarded_for(): void
+    {
+        $this->postFrom($this->controller, $this->validBody(), '203.0.113.7', '198.51.100.1');
+
+        self::assertSame('203.0.113.7', $this->service->lastIp);
+    }
+
+    /** A trusted proxy's forwarded address is what gets recorded against the attempt. */
+    public function test_a_trusted_proxys_forwarded_for_is_recorded(): void
+    {
+        $db = new PDO('sqlite::memory:');
+        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $controller = new PublicController($this->service, new Validator($db), '10.0.0.5');
+
+        $this->postFrom($controller, $this->validBody(), '10.0.0.5', '198.51.100.1');
+
+        self::assertSame('198.51.100.1', $this->service->lastIp);
     }
 
     public function test_a_missing_secret_still_reaches_the_service_to_be_refused_there(): void
@@ -307,6 +346,7 @@ final class PublicControllerTest extends TestCase
 final class RecordingRegistrationsService extends RegistrationsService
 {
     public string $lastSecret = '<never called>';
+    public string $lastIp = '<never called>';
     /** @var array<string, mixed>|null */
     public ?array $lastPayload = null;
 
@@ -320,6 +360,7 @@ final class RecordingRegistrationsService extends RegistrationsService
     {
         $this->lastSecret = $presentedSecret;
         $this->lastPayload = $data;
+        $this->lastIp = $ip;
 
         return new RegistrationReceiptDto(id: 'reg-1', mandateReference: str_repeat('a', 32));
     }

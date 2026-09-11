@@ -6,12 +6,15 @@ namespace App\Shared\Services;
 
 use App\Shared\Enums\AuditAction;
 use App\Shared\Enums\EntityType;
+use App\Shared\Http\ClientIp;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 
 class AuditService
 {
     public function __construct(
         private AuditLogRepository $auditLogRepository,
+        /** @see \App\Shared\Config\AppConfig::$trustedProxies */
+        private string $trustedProxies = '',
     ) {}
 
     public function log(
@@ -31,9 +34,24 @@ class AuditService
             'entity_id' => $entityId,
             'old_values' => $this->maskSensitiveFields($oldValues),
             'new_values' => $this->maskSensitiveFields($newValues),
-            'ip_address' => $ipAddress ?? ($_SERVER['REMOTE_ADDR'] ?? null),
+            'ip_address' => $ipAddress ?? $this->currentClientIp(),
             'user_agent' => $userAgent ?? ($_SERVER['HTTP_USER_AGENT'] ?? null),
         ]);
+    }
+
+    /**
+     * The caller's address when none was passed explicitly.
+     *
+     * No caller currently passes `$ipAddress` — every write reaches this. Reads
+     * `$_SERVER` rather than a `Request` object because callers as far apart as
+     * a controller action and a cron-triggered service reach `log()`, and only
+     * one of those has a request to hand it.
+     */
+    private function currentClientIp(): ?string
+    {
+        $ip = ClientIp::resolve($_SERVER, $this->trustedProxies);
+
+        return $ip !== '' ? $ip : null;
     }
 
     /**
