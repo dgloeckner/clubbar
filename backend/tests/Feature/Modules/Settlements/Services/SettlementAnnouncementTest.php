@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Settlements\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\Instance\Repositories\InstanceConfigRepository;
@@ -92,6 +93,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
                 $auditService,
                 new AdminUsersRepository($this->db, $this->logger),
                 new SettlementAnnouncementsRepository($this->db, $this->logger),
+                new AdminInvitationsRepository($this->db, $this->logger),
                 $this->logger,
             ),
             $this->ensureObservedSchedulerRun(),
@@ -205,6 +207,7 @@ class SettlementAnnouncementTest extends DatabaseTestCase
             new AuditService(new AuditLogRepository($this->db, $this->logger)),
             new AdminUsersRepository($this->db, $this->logger),
             new SettlementAnnouncementsRepository($this->db, $this->logger),
+            new AdminInvitationsRepository($this->db, $this->logger),
             $this->logger,
         );
         $result = $notifications->enqueueForSettlement($settlementId, [$memberId => 400], $this->adminId);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Notifications\DTOs\EnqueueResultDto;
@@ -43,6 +44,7 @@ class NotificationsService
         private AuditService $auditService,
         private AdminUsersRepository $adminUsersRepository,
         private SettlementAnnouncementsRepository $settlementAnnouncementsRepository,
+        private AdminInvitationsRepository $adminInvitationsRepository,
         private Logger $logger,
     ) {}
 
@@ -260,6 +262,7 @@ class NotificationsService
         if ($result->sent) {
             $sentAt = $this->mailOutboxRepository->markSent($outboxId, $result->messageId);
             $this->recordAnnouncement($row, $sentAt);
+            $this->clearInvitationSecret($row);
 
             return MailStatus::SENT;
         }
@@ -355,6 +358,40 @@ class NotificationsService
                 'message' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Null the invitation's sealed token once the mail carrying its link is
+     * confirmed delivered (#891).
+     *
+     * `AdminSecurityMailBuilder::buildInvitation()` is what decrypts
+     * `token_cipher`, minutes or hours earlier, to render the link — but that
+     * happens at *build* time, before the transport has had a chance to fail.
+     * Clearing there would mean a transient failure (greylisting, a timeout)
+     * leaves nothing for the retry to build a second message from. Clearing
+     * here instead, once the row is durably `sent`, is what keeps a retry
+     * possible while still collapsing the plaintext-recoverable window from
+     * the invitation's full 7-day TTL down to the time between queueing and
+     * the next drain tick.
+     *
+     * The dedup key *is* the invitation id — see the builder's own comment —
+     * so no extra lookup is needed to find which row to clear.
+     *
+     * @param array<string,mixed> $row
+     */
+    private function clearInvitationSecret(array $row): void
+    {
+        $kind = MailKind::tryFrom((string) ($row['kind'] ?? ''));
+        if ($kind !== MailKind::ADMIN_INVITATION) {
+            return;
+        }
+
+        $invitationId = trim((string) ($row['dedup_key'] ?? ''));
+        if ($invitationId === '') {
+            return;
+        }
+
+        $this->adminInvitationsRepository->clearTokenCipher($invitationId);
     }
 
     /* ─────────────────────── Erasure and retention (#408) ─────────────────────── */
