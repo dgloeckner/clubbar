@@ -710,4 +710,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get credentialExpiredCheckoutBlocked => 'Sales disabled';
+
+  @override
+  String get credentialRevokedWarning =>
+      'Sales disabled: this terminal\'s access has been withdrawn. Contact the club.';
+
+  @override
+  String get credentialRevokedTitle => 'Access withdrawn';
+
+  @override
+  String get credentialRevokedInstruction =>
+      'This terminal\'s access was withdrawn by an administrator, or the terminal was deactivated. No sale can be recorded. Contact the club to find out whether this terminal should be reactivated.';
 }

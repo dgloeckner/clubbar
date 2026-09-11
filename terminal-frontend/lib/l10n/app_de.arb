@@ -886,5 +886,17 @@
   "credentialExpiredCheckoutBlocked": "Verkauf gesperrt",
   "@credentialExpiredCheckoutBlocked": {
     "description": "Checkout button label while the terminal credential has expired"
+  },
+  "credentialRevokedWarning": "Verkauf gesperrt: Der Zugang dieses Terminals wurde entzogen. Bitte den Verein kontaktieren.",
+  "@credentialRevokedWarning": {
+    "description": "Persistent staff warning while the backend refuses this terminal's token as revoked or the terminal as deactivated (#890)"
+  },
+  "credentialRevokedTitle": "Zugang entzogen",
+  "@credentialRevokedTitle": {
+    "description": "Title of the revoked-credential dialog"
+  },
+  "credentialRevokedInstruction": "Der Zugang dieses Terminals wurde von einem Administrator entzogen, oder das Terminal wurde deaktiviert. Es kann kein Verkauf mehr gebucht werden. Bitte den Verein kontaktieren, um zu klären, ob dieses Terminal wieder freigeschaltet werden soll.",
+  "@credentialRevokedInstruction": {
+    "description": "Explains that the terminal's access was withdrawn, not merely expired, and what to do about it"
   }
 }
