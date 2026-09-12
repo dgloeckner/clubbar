@@ -1135,10 +1135,16 @@ test.describe('Package: Security self-check', () => {
     'session_cookie_httponly',
     'session_cookie_samesite',
     'session_save_path',
-    // The two that matter most, and the only ones measured by asking the
-    // webserver: a scanned SEPA mandate and the application log must be refused.
+    // The ones that matter most, and the only ones measured by asking the
+    // webserver: a scanned SEPA mandate, the application log, config.php and
+    // every dotfile under the document root must be refused (#883 adds the
+    // latter two — config.php is the single highest-value file in the
+    // installation, and the dotfile row covers .installer-data,
+    // .upgrade-secret and .user.ini with one probe).
     'mandate_not_served',
     'logs_not_served',
+    'config_not_served',
+    'dotfiles_not_served',
     // Set by RuntimeHardening::applySecurityHeaders() (#383, ADR-0031 — CSP and
     // HSTS moved to L0), measured regardless of transport, so unlike HSTS this
     // belongs here rather than in the excluded set above.
@@ -1203,7 +1209,7 @@ test.describe('Package: Security self-check', () => {
   test('the exposure rows come from a real refusal, not from an assumption', async () => {
     const findings = measurePackagedSecurity();
 
-    for (const id of ['mandate_not_served', 'logs_not_served']) {
+    for (const id of ['mandate_not_served', 'logs_not_served', 'config_not_served', 'dotfiles_not_served']) {
       const observed = findings.find((finding) => finding.id === id)?.observed ?? '';
       expect(observed, `${id} was not measured over HTTP`).toMatch(/refused \(HTTP (403|404)\)/);
     }

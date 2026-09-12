@@ -413,6 +413,7 @@ class SecuritySelfCheckTest extends TestCase
 
             $this->assertSame(SecurityFinding::PASS, $this->find('mandate_not_served', $findings)?->status);
             $this->assertSame(SecurityFinding::PASS, $this->find('logs_not_served', $findings)?->status);
+            $this->assertSame(SecurityFinding::PASS, $this->find('config_not_served', $findings)?->status);
             $this->assertSame(SecurityFinding::UNKNOWN, $this->find('csp_header', $findings)?->status);
         } finally {
             $this->removeTree($outside);
@@ -429,7 +430,7 @@ class SecuritySelfCheckTest extends TestCase
         // Port 1: nothing listens there, so the control fetch cannot succeed.
         $findings = SecuritySelfCheck::run($this->context(baseUrlCandidates: ['http://127.0.0.1:1']));
 
-        foreach (['mandate_not_served', 'logs_not_served', 'csp_header'] as $id) {
+        foreach (['mandate_not_served', 'logs_not_served', 'config_not_served', 'dotfiles_not_served', 'csp_header'] as $id) {
             $finding = $this->find($id, $findings);
             $this->assertSame(SecurityFinding::UNKNOWN, $finding?->status, $id);
             $this->assertNotNull($finding?->remedy, "{$id} must say what to check by hand");
@@ -445,6 +446,76 @@ class SecuritySelfCheckTest extends TestCase
             $this->dataDirectory . '/storage/mandates',
             'A directory the check created to place a canary in is removed again'
         );
+        $this->assertFileDoesNotExist($this->documentRoot . '/config.sample.php');
+        $leftoverDotfiles = array_filter(
+            scandir($this->documentRoot) ?: [],
+            static fn(string $entry): bool => $entry !== '.' && $entry !== '..' && str_starts_with($entry, '.')
+        );
+        $this->assertSame([], array_values($leftoverDotfiles));
+    }
+
+    // ------------------------------------------------------------------
+    // config.php and dotfiles under the document root (#883)
+    // ------------------------------------------------------------------
+
+    public function test_the_config_and_dotfile_canaries_pass_when_the_htaccess_rules_hold(): void
+    {
+        $this->withExposureServer(true, function (string $baseUrl, string $documentRoot): void {
+            $findings = SecuritySelfCheck::run($this->context(
+                documentRoot: $documentRoot,
+                dataDirectory: $documentRoot . '/backend',
+                baseUrlCandidates: [$baseUrl],
+            ));
+
+            $this->assertSame(SecurityFinding::PASS, $this->find('config_not_served', $findings)?->status);
+            $this->assertSame(SecurityFinding::PASS, $this->find('dotfiles_not_served', $findings)?->status);
+        });
+    }
+
+    public function test_the_config_and_dotfile_canaries_fail_when_the_host_serves_them(): void
+    {
+        $this->withExposureServer(false, function (string $baseUrl, string $documentRoot): void {
+            $findings = SecuritySelfCheck::run($this->context(
+                documentRoot: $documentRoot,
+                dataDirectory: $documentRoot . '/backend',
+                baseUrlCandidates: [$baseUrl],
+            ));
+
+            $config = $this->find('config_not_served', $findings);
+            $this->assertSame(SecurityFinding::FAIL, $config?->status);
+            $this->assertStringContainsString('SERVED', (string) $config?->observed);
+            $this->assertNotNull($config?->remedy);
+
+            $dotfiles = $this->find('dotfiles_not_served', $findings);
+            $this->assertSame(SecurityFinding::FAIL, $dotfiles?->status);
+            $this->assertStringContainsString('SERVED', (string) $dotfiles?->observed);
+            $this->assertNotNull($dotfiles?->remedy);
+        });
+    }
+
+    /**
+     * #751: an older release can leave `config.sample.php` sitting next to
+     * `index.php`. The probe must measure whatever is already there rather
+     * than clobbering it — the file is a template, not a secret, but an
+     * operator's own copy is still not this check's to overwrite.
+     */
+    public function test_the_config_canary_does_not_overwrite_an_existing_config_sample_php(): void
+    {
+        $this->withExposureServer(true, function (string $baseUrl, string $documentRoot): void {
+            file_put_contents($documentRoot . '/config.sample.php', "<?php return ['real' => 'sample'];\n");
+
+            SecuritySelfCheck::run($this->context(
+                documentRoot: $documentRoot,
+                dataDirectory: $documentRoot . '/backend',
+                baseUrlCandidates: [$baseUrl],
+            ));
+
+            $this->assertStringContainsString(
+                "'real' => 'sample'",
+                (string) file_get_contents($documentRoot . '/config.sample.php'),
+                'A pre-existing config.sample.php must survive the probe untouched'
+            );
+        });
     }
 
     // ------------------------------------------------------------------
@@ -650,6 +721,7 @@ class SecuritySelfCheckTest extends TestCase
     // ------------------------------------------------------------------
 
     private function context(
+        ?string $documentRoot = null,
         ?string $dataDirectory = null,
         ?string $configFile = null,
         ?string $dataDirectoryReason = null,
@@ -664,7 +736,7 @@ class SecuritySelfCheckTest extends TestCase
         bool $terminalRateLimitingDisabled = false,
     ): SecurityCheckContext {
         return new SecurityCheckContext(
-            documentRoot: $this->documentRoot,
+            documentRoot: $documentRoot ?? $this->documentRoot,
             dataDirectory: $dataDirectory ?? $this->dataDirectory,
             configFile: $configFile,
             dataDirectoryReason: $dataDirectoryReason,
@@ -802,6 +874,56 @@ class SecuritySelfCheckTest extends TestCase
 
         try {
             $test($server->baseUrl());
+        } finally {
+            $server->stop();
+            $this->removeTree($documentRoot);
+        }
+    }
+
+    /**
+     * A real webserver whose document root is handed to the test, so a canary
+     * this process writes there is one the server can actually be asked for
+     * (#883). $deny true reproduces `package/.htaccess`'s rule for dotfiles
+     * and `config(.sample)?.php` (403); false reproduces a host that ignores
+     * it and hands the file out like any other static file (200).
+     */
+    private function withExposureServer(bool $deny, callable $test): void
+    {
+        $documentRoot = sys_get_temp_dir() . '/clubbar-exposure-' . bin2hex(random_bytes(6));
+        mkdir($documentRoot, 0700, true);
+        file_put_contents($documentRoot . '/README.txt', "clubbar security self-check\n");
+
+        $denyStatement = $deny
+            ? <<<'PHP'
+                $name = basename($path);
+                if ($name === 'config.sample.php' || str_starts_with($name, '.')) {
+                    http_response_code(403);
+                    exit;
+                }
+                PHP
+            : '';
+
+        file_put_contents($documentRoot . '/router.php', <<<PHP
+            <?php
+            \$path = __DIR__ . parse_url(\$_SERVER['REQUEST_URI'], PHP_URL_PATH);
+            {$denyStatement}
+            if (is_file(\$path)) {
+                readfile(\$path);
+            } else {
+                http_response_code(404);
+            }
+            PHP);
+
+        $server = LocalWebServer::start($documentRoot . '/router.php', $documentRoot);
+        if ($server === null) {
+            $this->removeTree($documentRoot);
+            $this->markTestSkipped('Could not start a local webserver to probe');
+
+            return;
+        }
+
+        try {
+            $test($server->baseUrl(), $documentRoot);
         } finally {
             $server->stop();
             $this->removeTree($documentRoot);
