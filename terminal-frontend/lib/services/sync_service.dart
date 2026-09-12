@@ -20,6 +20,24 @@ enum SyncResult { success, failure, alreadyInProgress }
 /// terminal last synced with (ADR-0035).
 enum PairingResult { paired, mismatch }
 
+/// Why the backend refused this terminal's credential (#890).
+///
+/// `TerminalTokenAuth.php` answers a bad credential with one of three codes,
+/// and they are not interchangeable for staff at the bar: an aged-out token
+/// is a terminal that has simply been running for a year (ADR-0036) and needs
+/// a routine rotation, while an unknown token or a deactivated terminal is
+/// what a *revocation* produces — the one lever an admin has against a stolen
+/// or decommissioned device. Both must stop checkout identically; only the
+/// wording shown to staff differs.
+enum CredentialRefusalReason {
+  /// `terminal_token_expired` — the token aged out on its own.
+  expired,
+
+  /// `invalid_terminal_token` or `terminal_inactive` — the token was revoked,
+  /// or the terminal itself was deactivated.
+  revoked,
+}
+
 class SyncService {
   /// Largest batch `POST /sync/transactions` accepts, per `api/terminal.yaml`.
   ///
@@ -46,14 +64,15 @@ class SyncService {
   DateTime? _lastTransactionSyncTime;
   String? _lastTransactionSyncError;
 
-  /// True while the last sync attempt was refused because this terminal's
-  /// credential has aged out (#106, #395).
+  /// Why the last sync attempt was refused as a credential problem, if it was
+  /// (#106, #395, #890).
   ///
   /// Kept apart from the ordinary sync failure because it is a different thing
   /// to tell the staff standing at the till: an outage they can wait out, or a
   /// credential only an administrator can replace. Nothing the terminal does
-  /// clears it — only a rotation entered at this device does.
-  bool _credentialExpired = false;
+  /// clears it — only a rotation (or reactivation) entered at this device
+  /// does, via the next successful cycle.
+  CredentialRefusalReason? _credentialRefusal;
 
   SyncService({
     required NetworkService networkService,
@@ -87,12 +106,30 @@ class SyncService {
   /// Get last transaction sync error (null if last transaction sync succeeded or no attempt)
   String? get lastTransactionSyncError => _lastTransactionSyncError;
 
-  /// Whether the backend refused this terminal's token as expired.
-  bool get credentialExpired => _credentialExpired;
+  /// Whether the backend refused this terminal's credential — for any of the
+  /// three reasons `TerminalTokenAuth.php` can give (#890). Checkout blocks on
+  /// this regardless of which one; see [credentialRefusal] for the reason
+  /// staff should be told.
+  bool get credentialExpired => _credentialRefusal != null;
 
-  /// Whether [error] is the backend saying this terminal's token has aged out.
-  static bool isExpiredCredential(Object? error) =>
-      error is NetworkException && error.errorCode == 'terminal_token_expired';
+  /// Which of the three reasons the last sync attempt was refused for, or
+  /// null if it was not refused for a credential problem at all.
+  CredentialRefusalReason? get credentialRefusal => _credentialRefusal;
+
+  /// Classifies [error] as a credential refusal, or returns null if it is an
+  /// ordinary network/sync failure the terminal can simply wait out.
+  static CredentialRefusalReason? credentialRefusalReasonFor(Object? error) {
+    if (error is! NetworkException) return null;
+    switch (error.errorCode) {
+      case 'terminal_token_expired':
+        return CredentialRefusalReason.expired;
+      case 'invalid_terminal_token':
+      case 'terminal_inactive':
+        return CredentialRefusalReason.revoked;
+      default:
+        return null;
+    }
+  }
 
   /// Check if sync is needed based on interval
   Future<bool> isSyncNeeded() async {
@@ -109,8 +146,8 @@ class SyncService {
     _isSyncing = true;
     // Cleared up front, so the flag always describes *this* attempt: a rotation
     // entered at the terminal has to make the block go away on the next cycle,
-    // and it can only do that if a successful cycle leaves it false.
-    _credentialExpired = false;
+    // and it can only do that if a successful cycle leaves it null.
+    _credentialRefusal = null;
     try {
       _logger.i('Starting sync cycle');
 
@@ -124,7 +161,8 @@ class SyncService {
       } catch (e, stackTrace) {
         _logger.e('Config sync failed (non-fatal): $e',
             error: e, stackTrace: stackTrace);
-        if (isExpiredCredential(e)) _credentialExpired = true;
+        final refusal = credentialRefusalReasonFor(e);
+        if (refusal != null) _credentialRefusal = refusal;
       }
 
       // Sync members
@@ -146,10 +184,11 @@ class SyncService {
         // silently excluded by ErrorFileOutput's level filter.
         _logger.e('Transaction sync failed (non-fatal): $e', error: e, stackTrace: stackTrace);
         _lastTransactionSyncError = e.toString();
-        // Non-fatal to the cycle, but not to selling: an upload refused for an
-        // expired credential means every sale rung from here on is stranded
+        // Non-fatal to the cycle, but not to selling: an upload refused for a
+        // credential problem means every sale rung from here on is stranded
         // locally, which is exactly what the block exists to stop.
-        if (isExpiredCredential(e)) _credentialExpired = true;
+        final refusal = credentialRefusalReasonFor(e);
+        if (refusal != null) _credentialRefusal = refusal;
       }
 
       // Refresh open tabs last, so it sees the balances the upload just moved.
@@ -174,7 +213,8 @@ class SyncService {
       return SyncResult.success;
     } catch (e, stackTrace) {
       _logger.e('Sync cycle failed: $e', error: e, stackTrace: stackTrace);
-      if (isExpiredCredential(e)) _credentialExpired = true;
+      final refusal = credentialRefusalReasonFor(e);
+      if (refusal != null) _credentialRefusal = refusal;
       await _syncRepo.setLastSyncError(e.toString());
       await _syncRepo.incrementSyncRetryCount();
       return SyncResult.failure;

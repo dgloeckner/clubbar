@@ -1249,6 +1249,24 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Verkauf gesperrt'**
   String get credentialExpiredCheckoutBlocked;
+
+  /// Persistent staff warning while the backend refuses this terminal's token as revoked or the terminal as deactivated (#890)
+  ///
+  /// In de, this message translates to:
+  /// **'Verkauf gesperrt: Der Zugang dieses Terminals wurde entzogen. Bitte den Verein kontaktieren.'**
+  String get credentialRevokedWarning;
+
+  /// Title of the revoked-credential dialog
+  ///
+  /// In de, this message translates to:
+  /// **'Zugang entzogen'**
+  String get credentialRevokedTitle;
+
+  /// Explains that the terminal's access was withdrawn, not merely expired, and what to do about it
+  ///
+  /// In de, this message translates to:
+  /// **'Der Zugang dieses Terminals wurde von einem Administrator entzogen, oder das Terminal wurde deaktiviert. Es kann kein Verkauf mehr gebucht werden. Bitte den Verein kontaktieren, um zu klären, ob dieses Terminal wieder freigeschaltet werden soll.'**
+  String get credentialRevokedInstruction;
 }
 
 class _AppLocalizationsDelegate

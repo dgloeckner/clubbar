@@ -1125,20 +1125,25 @@ void main() {
       });
     });
 
-    /// #395 — a 401 for an aged-out token is not an outage. It has to be told
-    /// apart from one, because only one of the two is something staff at the
-    /// bar can wait out.
-    group('credentialExpired', () {
+    /// #395, #890 — a 401 for a bad credential is not an outage. It has to be
+    /// told apart from one, because only a credential problem is something no
+    /// amount of waiting fixes. The backend gives three distinct codes for it
+    /// (`TerminalTokenAuth.php`): an aged-out token is the benign case; an
+    /// unknown token or a deactivated terminal is what a *revocation*
+    /// produces — the response to a stolen or decommissioned device — and
+    /// before #890 neither of those two stopped checkout at all.
+    group('credentialExpired / credentialRefusal', () {
       void stubFailurePersistence() {
         when(() => mockSyncRepo.setLastSyncError(any())).thenAnswer((_) async => {});
         when(() => mockSyncRepo.incrementSyncRetryCount()).thenAnswer((_) async => {});
       }
 
-      test('is false before anything has been attempted', () {
+      test('is false/null before anything has been attempted', () {
         expect(syncService.credentialExpired, isFalse);
+        expect(syncService.credentialRefusal, isNull);
       });
 
-      test('a 401 terminal_token_expired raises it', () async {
+      test('a 401 terminal_token_expired raises it as expired', () async {
         stubFailurePersistence();
         when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
             .thenThrow(NetworkException(
@@ -1149,6 +1154,35 @@ void main() {
 
         expect(await syncService.syncAll(), equals(SyncResult.failure));
         expect(syncService.credentialExpired, isTrue);
+        expect(syncService.credentialRefusal, CredentialRefusalReason.expired);
+      });
+
+      test('a 401 invalid_terminal_token raises it as revoked', () async {
+        stubFailurePersistence();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenThrow(NetworkException(
+          'Sync members failed: HTTP 401',
+          statusCode: 401,
+          errorCode: 'invalid_terminal_token',
+        ));
+
+        expect(await syncService.syncAll(), equals(SyncResult.failure));
+        expect(syncService.credentialExpired, isTrue);
+        expect(syncService.credentialRefusal, CredentialRefusalReason.revoked);
+      });
+
+      test('a 401 terminal_inactive raises it as revoked', () async {
+        stubFailurePersistence();
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenThrow(NetworkException(
+          'Sync members failed: HTTP 401',
+          statusCode: 401,
+          errorCode: 'terminal_inactive',
+        ));
+
+        expect(await syncService.syncAll(), equals(SyncResult.failure));
+        expect(syncService.credentialExpired, isTrue);
+        expect(syncService.credentialRefusal, CredentialRefusalReason.revoked);
       });
 
       test('an ordinary network failure does not', () async {
@@ -1158,6 +1192,7 @@ void main() {
 
         expect(await syncService.syncAll(), equals(SyncResult.failure));
         expect(syncService.credentialExpired, isFalse);
+        expect(syncService.credentialRefusal, isNull);
       });
 
       /// The flag describes the *last* attempt, so a rotation entered at the
@@ -1180,6 +1215,54 @@ void main() {
 
         expect(await syncService.syncAll(), equals(SyncResult.success));
         expect(syncService.credentialExpired, isFalse);
+        expect(syncService.credentialRefusal, isNull);
+      });
+    });
+
+    group('credentialRefusalReasonFor', () {
+      test('classifies terminal_token_expired as expired', () {
+        expect(
+          SyncService.credentialRefusalReasonFor(
+            NetworkException('x', errorCode: 'terminal_token_expired'),
+          ),
+          CredentialRefusalReason.expired,
+        );
+      });
+
+      test('classifies invalid_terminal_token as revoked', () {
+        expect(
+          SyncService.credentialRefusalReasonFor(
+            NetworkException('x', errorCode: 'invalid_terminal_token'),
+          ),
+          CredentialRefusalReason.revoked,
+        );
+      });
+
+      test('classifies terminal_inactive as revoked', () {
+        expect(
+          SyncService.credentialRefusalReasonFor(
+            NetworkException('x', errorCode: 'terminal_inactive'),
+          ),
+          CredentialRefusalReason.revoked,
+        );
+      });
+
+      test('returns null for an unrelated or missing error code', () {
+        expect(
+          SyncService.credentialRefusalReasonFor(
+            NetworkException('x', errorCode: 'something_else'),
+          ),
+          isNull,
+        );
+        expect(
+          SyncService.credentialRefusalReasonFor(NetworkException('x')),
+          isNull,
+        );
+      });
+
+      test('returns null for a non-NetworkException error', () {
+        expect(SyncService.credentialRefusalReasonFor('not an exception'), isNull);
+        expect(SyncService.credentialRefusalReasonFor(null), isNull);
       });
     });
   });

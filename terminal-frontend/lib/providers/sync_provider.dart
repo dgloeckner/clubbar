@@ -42,12 +42,13 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   bool _pairingMismatch = false;
   int _pairingMismatchTransactionCount = 0;
 
-  // #395: set when the backend refuses this terminal's token as expired. Unlike
-  // a pairing mismatch this is not a judgement call anyone at the bar can make
-  // — the credential is gone and only an administrator can issue a new one — so
-  // there is no acknowledge action, only a rotation entered at this device,
-  // which clears it on the next successful cycle.
-  bool _credentialExpired = false;
+  // #395, #890: set when the backend refuses this terminal's credential —
+  // aged out, unknown, or the terminal deactivated. Unlike a pairing mismatch
+  // this is not a judgement call anyone at the bar can make — the credential
+  // is gone or withdrawn and only an administrator can issue a new one — so
+  // there is no acknowledge action, only a rotation (or reactivation) entered
+  // at this device, which clears it on the next successful cycle.
+  CredentialRefusalReason? _credentialRefusal;
 
   // Guards startSync() and acknowledgePairingMismatch() from interleaving.
   // Both read and write the same paired-instance state; without this, a
@@ -78,9 +79,15 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
   bool get pairingMismatch => _pairingMismatch;
   int get pairingMismatchTransactionCount => _pairingMismatchTransactionCount;
 
-  /// This terminal's API token has expired: nothing it rings up can reach the
-  /// backend, so sales are stopped until an administrator rotates the token.
-  bool get credentialExpired => _credentialExpired;
+  /// This terminal's credential was refused — expired, unknown, or the
+  /// terminal deactivated: nothing it rings up can reach the backend, so sales
+  /// are stopped until an administrator rotates the token or reactivates the
+  /// terminal (#890).
+  bool get credentialExpired => _credentialRefusal != null;
+
+  /// Which of the two refusal reasons applies, for wording the banner staff
+  /// see — an aged-out token and a revoked one are not the same instruction.
+  CredentialRefusalReason? get credentialRefusal => _credentialRefusal;
 
   /// When the terminal first stopped being healthy, or null while online.
   ///
@@ -224,7 +231,7 @@ class SyncProvider extends ChangeNotifier with ErrorSignal {
       // Mirrored out of the service on every cycle, success or failure, so the
       // banner and the checkout button read one flag rather than each deciding
       // for themselves what a 401 meant.
-      _credentialExpired = _syncService.credentialExpired;
+      _credentialRefusal = _syncService.credentialRefusal;
       notifyListeners();
     }
   }

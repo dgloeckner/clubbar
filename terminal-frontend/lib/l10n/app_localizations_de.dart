@@ -712,4 +712,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get credentialExpiredCheckoutBlocked => 'Verkauf gesperrt';
+
+  @override
+  String get credentialRevokedWarning =>
+      'Verkauf gesperrt: Der Zugang dieses Terminals wurde entzogen. Bitte den Verein kontaktieren.';
+
+  @override
+  String get credentialRevokedTitle => 'Zugang entzogen';
+
+  @override
+  String get credentialRevokedInstruction =>
+      'Der Zugang dieses Terminals wurde von einem Administrator entzogen, oder das Terminal wurde deaktiviert. Es kann kein Verkauf mehr gebucht werden. Bitte den Verein kontaktieren, um zu klären, ob dieses Terminal wieder freigeschaltet werden soll.';
 }
