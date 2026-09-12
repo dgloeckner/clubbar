@@ -143,7 +143,27 @@ class AdminSessionAuthTest extends TestCase
         $_SESSION = ['admin_user_id' => 'admin-1', 'totp_setup_required' => true];
         $this->adminUsersRepository->method('findById')->willReturn($this->admin());
 
-        $response = $this->middleware->process($this->request($path), $this->passthroughHandler());
+        $response = $this->middleware->process($this->routedRequest($path), $this->passthroughHandler());
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * #888: the gate used to key on the concrete request path, which
+     * `setBasePath()` (bootstrap.php, for a subdirectory install) prefixes.
+     * The matched route *pattern* is base-path independent, so a request
+     * that arrived as `/clubbar/api/auth/2fa/setup` still reaches its own
+     * enrolment endpoint.
+     */
+    public function test_process_allows_totp_enrollment_route_under_a_base_path(): void
+    {
+        $_SESSION = ['admin_user_id' => 'admin-1', 'totp_setup_required' => true];
+        $this->adminUsersRepository->method('findById')->willReturn($this->admin());
+
+        $response = $this->middleware->process(
+            $this->routedRequest('/api/auth/2fa/setup', '/clubbar/api/auth/2fa/setup'),
+            $this->passthroughHandler(),
+        );
 
         $this->assertSame(200, $response->getStatusCode());
     }
