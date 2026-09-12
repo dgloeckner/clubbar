@@ -249,6 +249,19 @@ void main() async {
     windowManager.waitUntilReadyToShow(null, () async {
       if (configService.fullscreen) {
         await windowManager.setFullScreen(true);
+      } else {
+        // A windowed run is a development run, and what it is developing for is
+        // the 1280x800 kiosk panel (INSTALL.md, docs/font-sizes.md). Opening at
+        // the deployment resolution means a layout checked on a laptop is the
+        // layout the bar sees — the desktop default is 800x600, which is both
+        // too small and the wrong aspect ratio, so the grid and the idle screen
+        // overflow in ways the kiosk never does.
+        //
+        // A default, not a constraint: no setMinimumSize/setMaximumSize, so the
+        // window stays freely resizable. The fixed 1280x720 clamp this replaces
+        // was removed on purpose (docs/plans/2026-02-22-fullscreen-kiosk-mode.md).
+        await windowManager.setSize(const Size(1280, 800));
+        await windowManager.center();
       }
       await windowManager.show();
     });
