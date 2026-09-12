@@ -12,9 +12,10 @@ import { csrfHeaders } from '../../utils/csrf'
  *
  * What has to hold end to end, and why each is asserted rather than assumed:
  *
- * - **The list is the predefined one** — 1000, 500, 330, 300, 250 and 200 ml,
- *   in that order. It is the requirement, so it is asserted on the control itself
- *   rather than inferred from one lucky pick.
+ * - **The list is the predefined one** — the eleven sizes a club bar pours,
+ *   largest first, with the "other size" escape hatch last. It is the
+ *   requirement, so it is asserted on the control itself rather than inferred
+ *   from one lucky pick.
  * - **Picked in millilitres, read in litres.** The option says `500 ml`,
  *   because that is what the crate says; the preview and the list say `0,5 l`,
  *   because that is what the member reads on the terminal. Both halves are
@@ -24,8 +25,11 @@ import { csrfHeaders } from '../../utils/csrf'
  *   than about anybody's rendering of it.
  * - **Clearing works.** Saying "this product has no size after all" must reach
  *   the column, not return a 200 over an unchanged row.
- * - **A size from before the list survives.** A product saved with 750 ml must
- *   still offer and hold 750 ml, or an unrelated edit would silently clear it.
+ * - **A size the list has no answer for can still be said.** A club that pours
+ *   a 0,7 l Schnapsflasche types 700 into the field behind the last option, and
+ *   700 is what the API gets.
+ * - **A size from before the list survives.** A product saved with 700 ml must
+ *   open showing 700 ml, or an unrelated edit would silently clear it.
  *
  * Patterns: 001 (test data isolation), 004 (parallel safety), 005 (test IDs),
  *           006 (page object), 007 (fixtures), 008 (expect assertions),
@@ -43,12 +47,22 @@ const API_BASE = 'http://localhost:8080/api'
  */
 const SIZES = [
   { ml: 1000, label: '1000 ml', read: '1 l' },
+  { ml: 750, label: '750 ml', read: '0,75 l' },
   { ml: 500, label: '500 ml', read: '0,5 l' },
+  { ml: 400, label: '400 ml', read: '0,4 l' },
   { ml: 330, label: '330 ml', read: '0,33 l' },
   { ml: 300, label: '300 ml', read: '0,3 l' },
   { ml: 250, label: '250 ml', read: '0,25 l' },
   { ml: 200, label: '200 ml', read: '0,2 l' },
+  { ml: 100, label: '100 ml', read: '0,1 l' },
+  // Below 100 ml a size reads in millilitres in both halves: `0,04 l` says
+  // less about a double Schnaps than `40 ml` does (ADR-0056, decision 4).
+  { ml: 40, label: '40 ml', read: '40 ml' },
+  { ml: 20, label: '20 ml', read: '20 ml' },
 ]
+
+/** The last option: "not on the list — let me type it." */
+const CUSTOM = 'custom'
 
 /**
  * The rendered size, with its NO-BREAK SPACE turned into an ordinary one.
@@ -168,12 +182,19 @@ test.describe('Product volume', () => {
     await authenticatedProductsPage.openCreateModal()
     await authenticatedProductsPage.expectFormModalVisible()
 
-    expect(await authenticatedProductsPage.getVolumeOptionValues()).toEqual(
-      SIZES.map((size) => String(size.ml)),
-    )
-    expect(await authenticatedProductsPage.getVolumeOptionLabels()).toEqual(
-      SIZES.map((size) => size.label.replace(' ', '\u00a0')),
-    )
+    // The sizes first, in order, and the escape hatch after them.
+    expect(await authenticatedProductsPage.getVolumeOptionValues()).toEqual([
+      ...SIZES.map((size) => String(size.ml)),
+      CUSTOM,
+    ])
+    expect(await authenticatedProductsPage.getVolumeOptionLabels()).toEqual([
+      ...SIZES.map((size) => size.label.replace(' ', '\u00a0')),
+      'Andere Größe …',
+    ])
+
+    // A listed size is picked, not typed: the field stays shut.
+    await authenticatedProductsPage.setVolume(500)
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBeNull()
 
     for (const size of SIZES) {
       await authenticatedProductsPage.setVolume(size.ml)
@@ -214,15 +235,110 @@ test.describe('Product volume', () => {
   })
 
   /**
+   * The size a club pours that the list has no answer for.
+   *
+   * A picker cannot be complete — a 0,7 l Schnapsflasche, a 1,5 l PET bottle —
+   * and a picker with no answer is how the size goes back into the product
+   * name, which is the habit ADR-0056 exists to end. The last option opens a
+   * millilitre field instead.
+   */
+  test('a size the list does not offer is typed in millilitres and reaches the API', async ({
+    authenticatedProductsPage,
+    page,
+  }) => {
+    const category = await createCategoryViaApi(page)
+    const productName = `Obstler ${unique()}`
+
+    await authenticatedProductsPage.reloadPage()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    // The field is not there until it is asked for: a listed size is picked.
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBeNull()
+
+    await authenticatedProductsPage.fillProductForm(productName, '2.80')
+    await authenticatedProductsPage.selectCategory(category.id)
+    await authenticatedProductsPage.setCustomVolume(700)
+
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBe('700')
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('700')
+    // The preview is the guard on a typed size: it spells out what the member
+    // will read, right beside the field being typed into.
+    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('0,7 l')
+
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+
+    await authenticatedProductsPage.search(productName)
+    const productId = await authenticatedProductsPage.getProductIdByName(productName)
+    expect(productId, 'the created product must be findable by name').toBeTruthy()
+    expect(await volumeOf(page, productId!)).toBe(700)
+    expect(plain(await authenticatedProductsPage.getVolumeInList(productId!))).toBe('0,7 l')
+
+    // --- Reopen: a size the list does not contain comes back in the field,
+    // not as a blank picker that the next save would clear.
+    await authenticatedProductsPage.clickEditButton(productId!)
+    await authenticatedProductsPage.expectFormModalVisible()
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBe('700')
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('700')
+
+    // --- And it is editable, which a picker could not make it: 0,7 l becomes
+    // the 1 l bottle, off the list, and the field shuts behind it.
+    await authenticatedProductsPage.setVolume(1000)
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBeNull()
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('1000')
+
+    await authenticatedProductsPage.submitForm()
+    await authenticatedProductsPage.expectFormModalHidden()
+    await authenticatedProductsPage.search(productName)
+    expect(await volumeOf(page, productId!)).toBe(1000)
+  })
+
+  /**
+   * The mistake the typed field must not swallow: a size entered in litres.
+   *
+   * The litres field this replaced had the opposite failure — `<input
+   * type="number">` reported `0,5` as the empty string, so a German admin's
+   * price or size simply vanished (#863). A millilitre is a whole number, so
+   * the separator is not a character this field has at all: `0,5` becomes `5`,
+   * and the preview beside it says `5 ml` rather than quietly storing half a
+   * litre.
+   */
+  test('the typed field takes whole millilitres only, and shows what it made of them', async ({
+    authenticatedProductsPage,
+  }) => {
+    await authenticatedProductsPage.reloadPage()
+    await authenticatedProductsPage.openCreateModal()
+    await authenticatedProductsPage.expectFormModalVisible()
+
+    await authenticatedProductsPage.openCustomVolume()
+    // Opened, and empty: asking to type is not yet a size.
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBe('')
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('')
+    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBeNull()
+
+    // A comma is not dropped into the void — it is not typed at all.
+    await authenticatedProductsPage.setCustomVolume('0,5')
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBe('5')
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('5')
+    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('5 ml')
+
+    // …and the admin, seeing `5 ml` where they meant half a litre, corrects it.
+    await authenticatedProductsPage.setCustomVolume('1500')
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('1500')
+    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('1,5 l')
+  })
+
+  /**
    * A size from before the list existed.
    *
-   * Sizes were typed once, so a club can hold 750 ml on a wine bottle. A picker
-   * that offered only the presets would show that product as having *no* size,
-   * and the next save of an unrelated field would clear a column nobody
-   * touched. The size is offered back instead — kept, selected, and saved
-   * unchanged.
+   * Sizes were typed once, so a club can hold 700 ml on a Schnapsflasche — a
+   * size the picker still does not offer. A control that showed only the
+   * presets would show that product as having *no* size, and the next save of
+   * an unrelated field would clear a column nobody touched. It opens the typed
+   * field with the size in it instead.
    */
-  test('a size the list does not contain is offered back and survives an unrelated edit', async ({
+  test('a size the list does not contain survives an unrelated edit', async ({
     authenticatedProductsPage,
     page,
   }) => {
@@ -234,7 +350,7 @@ test.describe('Product volume', () => {
         names: { de: productName, en: productName },
         category_id: category.id,
         price_cents: 1450,
-        volume_ml: 750,
+        volume_ml: 700,
       },
       headers: await csrfHeaders(page),
     })
@@ -246,19 +362,14 @@ test.describe('Product volume', () => {
     await authenticatedProductsPage.clickEditButton(productId)
     await authenticatedProductsPage.expectFormModalVisible()
 
-    // Selected, and on the list — between the sizes it sits between.
-    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('750')
-    expect(plain(await authenticatedProductsPage.getFormVolumeText())).toBe('750 ml')
+    // In the field, and the picker says so rather than falling back to "no size".
+    expect(await authenticatedProductsPage.getFormVolumeValue()).toBe('700')
+    expect(await authenticatedProductsPage.getCustomVolumeText()).toBe('700')
     expect(await authenticatedProductsPage.getVolumeOptionValues()).toEqual([
-      '1000',
-      '750',
-      '500',
-      '330',
-      '300',
-      '250',
-      '200',
+      ...SIZES.map((size) => String(size.ml)),
+      CUSTOM,
     ])
-    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('0,75 l')
+    expect(plain(await authenticatedProductsPage.getPreviewVolume())).toBe('0,7 l')
 
     // An edit that says nothing about the size must leave it alone.
     await authenticatedProductsPage.fillPrice('15.00')
@@ -266,7 +377,7 @@ test.describe('Product volume', () => {
     await authenticatedProductsPage.expectFormModalHidden()
 
     await authenticatedProductsPage.search(productName)
-    expect(await volumeOf(page, productId)).toBe(750)
-    expect(plain(await authenticatedProductsPage.getVolumeInList(productId))).toBe('0,75 l')
+    expect(await volumeOf(page, productId)).toBe(700)
+    expect(plain(await authenticatedProductsPage.getVolumeInList(productId))).toBe('0,7 l')
   })
 })

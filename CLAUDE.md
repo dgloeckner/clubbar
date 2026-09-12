@@ -249,11 +249,12 @@ Reference admin frontend patterns in `admin-frontend/patterns/` directory:
   - Both separators accepted whichever language is on; the locale's is written back as you type
   - Canonical `12.34` on the wire, `12,34` on screen; assert on `{testId}-value` in E2E
   - Never format an amount by hand — `useFormatters().formatPrice()` goes through `Intl`
-- **Volume Select Pattern**: one size control for a product — picked from a predefined list, stored in whole millilitres
-  - The list is the validation: 1000, 500, 330, 300, 250, 200 ml (`VOLUME_PRESETS_ML`). Nothing is typed, so there is no decimal separator to misread — the failure #863 named, one unit over
+- **Volume Select Pattern**: one size control for a product — picked from a predefined list, or typed in millilitres when the list has no answer
+  - The list is the validation on the ordinary path: 1000, 750, 500, 400, 330, 300, 250, 200, 100, 40, 20 ml (`VOLUME_PRESETS_ML`), largest first. Three of them are wine — 0,2 l the ordinary German glass, 0,1 l the small one, 0,25 l the Viertel — because a club's card carries all three at once
+  - A last option opens a millilitre field, because a list cannot be complete and a picker with no answer for the 0,7 l Schnapsflasche sends the size back into the product name. Typing is safe there for the reason it was not in litres: a millilitre is a whole number, so `maskVolumeInput` drops every character that is not a digit and the `0,5` of #863 cannot be entered at all
   - Labelled in millilitres (what the crate says), read in litres (what the member reads); assert on `{testId}-value` in E2E
   - `null` is "this product has no size" (a Sauna-Token, a Kaffee) — never `0`, which would print as a size
-  - A size from outside the list is offered back rather than dropped, so an unrelated save cannot clear a product's own size
+  - A size the list does not contain opens that field with the size in it, derived from the value rather than from state — a `<select>` asked to show `700` with no such option renders blank, and the next unrelated save would clear the column
   - Never format a size by hand — `useFormatters().formatVolume()` goes through the rule shared with the backend and the terminal (ADR-0056)
 - **API Error Messages Pattern**: show an admin *why* an action failed, in their language
   - `useApiError()` — never render `err.response.data.message`, which the backend always writes in English

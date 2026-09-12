@@ -139,9 +139,12 @@ one-off pass through the product list, by hand.
 1. Open the product in *Produkte*.
 2. Delete the size from the name, **in every language tab** — `Weizenbier (0,5l)`
    becomes `Weizenbier`, `Wheat beer (0.5l)` becomes `Wheat beer`.
-3. Choose the size in **Größe**: `500 ml`. The list offers the sizes a club
-   pours — 1000, 500, 330, 300, 250 and 200 ml — and the preview beside the form
-   shows what a member will read on the terminal: `0,5 l`.
+3. Choose the size in **Größe**: `500 ml`. The list offers the sizes a club bar
+   pours — 1000, 750, 500, 400, 330, 300, 250, 200, 100, 40 and 20 ml — and the
+   preview beside the form shows what a member will read on the terminal:
+   `0,5 l`. For a size that is not on the list, choose **Andere Größe …** and
+   type it **in millilitres**: `700` for a 0,7 l bottle, not `0,7`. The preview
+   is the check — it reads the number back as `0,7 l`.
 4. Save.
 
 Doing both in one save is what keeps a product from being left half-renamed.

@@ -121,12 +121,13 @@ const list = useListQuery<Item, ItemFilters, ItemSortKey>({
 ---
 
 ### [Volume Select Pattern](./volume-select.md)
-**Purpose**: one size control for a product, picked from a predefined list and stored in millilitres
+**Purpose**: one size control for a product, picked from a predefined list — or typed in millilitres — and stored in millilitres
 
-- ✅ The list is the validation — 1000, 500, 330, 300, 250, 200 ml; nothing to type, nothing to refuse
+- ✅ The list is the validation on the ordinary path — 1000, 750, 500, 400, 330, 300, 250, 200, 100, 40, 20 ml; nothing to type, nothing to refuse
+- ✅ A last option opens a millilitre field for the sizes the list has no answer for; digits only, so the `0,5` of #863 cannot be entered
 - ✅ Labelled in millilitres (the crate), read in litres (the member); hidden `{testId}-value` for E2E
 - ✅ `null` is "this product has no size" — never `0`, which would print as one
-- ✅ A size from outside the list is kept and offered back, so an unrelated save cannot clear it
+- ✅ A size from outside the list opens that field with the size in it, so an unrelated save cannot clear it
 - ✅ Never format a size by hand — `useFormatters().formatVolume`, one rule shared with the backend and the terminal
 
 **When to use**: the product form's size control (ADR-0056)

@@ -492,8 +492,11 @@
     "minAgePlaceholder": "z. B. 16",
     "minAgeHelp": "Leer lassen, wenn das Getränk keiner Altersbeschränkung unterliegt. Das Terminal verweigert den Kauf, wenn das Mitglied jünger ist.",
     "volume": "Größe",
-    "volumeHelp": "Die Füllmenge des Gebindes — nicht in den Namen schreiben. Aus „Weizenbier (0,5l)\" wird „Weizenbier\" plus 500 ml hier. Am Terminal steht sie in Litern (0,5 l). „Keine Größe\" für Produkte ohne Füllmenge (Sauna-Token, Kaffee).",
+    "volumeHelp": "Die Füllmenge des Gebindes — nicht in den Namen schreiben. Aus „Weizenbier (0,5l)“ wird „Weizenbier“ plus 500 ml hier. Am Terminal steht sie in Litern (0,5 l). „Keine Größe“ für Produkte ohne Füllmenge (Sauna-Token, Kaffee), „Andere Größe …“ für eine Menge, die nicht in der Liste steht.",
     "volumeNone": "Keine Größe",
+    "volumeCustom": "Andere Größe …",
+    "volumeCustomLabel": "Größe in Millilitern",
+    "volumeCustomPlaceholder": "z. B. 700",
     "minAgeBadge": "ab {{age}}"
   },
   "categories": {

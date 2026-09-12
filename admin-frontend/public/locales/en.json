@@ -492,8 +492,11 @@
     "minAgePlaceholder": "e.g. 16",
     "minAgeHelp": "Leave empty if the drink carries no age restriction. The terminal refuses the purchase if the member is younger.",
     "volume": "Size",
-    "volumeHelp": "The size of the container — do not write it into the name. \"Wheat beer (0.5l)\" becomes \"Wheat beer\" plus 500 ml here. The terminal prints it in litres (0.5 l). Choose \"No size\" for a product that has none (sauna token, coffee).",
+    "volumeHelp": "The size of the container — do not write it into the name. \"Wheat beer (0.5l)\" becomes \"Wheat beer\" plus 500 ml here. The terminal prints it in litres (0.5 l). Choose \"No size\" for a product that has none (sauna token, coffee), or \"Other size…\" to type one the list does not offer.",
     "volumeNone": "No size",
+    "volumeCustom": "Other size…",
+    "volumeCustomLabel": "Size in millilitres",
+    "volumeCustomPlaceholder": "e.g. 700",
     "minAgeBadge": "{{age}}+"
   },
   "categories": {

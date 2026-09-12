@@ -61,6 +61,8 @@ export class ProductsPage extends BasePage {
   private readonly minAgeInput = () => this.page.getByTestId('products-form-min-age-input')
   private readonly volumeSelect = () => this.page.getByTestId('products-form-volume-select')
   private readonly volumeValue = () => this.page.getByTestId('products-form-volume-select-value')
+  private readonly volumeCustomField = () =>
+    this.page.getByTestId('products-form-volume-select-custom')
   private readonly iconSelectTrigger = () => this.page.getByTestId('products-form-icon-select-trigger')
   private readonly iconSelectDropdown = () => this.page.getByTestId('products-form-icon-select-dropdown')
   private readonly iconSelectOption = (iconName: string) =>
@@ -529,6 +531,33 @@ export class ProductsPage extends BasePage {
   }
 
   /**
+   * Type a size the picker does not offer — a 0,7 l Schnapsflasche, a 1,5 l PET
+   * bottle — through the last option and the millilitre field it opens.
+   *
+   * Also in **whole millilitres**: the field has no decimal separator in it at
+   * all, which is what makes typing safe here after it was not safe in litres
+   * (#863). Pass the digits a club would type, not a litre value.
+   */
+  async setCustomVolume(millilitres: number | string) {
+    await this.volumeSelect().selectOption('custom')
+    await this.volumeCustomField().fill(String(millilitres))
+  }
+
+  /** Open the millilitre field without typing into it. */
+  async openCustomVolume() {
+    await this.volumeSelect().selectOption('custom')
+  }
+
+  /**
+   * The millilitre field's own text, or `null` when the picker has not opened
+   * it — which is the assertion that a *listed* size stays on the list.
+   */
+  async getCustomVolumeText(): Promise<string | null> {
+    if ((await this.volumeCustomField().count()) === 0) return null
+    return this.volumeCustomField().inputValue()
+  }
+
+  /**
    * The volume the form will send, in whole millilitres ('' when there is none).
    *
    * Read from the control's hidden value rather than from its label, for the
@@ -558,9 +587,10 @@ export class ProductsPage extends BasePage {
   /**
    * Every size the picker offers, in the order it offers them, by value.
    *
-   * The empty option is dropped: what this is for is the predefined list, and
-   * what a legacy size has to prove is that it is still *in* that list rather
-   * than silently gone.
+   * The empty option is dropped — what this is for is the predefined list. The
+   * `custom` sentinel is **kept**, because where it sits is part of the
+   * requirement: the sizes a club reaches for come first, and the escape hatch
+   * after them.
    */
   async getVolumeOptionValues(): Promise<string[]> {
     const values = await this.volumeSelect().locator('option').evaluateAll((options) =>

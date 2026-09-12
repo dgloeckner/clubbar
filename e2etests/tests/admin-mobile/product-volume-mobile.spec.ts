@@ -8,11 +8,16 @@
  * predecessor was at its worst, a decimal separator on a numeric keyboard that
  * `<input type="number">` would have reported as the empty string (#863).
  *
+ * The last option opens a millilitre field for the sizes the list cannot carry.
+ * That is typing, on a phone, which is exactly what the picker exists to avoid
+ * — so it has to be as hittable as the picker, and it must bring up a keypad
+ * with no separator on it rather than a full keyboard.
+ *
  * What has to hold on a 390 px screen:
  *
- * - the control fits the modal rather than overflowing it, and is tall enough
+ * - both controls fit the modal rather than overflowing it, and are tall enough
  *   to hit;
- * - the sizes it offers are the predefined ones;
+ * - the sizes the picker offers are the predefined ones, escape hatch last;
  * - a picked size reaches the API as millilitres and comes back on the card in
  *   the reader's notation — litres.
  *
@@ -60,11 +65,25 @@ test.describe('Product volume — mobile', () => {
     // A product with no size is the default: nothing picked, nothing sent.
     await expect(value).toHaveValue('')
 
-    // The sizes on offer, in millilitres, largest first.
+    // The sizes on offer, in millilitres, largest first — and the escape hatch
+    // after them rather than competing with them.
     const offered = await field.locator('option').evaluateAll((options) =>
       options.map((option) => (option as HTMLOptionElement).value).filter((v) => v !== ''),
     )
-    expect(offered).toEqual(['1000', '500', '330', '300', '250', '200'])
+    expect(offered).toEqual([
+      '1000',
+      '750',
+      '500',
+      '400',
+      '330',
+      '300',
+      '250',
+      '200',
+      '100',
+      '40',
+      '20',
+      'custom',
+    ])
 
     // Picking one sets the millilitres the API will receive…
     await field.selectOption('500')
@@ -73,6 +92,37 @@ test.describe('Product volume — mobile', () => {
     // …and the empty option is how "this product has no size" is said.
     await field.selectOption('')
     await expect(value).toHaveValue('')
+  })
+
+  test('the millilitre field is thumb-sized and opens a keypad, not a keyboard', async ({
+    page,
+  }) => {
+    await openProductForm(page)
+
+    const custom = page.getByTestId('products-form-volume-select-custom')
+    const value = page.getByTestId('products-form-volume-select-value')
+
+    // It is not on screen until it is asked for: picking is the ordinary path.
+    await expect(custom).toBeHidden()
+
+    await page.getByTestId('products-form-volume-select').selectOption('custom')
+    await expect(custom).toBeVisible()
+
+    const box = await custom.boundingBox()
+    expect(box, 'the millilitre field must be laid out').toBeTruthy()
+    expect(box!.width).toBeGreaterThan(200)
+    expect(box!.width).toBeLessThanOrEqual(390)
+    expect(box!.height).toBeGreaterThanOrEqual(44)
+
+    // `numeric`, not `decimal`: there is no separator in a millilitre, so the
+    // key that broke the litres field on a German keypad (#863) is not on this
+    // one at all. And `text`, not `number`, so a rejected character cannot be
+    // reported back as an empty field.
+    await expect(custom).toHaveAttribute('inputmode', 'numeric')
+    await expect(custom).toHaveAttribute('type', 'text')
+
+    await custom.fill('1500')
+    await expect(value).toHaveValue('1500')
   })
 
   test('a size picked on a phone reaches the API as millilitres and shows on the card', async ({
