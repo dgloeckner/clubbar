@@ -297,6 +297,32 @@ test.describe("Admin Authentication", () => {
       expect(data).toHaveProperty("message", "Logout successful");
     });
 
+    // Pins #887: logout must expire the session cookie in the browser, not
+    // just destroy the session server-side (session.use_strict_mode masked
+    // the gap — a dead cookie was never adopted — but a response that never
+    // told the browser to drop it depended on that directive having applied).
+    test("should expire the session cookie in the response", async ({ request }) => {
+      const { cookieString, csrfToken } = await login(request, ADMIN_EMAIL, ADMIN_PASSWORD);
+
+      const logoutResponse = await request.post(`${API_BASE}/auth/logout`, {
+        headers: {
+          cookie: cookieString,
+          "X-CSRF-Token": csrfToken,
+        },
+      });
+
+      expect(logoutResponse.status()).toBe(200);
+
+      const setCookieHeader = logoutResponse.headers()["set-cookie"];
+      expect(setCookieHeader).toBeTruthy();
+      const sessionCookieLine = (Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader])
+        .flatMap((h: string) => h.split("\n"))
+        .find((h: string) => h.startsWith(`${EXPECTED_SESSION_COOKIE_NAME}=`));
+      expect(sessionCookieLine).toBeTruthy();
+      expect(sessionCookieLine!.toLowerCase()).toMatch(/max-age=0/);
+      expect(sessionCookieLine!.toLowerCase()).toMatch(/expires=/);
+    });
+
     test("should reject logout without session", async ({ request }) => {
       const response = await request.post(`${API_BASE}/auth/logout`);
 

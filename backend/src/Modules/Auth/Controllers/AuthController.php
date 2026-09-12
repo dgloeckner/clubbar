@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Controllers;
 
+use App\Modules\Auth\Domain\BrowserSession;
 use App\Modules\Auth\Domain\SessionTimeout;
 use App\Modules\Auth\Services\AuthService;
 use App\Modules\Auth\Services\StepUpAuthService;
@@ -431,9 +432,7 @@ class AuthController
             );
         }
 
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            session_destroy();
-        }
+        BrowserSession::endIfPresent($this->config->sessionCookieName);
 
         return $this->json($response, ['message' => 'Logout successful']);
     }
