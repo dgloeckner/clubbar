@@ -92,9 +92,23 @@ class EncryptionKeysHttpTest extends HttpTestCase
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
-    /** @return array<string, string> a fresh, valid step-up credential */
+    /**
+     * @return array<string, string> a fresh, valid step-up credential
+     *
+     * Step-up now enforces the same single-use-per-timestep replay guard as
+     * login (#882): a real caller re-entering their code for a second
+     * step-up-gated action within the same ~30s window would be refused,
+     * same as a replay. This suite chains several step-up-gated calls back
+     * to back to exercise the HTTP workflow, not the replay guard itself
+     * (that is unit-tested in StepUpAuthServiceTest) — so clear the marker
+     * right before each credential is used, as if enough real time had
+     * passed for a genuinely fresh code.
+     */
     private function stepUp(): array
     {
+        $this->db->prepare('UPDATE admin_users SET totp_last_timestep = NULL WHERE id = ?')
+            ->execute([$this->adminId]);
+
         return [
             'current_password' => 'password123',
             'totp_code' => (new TwoFactorAuth(qrcodeprovider: new ChillerlanQrProvider(), issuer: 'test'))

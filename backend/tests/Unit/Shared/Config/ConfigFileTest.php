@@ -375,11 +375,13 @@ class ConfigFileTest extends TestCase
         // rest are development switches that must stay impossible to turn on
         // from a club's own configuration.
         $unreachableOnPurpose = [
-            // Development and CI only, and stated as such in .env.example:
-            // both remove a control that is the last thing standing between a
-            // guessed TOTP code and an admin session.
+            // Development and CI only, and stated as such in .env.example: all
+            // three remove a control that is the last thing standing between a
+            // guessed or captured TOTP code and an admin session or a
+            // sensitive action.
             'DISABLE_LOGIN_RATE_LIMITING',
             'DISABLE_TERMINAL_RATE_LIMITING',
+            'DISABLE_TOTP_REPLAY_PROTECTION',
             // Guards the *development* installer (backend/public/install.php).
             // The package has its own, and ADR-0031 blocks that route in
             // .htaccess rather than gating it on a key in the file it writes.

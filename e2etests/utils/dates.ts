@@ -184,6 +184,23 @@ export function tuesdayAfterNextEaster(from: string = new Date().toISOString().s
 export const CLUB_TIME_ZONE = 'Europe/Berlin'
 
 /**
+ * Today as the club's calendar day (`Y-m-d`) — the zone `daily_revenue` and
+ * every other club-local aggregate is bucketed in (`ClubTimeZone::today()`,
+ * `ClubLocalSql`, #365). Not the runner's day, and not `serverToday()`'s raw
+ * UTC day: the two disagree for two hours around midnight CEST, exactly the
+ * window a purchase posted late in the evening rolls into "tomorrow" here
+ * while the backend still books it under today's club day.
+ */
+export function clubToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLUB_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+/**
  * A stored instant as a German-language mail prints it: `28.08.2026`.
  *
  * The counterpart of `MailFormat::date()`. It matters that this is a *zone

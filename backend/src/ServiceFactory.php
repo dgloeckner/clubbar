@@ -661,8 +661,23 @@ class ServiceFactory implements ContainerInterface
             $this->getTotpService(),
             $this->getAuditService(),
             $this->getLoginAttemptsRepository(),
+            $this->getAdminUsersRepository(),
             $this->config->trustedProxies,
+            $this->totpReplayProtectionDisabled(),
         ));
+    }
+
+    /**
+     * Disabled via DISABLE_TOTP_REPLAY_PROTECTION=true (test environments
+     * only, same pattern as loginRateLimitDisabled() below). The E2E suite
+     * shares one seeded admin's TOTP secret across nearly every step-up-gated
+     * spec — the persistent single-use guard added for #882 would otherwise
+     * reject one spec's step-up because another spec, or another parallel
+     * worker, consumed the same real-time code moments earlier.
+     */
+    private function totpReplayProtectionDisabled(): bool
+    {
+        return Env::get('DISABLE_TOTP_REPLAY_PROTECTION', 'false') === 'true';
     }
 
     public function getIbanSealedBox(): IbanSealedBox

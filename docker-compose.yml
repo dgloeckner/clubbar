@@ -73,6 +73,14 @@ services:
       # this the first handful of negative tests would 429 everything after them.
       # To run auth-rate-limit.spec.ts, remove this line and restart the container.
       DISABLE_LOGIN_RATE_LIMITING: "true"
+      # Step-up re-authentication (#882) now refuses a TOTP code once its
+      # timestep has been consumed, same as login — but the E2E suite runs
+      # nearly every step-up-gated spec through one seeded admin's TOTP
+      # secret (fixtures/stepUp.ts), so two specs, or two parallel workers,
+      # presenting the same real-time code within one ~30s window is a
+      # fixture collision, not a replay. The guard stays covered in
+      # StepUpAuthServiceTest regardless of this flag.
+      DISABLE_TOTP_REPLAY_PROTECTION: "true"
 
       # Terminal credential anomaly detection (ADR-0041). Left at the defaults —
       # named here so the knobs are discoverable next to the rate-limit ones

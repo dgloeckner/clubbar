@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Services;
 
+use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AdminUsers\Services\AdminUsersService;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Shared\Enums\AuditAction;
@@ -32,8 +33,10 @@ class StepUpAuthService
         private TotpService $totpService,
         private AuditService $auditService,
         private LoginAttemptsRepository $loginAttempts,
+        private AdminUsersRepository $adminUsersRepository,
         /** @see \App\Shared\Config\AppConfig::$trustedProxies */
         private string $trustedProxies = '',
+        private bool $replayProtectionDisabled = false,
     ) {}
 
     /**
@@ -63,6 +66,23 @@ class StepUpAuthService
         return false;
     }
 
+    /**
+     * Verifies the code AND enforces the same single-use-per-timestep guard
+     * as the login path (#338, #882): step-up shares `totp_last_timestep`
+     * with `AuthController::mfa()`, so a code stays refused here once it has
+     * been consumed by either path. A step-up performed immediately after
+     * login must therefore wait for the next timestep — the correct
+     * behaviour for a replay guard, not a bug.
+     *
+     * $replayProtectionDisabled (DISABLE_TOTP_REPLAY_PROTECTION, test
+     * environments only — see ServiceFactory) restores the pre-#882 check
+     * with no timestep bookkeeping at all: the E2E suite runs almost every
+     * step-up-gated spec through one seeded admin's TOTP secret
+     * (fixtures/stepUp.ts), so two specs, or two workers, presenting the
+     * same real-time code within the same ~30s window is a fixture
+     * collision, not a replay. The guard itself stays covered regardless, in
+     * StepUpAuthServiceTest.
+     */
     private function verifyOwnTotpCode(array $caller, string $code): bool
     {
         if (!preg_match('/^\d{6}$/', $code)) {
@@ -75,8 +95,27 @@ class StepUpAuthService
         }
 
         $secret = $this->totpService->decrypt($encryptedSecret);
+        if ($secret === false) {
+            return false;
+        }
 
-        return $secret !== false && $this->totpService->verifyCode($secret, $code);
+        if ($this->replayProtectionDisabled) {
+            return $this->totpService->verifyCode($secret, $code);
+        }
+
+        $matchedTimestep = $this->totpService->verifyCodeWithTimestep($secret, $code);
+        if ($matchedTimestep === null) {
+            return false;
+        }
+
+        $lastTimestep = ($caller['totp_last_timestep'] ?? null) !== null ? (int) $caller['totp_last_timestep'] : null;
+        if ($lastTimestep !== null && $matchedTimestep <= $lastTimestep) {
+            return false;
+        }
+
+        $this->adminUsersRepository->updateTotpLastTimestep($caller['id'], $matchedTimestep);
+
+        return true;
     }
 
     private function recordFailure(array $caller, Request $request): void
