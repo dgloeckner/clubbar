@@ -621,6 +621,15 @@ final class SecuritySelfCheck
                     'The application log cannot be fetched over the web',
                     'the log directory is not under the document root'
                 ),
+                // config.php lives next to the rest of the data directory
+                // (DataDirectory::configPathIn), so the same structural claim
+                // covers it whenever the data directory itself is relocated.
+                SecurityFinding::pass(
+                    'config_not_served',
+                    self::CATEGORY_EXPOSURE,
+                    'config.php cannot be fetched over the web',
+                    'the configuration file is not under the document root'
+                ),
             ]
             : [
                 self::canaryFinding(
@@ -646,11 +655,122 @@ final class SecuritySelfCheck
                     self::canaryName('.log'),
                     'The application log can be downloaded by anyone.'
                 ),
+                self::configFileFinding($context, $probe['baseUrl']),
             ];
 
+        $findings[] = self::dotfileFinding($context, $probe['baseUrl']);
         $findings[] = self::cspFinding($probe);
 
         return $findings;
+    }
+
+    /**
+     * config.php (#883) — the single highest-value file in the installation:
+     * the database password, the key that encrypts every admin's TOTP secret
+     * and every pending invitation token (#891), and the cron and backup
+     * secrets. Reached only when it actually sits under the document root
+     * (the `dataIsOutsideDocumentRoot()` branch above already covers the
+     * relocated layout with the stronger, filesystem-only claim).
+     *
+     * The real file is never asked for. `config.sample.php` matches the same
+     * `<FilesMatch>` pattern in `package/.htaccess` and holds no secret, so
+     * probing it proves the rule holds without ever risking a positive result
+     * that is itself a disclosure. A copy already left on disk — the package
+     * ships one inside `backend/`, and #751 is the whole reason an older
+     * release's copy can still be sitting next to `index.php` — is measured
+     * as it is rather than overwritten.
+     */
+    private static function configFileFinding(SecurityCheckContext $context, ?string $baseUrl): SecurityFinding
+    {
+        $id = 'config_not_served';
+        $label = 'config.php cannot be fetched over the web';
+        $consequence = 'the database password and the key that encrypts every admin\'s second factor can be '
+            . 'downloaded by anyone.';
+        $remedyForUnverified = 'Request /config.sample.php in a browser yourself and make sure it is refused.';
+
+        if ($baseUrl === null) {
+            return SecurityFinding::unknown($id, self::CATEGORY_EXPOSURE, $label, 'could not be measured',
+                'This host would not let Club Bar fetch its own URLs. ' . $remedyForUnverified);
+        }
+
+        $canary = rtrim($context->documentRoot, '/') . '/config.sample.php';
+        $createdCanary = !file_exists($canary);
+        if ($createdCanary && @file_put_contents($canary, "<?php // clubbar security self-check\n") === false) {
+            return SecurityFinding::unknown($id, self::CATEGORY_EXPOSURE, $label, 'could not be measured',
+                "config.sample.php could not be written to {$context->documentRoot}. " . $remedyForUnverified);
+        }
+
+        $status = HttpProbe::fetch($baseUrl . '/config.sample.php')['status'];
+
+        if ($createdCanary) {
+            @unlink($canary);
+        }
+
+        if ($status === 403 || $status === 404) {
+            return SecurityFinding::pass($id, self::CATEGORY_EXPOSURE, $label, "refused (HTTP {$status})");
+        }
+
+        if ($status === null) {
+            return SecurityFinding::unknown($id, self::CATEGORY_EXPOSURE, $label, 'could not be measured',
+                'The webserver did not answer the check. ' . $remedyForUnverified);
+        }
+
+        return SecurityFinding::fail($id, self::CATEGORY_EXPOSURE, $label, "SERVED (HTTP {$status})",
+            "This host does not honour the .htaccess rule that denies config.php and config.sample.php, so "
+            . "{$consequence} Move the data directory above the document root — re-run the installer, which offers "
+            . 'this when the host allows it — or ask your hosting provider to enable .htaccess overrides.');
+    }
+
+    /**
+     * Every dotfile beyond the ones with their own `<Files>` block (#883): the
+     * one-time install key (`.installer-data`), the one-time upgrade key
+     * (`.upgrade-secret`), `.user.ini`, and any stray `.env` or `.git` a host
+     * or a careless upload leaves behind. One probe covers all of them because
+     * `package/.htaccess` denies them with a single `<FilesMatch "^\.">` rule —
+     * this measures that rule directly rather than one file at a time.
+     *
+     * Unlike the mandate/log/config rows this is not conditional on data
+     * placement: these files live in the document root regardless of where
+     * `config.php`, `storage/` and `logs/` ended up.
+     */
+    private static function dotfileFinding(SecurityCheckContext $context, ?string $baseUrl): SecurityFinding
+    {
+        $id = 'dotfiles_not_served';
+        $label = 'Dotfiles under the document root cannot be fetched over the web';
+        $consequence = 'the one-time install key (.installer-data), the one-time upgrade key (.upgrade-secret), and '
+            . 'any stray .env or .git a host or a careless upload leaves behind can be downloaded by anyone who '
+            . 'guesses the name.';
+        $remedyForUnverified = 'Request a dotfile such as /.htaccess in a browser yourself and make sure it is '
+            . 'refused.';
+
+        if ($baseUrl === null) {
+            return SecurityFinding::unknown($id, self::CATEGORY_EXPOSURE, $label, 'could not be measured',
+                'This host would not let Club Bar fetch its own URLs. ' . $remedyForUnverified);
+        }
+
+        $filename = self::dotCanaryName();
+        $canary = rtrim($context->documentRoot, '/') . '/' . $filename;
+        if (@file_put_contents($canary, "clubbar security self-check\n") === false) {
+            return SecurityFinding::unknown($id, self::CATEGORY_EXPOSURE, $label, 'could not be measured',
+                "A temporary dotfile could not be written to {$context->documentRoot}. " . $remedyForUnverified);
+        }
+
+        $status = HttpProbe::fetch($baseUrl . '/' . $filename)['status'];
+        @unlink($canary);
+
+        if ($status === 403 || $status === 404) {
+            return SecurityFinding::pass($id, self::CATEGORY_EXPOSURE, $label, "refused (HTTP {$status})");
+        }
+
+        if ($status === null) {
+            return SecurityFinding::unknown($id, self::CATEGORY_EXPOSURE, $label, 'could not be measured',
+                'The webserver did not answer the check. ' . $remedyForUnverified);
+        }
+
+        return SecurityFinding::fail($id, self::CATEGORY_EXPOSURE, $label, "SERVED (HTTP {$status})",
+            "This host does not honour the .htaccess rule that denies every dotfile, so {$consequence} Ask your "
+            . 'hosting provider to enable .htaccess overrides, and delete .installer-data and .upgrade-secret once '
+            . 'installation and any pending upgrade are complete.');
     }
 
     /**
@@ -785,6 +905,12 @@ final class SecuritySelfCheck
     private static function canaryName(string $extension): string
     {
         return 'security-self-check-' . bin2hex(random_bytes(8)) . $extension;
+    }
+
+    /** Leading dot so the name matches package/.htaccess's `<FilesMatch "^\.">` rule. */
+    private static function dotCanaryName(): string
+    {
+        return '.security-self-check-' . bin2hex(random_bytes(8)) . '.clubbar-canary';
     }
 
     // ------------------------------------------------------------------
