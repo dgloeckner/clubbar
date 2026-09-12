@@ -89,6 +89,28 @@ void main() {
       expect(log.latest!.summary, 'rejected AB12 unknownCard');
     });
 
+    // Issue #889: a UID longer than the masked tail must never appear whole
+    // in the line that reaches error.log or the status modal — both read
+    // `summary`, never `uid` directly.
+    test('summary masks a UID longer than the kept tail', () {
+      log.record(ScanEventKind.droppedBusy, uid: '001EB4CB');
+
+      expect(log.latest!.summary, 'droppedBusy …B4CB');
+    });
+
+    test('summary keeps a UID unchanged when it is already short', () {
+      log.record(ScanEventKind.uidCaptured, uid: 'AB12');
+
+      expect(log.latest!.summary, 'uidCaptured AB12');
+    });
+
+    test('the full UID survives in memory even though summary masks it', () {
+      log.record(ScanEventKind.droppedBusy, uid: '001EB4CB');
+
+      expect(log.latest!.uid, '001EB4CB');
+      expect(log.latest!.summary, isNot(contains('001EB4CB')));
+    });
+
     // The three that leave the member staring at an unchanged screen — they
     // are logged at error level so they reach error.log, the only sink that
     // outlives a kiosk session.

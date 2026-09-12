@@ -100,5 +100,52 @@ void main() {
       expect(contents, isNot(contains('warning message')));
       expect(contents, isNot(contains('debug message')));
     });
+
+    // Issue #889 item 4: error.log had no size cap at all — a busy terminal
+    // fills the disk over months.
+    group('size cap', () {
+      // Fixed-width (7 bytes: "lineNN\n") so the cut point can be reasoned
+      // about exactly, and a partially-kept line is easy to spot.
+      String numberedLines(int count) {
+        final buffer = StringBuffer();
+        for (var i = 0; i < count; i++) {
+          buffer.write('line${i.toString().padLeft(2, '0')}\n');
+        }
+        return buffer.toString();
+      }
+
+      test('does not trim a file under the cap', () async {
+        final capped =
+            ErrorFileOutput(file: logFile, maxBytes: 1024 * 1024);
+        capped.output(makeEvent(Level.error, 'small'));
+        await capped.destroy();
+
+        expect(logFile.readAsStringSync(), contains('small'));
+      });
+
+      test('trims the oldest half and keeps only whole lines', () async {
+        final capped = ErrorFileOutput(file: logFile, maxBytes: 50);
+        logFile.writeAsStringSync(numberedLines(20)); // 140 bytes
+
+        capped.output(makeEvent(Level.error, 'the new line'));
+        await capped.destroy();
+
+        final lines =
+            logFile.readAsLinesSync().where((l) => l.isNotEmpty).toList();
+
+        expect(lines, isNot(contains('line00')),
+            reason: 'oldest content must be dropped');
+        expect(lines.last, 'the new line');
+        expect(logFile.lengthSync(), lessThan(140),
+            reason: 'the file must not just keep growing');
+        for (final line in lines) {
+          expect(
+            line == 'the new line' || RegExp(r'^line\d\d$').hasMatch(line),
+            isTrue,
+            reason: 'no line may be a fragment of another: "$line"',
+          );
+        }
+      });
+    });
   });
 }

@@ -771,6 +771,11 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   /// difference is obvious. The lines are deliberately technical and
   /// untranslated — they exist to be reported verbatim, and the kind is the
   /// term to search the source for.
+  ///
+  /// This modal is reachable by any patron who taps the header pill, so a UID
+  /// only ever appears masked to its last few characters here — [ScanEvent.summary]
+  /// is where that happens, the same line this method also hands to `error.log`
+  /// (issue #889).
   Widget _buildRecentScansSection(AppLocalizations l10n) {
     return AnimatedBuilder(
       animation: ScanLog.instance,
