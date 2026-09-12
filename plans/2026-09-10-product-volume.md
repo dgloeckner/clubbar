@@ -2,7 +2,9 @@
 
 **Issue**: [#878](https://github.com/dgloeckner/clubbar/issues/878)
 **Status**: Implemented — M1–M8 complete, each verified (see `plans/INDEX.md` for the suite counts).
-M9 follows up: the size is picked from a predefined list rather than typed
+M9 follows up: the size is picked from a predefined list rather than typed. M10 widens that list
+to the eleven sizes a bar pours and adds a millilitre field behind it, because no list of sizes
+can be complete
 **Design**: ADR-0056 (to be written in M1)
 **Branch**: stacked on `claude/terminal-product-card-layout-tr5rue`. M6 needs that branch's
 `ProductGridLayout` solver and its price-alignment change to `ProductCard`. One PR per
@@ -250,6 +252,64 @@ and the preview now draws the terminal's own tile rather than an approximation o
 
 **Deliberately not done**: no data migration. The presets are what can be *created*; every
 existing size stays exactly as it is.
+
+### M10 — Admin: the list grows, and gets an escape hatch
+
+Follow-up to M9, from the first question a club asked of it: *what size is a glass of wine?*
+M9's six sizes were a beer list. They had no answer for a glass of wine at any of the three
+sizes a German card lists it in (0,2 l ordinary, 0,1 l small or Sekt, 0,25 l Viertel — only
+0,2 l and 0,25 l were there), none for a Schnaps, and none for the 0,4 l glass. A club whose
+size is missing does the one thing ADR-0056 exists to stop: it writes the size back into the
+name.
+
+So both halves. **Eleven presets** — 1000, 750, 500, 400, 330, 300, 250, 200, 100, 40, 20 ml,
+largest first — covering bottles, the glasses a bar pours, wine at all three sizes and spirits
+at 2 cl and 4 cl. And, because no list of sizes can be complete, **a last option that opens a
+millilitre field** for the 0,7 l Schnapsflasche and the 1,5 l bottle on the table.
+
+Typing is safe there for the reason it was not safe in litres: **a millilitre is a whole
+number**. There is no decimal separator in one, so the field simply has no such character —
+`maskVolumeInput` drops everything that is not a digit, and the `0,5` that `<input
+type="number">` reported as the empty string (#863) cannot be entered at all. What it becomes
+is `5`, and the preview beside the field — already there, already asserted — reads that back as
+`5 ml` where the admin is looking.
+
+- [x] `utils/volume.ts` — the eleven presets; `isPresetVolume` and `maskVolumeInput` replace
+      `volumeOptionsFor`; `VOLUME_CUSTOM_OPTION` as the sentinel. `parseVolumeOption` keeps
+      handing an out-of-range size on rather than swallowing it — the mask is not the validator
+- [x] `VolumeSelect` — the last option opens a text field with `inputMode="numeric"` (not
+      `type="number"`, so a rejected character cannot come back as an empty field). Whether the
+      field is open is **derived** from the value (`typing || !isPresetVolume(value)`) rather
+      than synced to it in an effect: a `<select>` asked to show `700` with no such option
+      renders blank, and the next unrelated save would clear the column
+- [x] A size the list does not contain now opens that field **with the size in it**, which
+      makes a legacy 700 ml editable — listing it as an extra option never did
+- [x] `ProductsPage` — `volumeFieldBox()` shared by the two controls, so they read as one
+      control in two states; `isVolumeInRange` now guards a typed number as well as a legacy one
+- [x] `public/locales/de.json` / `en.json` — `volumeCustom`, `volumeCustomLabel`,
+      `volumeCustomPlaceholder`, and a hint that says to type millilitres
+- [x] `VolumeSelect.test.tsx` — the control's own unit tests, new in this milestone
+- [x] `volume-select.md`, the pattern index, `CLAUDE.md`, `UC-A41`, `UC-A42`, `docs/procedures.md`
+
+**Verified by**:
+
+- vitest 775/775 (`volume.test.ts` 16, `VolumeSelect.test.tsx` 14 new): the eleven presets and
+  the three wine sizes by name; `maskVolumeInput` refusing both separators; the field opening
+  filled in for a non-preset value; an out-of-range size reaching the page rather than being
+  clamped
+- `admin-chromium` `product-volume.spec.ts` 6/6: the picker offers the eleven sizes with the
+  escape hatch last; 700 ml is typed, stored, re-opened in the field and replaced from the list;
+  `0,5` typed into the field becomes `5 ml` on screen; a product saved with 700 ml survives a
+  price-only edit
+- `admin-mobile` `product-volume-mobile.spec.ts` 2/2: both controls fit the 390 px modal at 44 px
+  tall, and the field is `type="text"` `inputMode="numeric"`
+- The whole UI lane green: `admin-chromium` + `admin-mobile` 480/480
+
+**Deliberately not done**: no change to the API, the schema, the terminal or the formatting rule.
+The range is still 1–10 000 ml, the wire still carries whole millilitres, and every existing size
+stays exactly as it is.
+
+---
 
 ---
 

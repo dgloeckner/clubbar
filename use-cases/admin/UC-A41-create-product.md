@@ -35,7 +35,7 @@ Admin clicks "New Product"
 | Price | Yes | > 0, max 2 decimals |
 | Category | Yes | Existing category |
 | Minimum age | No | Integer 1–99. Empty = unrestricted |
-| Size | No | Chosen from the sizes the club pours — 1000, 500, 330, 300, 250 or 200 ml. Stored as whole millilitres. Empty = the product has no size |
+| Size | No | Chosen from the sizes the club bar pours — 1000, 750, 500, 400, 330, 300, 250, 200, 100, 40 or 20 ml — or typed in whole millilitres via the list's last option, for a size the list does not offer. Stored as whole millilitres, 1–10 000. Empty = the product has no size |
 
 ## Size ([ADR-0056](../../adr/0056-product-volume.md))
 

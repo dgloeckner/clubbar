@@ -11,7 +11,7 @@
  * Uses TDD with E2E tests in e2etests/tests/admin/products.spec.ts
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getProducts } from '../api/generated/products/products'
 import { theme } from '../styles/design-system'
@@ -102,17 +102,42 @@ function parseMinAge(value: string): number | null | 'invalid' {
  * `null` — no size — is a valid answer and the ordinary one: most of a snacks
  * list has no size, and a Sauna-Token has none either.
  *
- * Since the size is picked from a list rather than typed, nothing an admin can
- * do produces an out-of-range value; what this still catches is a size a
- * product was *saved* with before the list existed. Such a value is offered
- * back unchanged (`volumeOptionsFor`), so it has to be checked rather than
- * assumed — and the check has to pass for the ones the API would accept, or
- * editing a legacy product's price would be blocked by its size.
+ * A size picked from the list is in range by construction. What this catches is
+ * the other two ways a number gets into the field: one *typed* into the
+ * millilitre field behind the last option, and one a product was **saved** with
+ * before this form existed. Both are offered back unchanged rather than
+ * silently clamped, so both have to be checked — and the check has to pass for
+ * the ones the API would accept, or editing a legacy product's price would be
+ * blocked by its size.
  */
 function isVolumeInRange(millilitres: number | null): boolean {
   if (millilitres === null) return true
 
   return Number.isInteger(millilitres) && millilitres >= VOLUME_MIN_ML && millilitres <= VOLUME_MAX_ML
+}
+
+/**
+ * The box the size controls share.
+ *
+ * There are two of them — the picker and the millilitre field it opens — and
+ * they sit one above the other in the same column, so a difference in border,
+ * radius or height reads as a difference in kind. Only the padding differs, and
+ * only because a native `<select>` draws its chevron inside its own padding
+ * box: the caller adds the gutter for it, and the text field does not.
+ */
+function volumeFieldBox(isMobile: boolean): CSSProperties {
+  return {
+    width: '100%',
+    border: `1px solid ${theme.colors.border.muted}`,
+    borderRadius: '6px',
+    backgroundColor: theme.colors.bg.inputAlt,
+    color: tableColors.cellText,
+    fontSize: '14px',
+    boxSizing: 'border-box',
+    // 44 px on a phone: the picker is operated by thumb, and the field it opens
+    // is typed into on a keypad that leaves little room above it.
+    minHeight: isMobile ? '44px' : undefined,
+  }
 }
 
 // Extend Category to ensure required fields are non-optional at runtime
@@ -1152,23 +1177,18 @@ export function ProductsPage() {
                   value={formData.volumeMl}
                   onChange={(volumeMl) => setFormData({ ...formData, volumeMl })}
                   emptyLabel={t('products.volumeNone')}
+                  customLabel={t('products.volumeCustom')}
+                  customFieldLabel={t('products.volumeCustomLabel')}
+                  customPlaceholder={t('products.volumeCustomPlaceholder')}
                   invalid={!isVolumeInRange(formData.volumeMl)}
                   style={{
-                    width: '100%',
+                    ...volumeFieldBox(isMobile),
                     // A native select draws its own chevron inside the padding
                     // box, so the right side gets room for it rather than
                     // letting it sit on top of a size.
                     padding: '10px 32px 10px 12px',
-                    border: `1px solid ${theme.colors.border.muted}`,
-                    borderRadius: '6px',
-                    backgroundColor: theme.colors.bg.inputAlt,
-                    color: tableColors.cellText,
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                    // 44 px on a phone, because this is the one control in the
-                    // form that is operated by thumb rather than typed into.
-                    minHeight: isMobile ? '44px' : undefined,
                   }}
+                  customStyle={{ ...volumeFieldBox(isMobile), padding: '10px 12px' }}
                 />
                 {!isMobile && (
                   <p

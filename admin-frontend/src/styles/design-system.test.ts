@@ -191,33 +191,50 @@ describe('formatMillilitres', () => {
   it('labels every size the picker offers', () => {
     expect(VOLUME_PRESETS_ML.map((ml) => formatMillilitres(ml).replace('\u00a0', ' '))).toEqual([
       '1000 ml',
+      '750 ml',
       '500 ml',
+      '400 ml',
       '330 ml',
       '300 ml',
       '250 ml',
       '200 ml',
+      '100 ml',
+      '40 ml',
+      '20 ml',
     ])
   })
 
-  it('is not what a reader is shown — every preset reads as litres', () => {
+  it('is not what a reader is shown — every preset reads as litres, or as millilitres below 100', () => {
     // The preview beside the picker, the product list and the terminal badge
     // all go through `formatVolume`, which is litres from 100 ml up. Picking
-    // `500 ml` must show the member `0,5 l`.
+    // `500 ml` must show the member `0,5 l` — and picking `20 ml` must show
+    // them `20 ml`, because `0,02 l` says less about a Schnaps than the
+    // millilitres do (the threshold is decision 4 of ADR-0056).
     expect(VOLUME_PRESETS_ML.map((ml) => formatVolume(ml, 'de-DE').replace('\u00a0', ' '))).toEqual([
       '1 l',
+      '0,75 l',
       '0,5 l',
+      '0,4 l',
       '0,33 l',
       '0,3 l',
       '0,25 l',
       '0,2 l',
+      '0,1 l',
+      '40 ml',
+      '20 ml',
     ])
     expect(VOLUME_PRESETS_ML.map((ml) => formatVolume(ml, 'en-GB').replace('\u00a0', ' '))).toEqual([
       '1 l',
+      '0.75 l',
       '0.5 l',
+      '0.4 l',
       '0.33 l',
       '0.3 l',
       '0.25 l',
       '0.2 l',
+      '0.1 l',
+      '40 ml',
+      '20 ml',
     ])
   })
 })
