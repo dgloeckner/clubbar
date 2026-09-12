@@ -100,10 +100,14 @@ sequenceDiagram
   (Settings → Admin Users → Reset 2FA), which is why the README and
   [Admin Lockout Runbook](./runbook-admin-lockout.md) both say: keep at least
   two admin accounts.
-- Login is rate-limited at 5 failed attempts / IP / 15 min (429 +
-  `Retry-After`). Deliberately **not** per-account — an account-lockout rule
-  is itself an account-enumeration and denial-of-service vector against a
-  small admin team.
+- Login is rate-limited at 5 failed attempts / 15 min, counted **both** per
+  source IP and per account (429 + `Retry-After`). Per-IP alone gives a
+  club's shared WiFi one budget for several admins while a distributed
+  attacker never touches it; per-account alone lets one host cycle freely
+  through `admin1@`, `admin2@`, `admin3@`. This is a **windowed** limit, not
+  a lockout flag — there is no persistent per-account lock to become a
+  denial-of-service lever, and attempts are cleared only on full
+  authentication (after MFA, not after the password alone).
 
 ### Terminals — bearer tokens
 
