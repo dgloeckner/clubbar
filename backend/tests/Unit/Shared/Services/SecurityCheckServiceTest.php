@@ -105,4 +105,29 @@ class SecurityCheckServiceTest extends TestCase
 
         $this->assertNotContains('iban-encryption-backfill', $ids);
     }
+
+    /**
+     * #894: the resolved rate-limiter kill switches must reach the report,
+     * proving the constructor argument is actually wired through to the
+     * context {@see \App\Shared\Security\SecuritySelfCheck} reads — not just
+     * accepted and dropped.
+     */
+    public function test_the_rate_limiter_kill_switches_are_wired_into_the_report(): void
+    {
+        $report = (new SecurityCheckService(
+            new AppConfig(),
+            null,
+            null,
+            true,
+            true,
+        ))->check(['DOCUMENT_ROOT' => sys_get_temp_dir()]);
+
+        $byId = [];
+        foreach ($report->findings as $finding) {
+            $byId[$finding->id] = $finding;
+        }
+
+        $this->assertSame(\App\Shared\Security\SecurityFinding::FAIL, $byId['login_rate_limiting_active']->status);
+        $this->assertSame(\App\Shared\Security\SecurityFinding::WARN, $byId['terminal_rate_limiting_active']->status);
+    }
 }

@@ -191,6 +191,40 @@ final class SecuritySelfCheck
             );
         }
 
+        $findings[] = $context->loginRateLimitingDisabled
+            ? SecurityFinding::fail(
+                'login_rate_limiting_active',
+                self::CATEGORY_RUNTIME,
+                'Brute-force protection is active on login, MFA and step-up',
+                'DISABLE_LOGIN_RATE_LIMITING=true',
+                'An attacker may guess passwords and TOTP codes without limit. This variable exists for the E2E '
+                . 'suite and is easy to carry over from a CI environment file or a copied .env into a real '
+                . 'deployment. Remove DISABLE_LOGIN_RATE_LIMITING (or set it to false) outside test environments.'
+            )
+            : SecurityFinding::pass(
+                'login_rate_limiting_active',
+                self::CATEGORY_RUNTIME,
+                'Brute-force protection is active on login, MFA and step-up',
+                'DISABLE_LOGIN_RATE_LIMITING is not set to true'
+            );
+
+        $findings[] = $context->terminalRateLimitingDisabled
+            ? SecurityFinding::warn(
+                'terminal_rate_limiting_active',
+                self::CATEGORY_RUNTIME,
+                'Brute-force protection is active on terminal token authentication',
+                'DISABLE_TERMINAL_RATE_LIMITING=true',
+                'A terminal token may be guessed without limit. This variable exists for the E2E suite and is easy '
+                . 'to carry over from a CI environment file or a copied .env into a real deployment. Remove '
+                . 'DISABLE_TERMINAL_RATE_LIMITING (or set it to false) outside test environments.'
+            )
+            : SecurityFinding::pass(
+                'terminal_rate_limiting_active',
+                self::CATEGORY_RUNTIME,
+                'Brute-force protection is active on terminal token authentication',
+                'DISABLE_TERMINAL_RATE_LIMITING is not set to true'
+            );
+
         $findings[] = self::flagIsOn('log_errors')
             ? SecurityFinding::pass(
                 'log_errors',

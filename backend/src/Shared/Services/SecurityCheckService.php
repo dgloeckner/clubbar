@@ -45,6 +45,15 @@ class SecurityCheckService
          * from configuration is three places for them to drift.
          */
         private readonly ?BackupStatusCheck $backupStatusCheck = null,
+        /**
+         * The resolved state of the two rate-limiter kill switches (#894).
+         * Passed in rather than read from {@see \App\Shared\Config\Env}
+         * here so this class reports the same value {@see \App\ServiceFactory}
+         * actually wires into the middleware, not a second reading of the
+         * environment that could drift from it.
+         */
+        private readonly bool $loginRateLimitingDisabled = false,
+        private readonly bool $terminalRateLimitingDisabled = false,
     ) {}
 
     /**
@@ -159,6 +168,8 @@ class SecurityCheckService
             trustedProxies: $this->config->trustedProxies,
             remoteAddr: isset($serverParams['REMOTE_ADDR']) ? (string) $serverParams['REMOTE_ADDR'] : null,
             forwardedFor: isset($serverParams['HTTP_X_FORWARDED_FOR']) ? (string) $serverParams['HTTP_X_FORWARDED_FOR'] : null,
+            loginRateLimitingDisabled: $this->loginRateLimitingDisabled,
+            terminalRateLimitingDisabled: $this->terminalRateLimitingDisabled,
         );
     }
 

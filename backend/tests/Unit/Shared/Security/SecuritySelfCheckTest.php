@@ -128,6 +128,45 @@ class SecuritySelfCheckTest extends TestCase
         $this->assertSame(SecurityFinding::FAIL, $this->statusOf('display_errors'));
     }
 
+    /**
+     * #894: DISABLE_LOGIN_RATE_LIMITING removes the brute-force budget from
+     * login, MFA and step-up at once, with no other symptom — logins work,
+     * tests pass, and nothing else in the report changes. FAIL, not WARN:
+     * this exposes credentials to unlimited guessing.
+     */
+    public function test_the_login_rate_limiting_kill_switch_is_reported_as_a_failure(): void
+    {
+        $this->assertSame(SecurityFinding::PASS, $this->statusOf('login_rate_limiting_active'));
+
+        $finding = $this->finding(
+            'login_rate_limiting_active',
+            $this->context(loginRateLimitingDisabled: true)
+        );
+
+        $this->assertSame(SecurityFinding::FAIL, $finding->status);
+        $this->assertStringContainsString('DISABLE_LOGIN_RATE_LIMITING', $finding->observed);
+        $this->assertStringContainsString('DISABLE_LOGIN_RATE_LIMITING', (string) $finding->remedy);
+    }
+
+    /**
+     * WARN rather than FAIL, per the issue's own suggested direction: the
+     * terminal token surface is narrower than the credential-guessing
+     * surface the login switch covers.
+     */
+    public function test_the_terminal_rate_limiting_kill_switch_is_reported_as_a_warning(): void
+    {
+        $this->assertSame(SecurityFinding::PASS, $this->statusOf('terminal_rate_limiting_active'));
+
+        $finding = $this->finding(
+            'terminal_rate_limiting_active',
+            $this->context(terminalRateLimitingDisabled: true)
+        );
+
+        $this->assertSame(SecurityFinding::WARN, $finding->status);
+        $this->assertStringContainsString('DISABLE_TERMINAL_RATE_LIMITING', $finding->observed);
+        $this->assertStringContainsString('DISABLE_TERMINAL_RATE_LIMITING', (string) $finding->remedy);
+    }
+
     public function test_errors_that_are_not_logged_are_reported(): void
     {
         $this->assertSame(SecurityFinding::PASS, $this->statusOf('log_errors'));
@@ -621,6 +660,8 @@ class SecuritySelfCheckTest extends TestCase
         string $trustedProxies = '',
         ?string $remoteAddr = null,
         ?string $forwardedFor = null,
+        bool $loginRateLimitingDisabled = false,
+        bool $terminalRateLimitingDisabled = false,
     ): SecurityCheckContext {
         return new SecurityCheckContext(
             documentRoot: $this->documentRoot,
@@ -634,6 +675,8 @@ class SecuritySelfCheckTest extends TestCase
             trustedProxies: $trustedProxies,
             remoteAddr: $remoteAddr,
             forwardedFor: $forwardedFor,
+            loginRateLimitingDisabled: $loginRateLimitingDisabled,
+            terminalRateLimitingDisabled: $terminalRateLimitingDisabled,
         );
     }
 
