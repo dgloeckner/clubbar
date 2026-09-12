@@ -1,5 +1,5 @@
 import { test, expect } from "../../fixtures/auth.fixture";
-import { serverToday } from "../../utils/dates";
+import { clubToday } from "../../utils/dates";
 
 const API_BASE = "http://localhost:8080/api";
 
@@ -520,9 +520,10 @@ test.describe("Dashboard API", () => {
       );
 
       // Today's row exists in the daily breakdown once something was sold.
-      // The date comes from the server, whose timezone need not be the
-      // runner's.
-      const today = await serverToday(authenticatedRequest);
+      // daily_revenue is bucketed by the club's calendar day, not the
+      // server's raw UTC day (#365) — serverToday() would disagree with it
+      // for two hours around midnight CEST.
+      const today = clubToday();
       const todaysRow = after.daily_revenue.find(
         (row: { date: string }) => row.date === today
       );
