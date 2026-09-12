@@ -123,6 +123,72 @@ void main() {
       expect(configService.isConfigured, isFalse);
     });
 
+    group('apiUrlIsInsecure (issue #893)', () {
+      test('is false for an https:// URL', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test',
+          'apiUrl': 'https://club.example.com/api',
+          'apiToken': 'f' * 64,
+        }));
+        await configService.load();
+
+        expect(configService.apiUrlIsInsecure, isFalse);
+      });
+
+      test('is true for a plain http:// URL to a real host', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test',
+          'apiUrl': 'http://club.example.com/api',
+          'apiToken': 'f' * 64,
+        }));
+        await configService.load();
+
+        expect(configService.apiUrlIsInsecure, isTrue);
+      });
+
+      test('is false for http://localhost (dev workflow)', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test',
+          'apiUrl': 'http://localhost:8080/api',
+          'apiToken': 'f' * 64,
+        }));
+        await configService.load();
+
+        expect(configService.apiUrlIsInsecure, isFalse);
+      });
+
+      test('is false for http://127.0.0.1', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test',
+          'apiUrl': 'http://127.0.0.1:8080/api',
+          'apiToken': 'f' * 64,
+        }));
+        await configService.load();
+
+        expect(configService.apiUrlIsInsecure, isFalse);
+      });
+
+      test('is true when apiUrl is unset', () {
+        expect(configService.apiUrlIsInsecure, isTrue);
+      });
+
+      test('is true for a scheme-less or unparsable value', () async {
+        final configFile = File('${tempDir.path}/config.json');
+        configFile.writeAsStringSync(jsonEncode({
+          'terminalId': 'Test',
+          'apiUrl': 'club.example.com/api',
+          'apiToken': 'f' * 64,
+        }));
+        await configService.load();
+
+        expect(configService.apiUrlIsInsecure, isTrue);
+      });
+    });
+
     test('load throws ConfigParseException on corrupt JSON', () async {
       final configFile = File('${tempDir.path}/config.json');
       configFile.writeAsStringSync('not valid json {{{');

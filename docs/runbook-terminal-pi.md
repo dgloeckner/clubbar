@@ -290,3 +290,9 @@ purchase history from the backend, and write bookings against any of them
   provisioning. `policy.json` is a cache and carries no credentials; it is fine
   to delete it (the app re-seeds it from the shipped defaults, then the next
   sync) if you suspect it is corrupt.
+- **`apiUrl` must be `https://` in production** (ADR-0016). The app refuses to
+  start otherwise — an `http://` backend would send `apiToken` in clear text on
+  the first request, before a backend-side redirect to HTTPS could ever come
+  back (issue #893). Only `http://localhost` / `http://127.0.0.1` are exempt,
+  for the dev workflow. If a terminal won't start after an `apiUrl` edit,
+  check for a stray `http://` first.
