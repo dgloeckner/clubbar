@@ -1288,6 +1288,7 @@ safe on a till that is serving; run it before reading the table below.
 | On-screen keyboard still appears | Check `ls /etc/xdg/autostart/` for other keyboard entries (e.g. `onboard.desktop`) and rename them |
 | Screen never blanks | Check `screenBlanking.enabled` in `config.json` |
 | Screen blanks but the panel stays lit | The panel ignores signal loss — set `"mode": "overlay"` |
+| Screen stays black after an update or restart, and a scan does not wake it | Fixed in this release: the app now reads the panel's real state from the DRM connector and powers the output back on at startup and on any activity (#920). On an older build the app's idea of the panel survived the restart and the hardware's did not — leave the terminal untouched for one full `screenBlanking.timeout` so it blanks, then scan once |
 | A card wakes the blanked screen but a touch does not | Expected under `"mode": "output-power"` on a panel whose digitizer sleeps with it — [confirm and decide](#a-sleeping-panel-takes-its-touchscreen-with-it) |
 | Screen stays black after a scan, and a small white text box collects the card's characters top-right | The pcmanfm desktop holds keyboard focus, so the app never sees the scan that lifts blanking — [strip the session](#the-session-must-hold-exactly-one-window) |
 | The desktop menu bar appears over the terminal mid-service | `lwrespawn` remapped `wf-panel-pi` above the fullscreen window — [strip the session](#the-session-must-hold-exactly-one-window); it also returns after a system upgrade restores the packaged autostart |
