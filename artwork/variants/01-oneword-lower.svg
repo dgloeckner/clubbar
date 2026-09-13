@@ -9,7 +9,9 @@
   </defs>
   <rect x="40" y="40" width="432" height="432" rx="92" fill="url(#bgGrad)"/>
   <rect x="56" y="56" width="400" height="400" rx="82" fill="none" stroke="url(#accentGrad)" stroke-width="3" opacity="0.35"/>
-  <g transform="translate(-34,-50) scale(1.13)">
+  <path d="M256 90 L350 130 C358 134 364 142 364 152 L364 260 C364 310 316 358 256 388 C196 358 148 310 148 260 L148 152 C148 142 154 134 162 130 Z" fill="url(#shieldGrad)" stroke="url(#accentGrad)" stroke-width="2.5" opacity="0.6"/>
+  <g fill="url(#accentGrad)" opacity="0.85"><polygon points="190.0,119.0 192.7,126.3 200.5,126.6 194.4,131.4 196.5,138.9 190.0,134.6 183.5,138.9 185.6,131.4 179.5,126.6 187.3,126.3"/><polygon points="322.0,119.0 324.7,126.3 332.5,126.6 326.4,131.4 328.5,138.9 322.0,134.6 315.5,138.9 317.6,131.4 311.5,126.6 319.3,126.3"/><circle cx="256" cy="108" r="4"/></g>
+  <g transform="translate(0,-8)">
     <rect x="192" y="168" width="128" height="170" rx="18" fill="#0F172A" opacity="0.4"/>
     <rect x="198" y="174" width="116" height="158" rx="14" fill="url(#beerGrad)"/>
     <g clip-path="url(#beerClip)">
@@ -28,5 +30,5 @@
     </g>
     <g fill="#FFFFFF" opacity="0.85"><circle cx="248" cy="138" r="4"/><circle cx="226" cy="146" r="2.6"/><circle cx="287" cy="146" r="2.4"/></g>
   </g>
-  <text x="256" y="424" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="50" letter-spacing="8" fill="#E2E8F0"><tspan font-weight="800">CLUB</tspan><tspan font-weight="300" fill="url(#accentGrad)">BAR</tspan></text>
+  <text x="256" y="436" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="66" letter-spacing="1" fill="#E2E8F0"><tspan font-weight="800">club</tspan><tspan font-weight="300" fill="url(#accentGrad)">bar</tspan></text>
 </svg>
