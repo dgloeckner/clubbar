@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/widgets/dispensing_progress_dialog.dart';
 import 'package:clubbar_terminal/widgets/dispenser_error_dialog.dart';
+import 'package:clubbar_terminal/utils/app_logger.dart';
 
 class CartProvider extends ChangeNotifier with ErrorSignal {
   final CartService _service;
@@ -282,7 +283,8 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
             } else if (result.state == 'error' || result.state == 'dispensing') {
               // Keep tracking record for reconciliation to verify
               // Recovery service will query ESP8266 and clean up after verification
-              print('Keeping tracking record for reconciliation (state=${result.state})');
+              AppLog.instance.i(
+                  'Keeping tracking record for reconciliation (state=${result.state})');
             }
           } else {
             // Nothing came out of the dispenser. There is no purchase to

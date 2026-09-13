@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
+import 'package:clubbar_terminal/utils/app_logger.dart';
 
 /// States for the dispensing state machine
 enum DispensingState {
@@ -171,7 +172,8 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
       // Network error - retry if under limit
       if (_retryCount < _maxRetries) {
         _retryCount++;
-        print('Dispense request failed, retry $_retryCount/$_maxRetries: ${e.message}');
+        AppLog.instance.w(
+            'Dispense request failed, retry $_retryCount/$_maxRetries: ${e.message}');
         await Future.delayed(Duration(milliseconds: _retryDelayMs));
         if (mounted && _state == DispensingState.requesting) {
           await _tryDispenseRequest();
@@ -253,7 +255,7 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
       _handleError(e);
     } on DispenserException catch (e) {
       // Network error during polling - keep trying (timeout will catch it)
-      print('Polling error: ${e.message}');
+      AppLog.instance.w('Polling error: ${e.message}');
     }
   }
 

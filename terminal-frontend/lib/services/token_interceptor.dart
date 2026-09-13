@@ -23,6 +23,14 @@ import '../config/app_config.dart';
 /// In Chopper v8 the [RequestInterceptor] interface was replaced by the
 /// chain-based [Interceptor] interface. Tokens are injected by modifying the
 /// request before passing it down the chain via [Chain.proceed].
+///
+/// Chopper marks [Interceptor] `@immutable`, which this class deliberately is
+/// not: [token] and [blockedVersion] are runtime state, written by
+/// [NetworkService] after authentication and after the updater handshake. The
+/// immutable alternative is to rebuild the whole [ChopperClient] on every token
+/// change, which would drop the connection pool each time a terminal
+/// re-authenticates. The mutation is confined to those two setters.
+// ignore: must_be_immutable
 class TokenInterceptor implements Interceptor {
   /// What this terminal is running (ADR-0054).
   static const String versionHeader = 'X-Terminal-Version';
