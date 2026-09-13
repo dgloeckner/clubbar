@@ -812,5 +812,133 @@ void main() {
         expect(find.text('Bezahlen'), findsOneWidget);
       });
     });
+    // Issue #921: a removed line leaves rather than blinking out, and the
+    // digit the member just changed bumps.
+    group('line exit and stepper bounce (#921)', () {
+      final two = [
+        CartItem(
+          productId: 'prod-1',
+          productName: 'Bier',
+          quantity: 2,
+          priceCents: 550,
+          language: 'de',
+        ),
+        CartItem(
+          productId: 'prod-2',
+          productName: 'Cola',
+          quantity: 1,
+          priceCents: 300,
+          language: 'de',
+        ),
+      ];
+
+      /// The scale the quantity digit of [name]'s row is drawn at.
+      double digitScale(WidgetTester tester, String quantity) {
+        return tester
+            .widget<ScaleTransition>(find.ancestor(
+              of: find.text(quantity),
+              matching: find.byType(ScaleTransition),
+            ))
+            .scale
+            .value;
+      }
+
+      testWidgets('the removed row plays out while the rest closes the gap',
+          (WidgetTester tester) async {
+        when(() => mockCartProvider.items).thenReturn(two);
+        await tester.pumpWidget(buildTestWidget());
+        final colaBefore = tester.getTopLeft(find.text('Cola'));
+
+        // The provider is told synchronously, exactly as before.
+        await tester.tap(find.byIcon(Icons.delete_outline).first);
+        verify(() => mockCartProvider.removeItem('prod-1')).called(1);
+
+        // …and the row it dropped is still on screen, on its way out.
+        when(() => mockCartProvider.items).thenReturn([two[1]]);
+        await tester.pumpWidget(
+          buildTestWidget(child: Scaffold(body: const ShoppingCartScreen())),
+        );
+        await tester.pump();
+        expect(find.text('Bier'), findsOneWidget);
+        await tester.pump(AppAnimations.lineExit ~/ 2);
+        expect(find.text('Bier'), findsOneWidget);
+
+        await tester.pumpAndSettle();
+        expect(find.text('Bier'), findsNothing);
+        expect(find.text('Cola'), findsOneWidget);
+        expect(tester.getTopLeft(find.text('Cola')).dy,
+            lessThan(colaBefore.dy));
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+
+      testWidgets('the quantity digit bumps when it changes',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(buildTestWidget());
+        expect(digitScale(tester, '2'), closeTo(1.0, 0.001));
+
+        await tester.tap(find.text('+'));
+        verify(() => mockCartProvider.updateQuantity('prod-1', 3)).called(1);
+
+        when(() => mockCartProvider.items).thenReturn([
+          CartItem(
+            productId: 'prod-1',
+            productName: 'Bier',
+            quantity: 3,
+            priceCents: 550,
+            language: 'de',
+          ),
+        ]);
+        await tester.pumpWidget(
+          buildTestWidget(child: Scaffold(body: const ShoppingCartScreen())),
+        );
+        await tester.pump();
+        await tester.pump(AppAnimations.digitBounce ~/ 2);
+        expect(digitScale(tester, '3'), greaterThan(1.0));
+
+        await tester.pumpAndSettle();
+        expect(digitScale(tester, '3'), closeTo(1.0, 0.001));
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+
+      testWidgets('reduced motion drops the row on the very next frame',
+          (WidgetTester tester) async {
+        when(() => mockCartProvider.items).thenReturn(two);
+        await tester.pumpWidget(buildTestWidget(
+          child: const MediaQuery(
+            data: MediaQueryData(disableAnimations: true),
+            child: Scaffold(body: ShoppingCartScreen()),
+          ),
+        ));
+
+        when(() => mockCartProvider.items).thenReturn([two[1]]);
+        await tester.pumpWidget(buildTestWidget(
+          child: MediaQuery(
+            data: const MediaQueryData(disableAnimations: true),
+            child: Scaffold(body: const ShoppingCartScreen()),
+          ),
+        ));
+        await tester.pump();
+
+        expect(find.text('Bier'), findsNothing);
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+
+      // Checkout empties the whole cart at once, behind the loading overlay.
+      // That is not N farewells — it is the screen leaving.
+      testWidgets('a cleared cart plays nothing', (WidgetTester tester) async {
+        when(() => mockCartProvider.items).thenReturn(two);
+        await tester.pumpWidget(buildTestWidget());
+
+        when(() => mockCartProvider.items).thenReturn([]);
+        await tester.pumpWidget(
+          buildTestWidget(child: Scaffold(body: const ShoppingCartScreen())),
+        );
+        await tester.pump();
+
+        expect(find.text('Bier'), findsNothing);
+        expect(find.text('Cola'), findsNothing);
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+    });
   });
 }
