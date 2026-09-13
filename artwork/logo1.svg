@@ -1,80 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Club Bar app icon">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="clubbar app icon">
   <defs>
-    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0C1425"/>
-      <stop offset="1" stop-color="#162036"/>
-    </linearGradient>
-    <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#34D399"/>
-      <stop offset="1" stop-color="#06B6D4"/>
-    </linearGradient>
-    <linearGradient id="beerGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FCD34D"/>
-      <stop offset="1" stop-color="#F59E0B"/>
-    </linearGradient>
-    <linearGradient id="foamGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#F1F5F9"/>
-    </linearGradient>
-    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#34D399" stop-opacity="0.15"/>
-      <stop offset="1" stop-color="#06B6D4" stop-opacity="0.05"/>
-    </linearGradient>
-    <clipPath id="beerClip">
-      <rect x="192" y="168" width="128" height="170" rx="18"/>
-    </clipPath>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0C1425"/><stop offset="1" stop-color="#162036"/></linearGradient>
+    <linearGradient id="accentGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34D399"/><stop offset="1" stop-color="#06B6D4"/></linearGradient>
+    <linearGradient id="beerGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FCD34D"/><stop offset="1" stop-color="#F59E0B"/></linearGradient>
+    <linearGradient id="foamGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E2E8F0"/></linearGradient>
+    <linearGradient id="shieldGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34D399" stop-opacity="0.15"/><stop offset="1" stop-color="#06B6D4" stop-opacity="0.05"/></linearGradient>
+    <clipPath id="beerClip"><rect x="198" y="174" width="116" height="158" rx="14"/></clipPath>
   </defs>
-
-  <!-- Background rounded square -->
   <rect x="40" y="40" width="432" height="432" rx="92" fill="url(#bgGrad)"/>
-
-  <!-- Subtle border -->
   <rect x="56" y="56" width="400" height="400" rx="82" fill="none" stroke="url(#accentGrad)" stroke-width="3" opacity="0.35"/>
-
-  <!-- Shield shape behind the mug — sports club motif -->
-  <path d="M256 90 L350 130 C358 134 364 142 364 152 L364 260 C364 310 316 358 256 388 C196 358 148 310 148 260 L148 152 C148 142 154 134 162 130 Z"
-        fill="url(#shieldGrad)" stroke="url(#accentGrad)" stroke-width="2.5" opacity="0.6"/>
-
-  <!-- Beer mug body -->
-  <rect x="192" y="168" width="128" height="170" rx="18" fill="#0F172A" opacity="0.4"/>
-  <rect x="198" y="174" width="116" height="158" rx="14" fill="url(#beerGrad)"/>
-
-  <!-- Beer highlight / reflection -->
-  <g clip-path="url(#beerClip)">
-    <path d="M210 174c12-8 20-4 24 14v130c-4 14-12 20-24 16z" fill="#FDE68A" opacity="0.5"/>
+  <g transform="translate(-34,-50) scale(1.13)">
+    <rect x="192" y="168" width="128" height="170" rx="18" fill="#0F172A" opacity="0.4"/>
+    <rect x="198" y="174" width="116" height="158" rx="14" fill="url(#beerGrad)"/>
+    <g clip-path="url(#beerClip)">
+      <path d="M210 174c12-8 20-4 24 14v130c-4 14-12 20-24 16z" fill="#FDE68A" opacity="0.5"/>
+      <g fill="#FEF3C7" opacity="0.55"><circle cx="292" cy="300" r="3"/><circle cx="300" cy="262" r="2.2"/><circle cx="286" cy="236" r="2.6"/><circle cx="296" cy="212" r="2"/><circle cx="278" cy="318" r="2.2"/><circle cx="270" cy="282" r="1.8"/></g>
+    </g>
+    <path d="M318 208 h32 a16 16 0 0 1 16 16 v60 a16 16 0 0 1 -16 16 h-32" fill="none" stroke="#CBD5E1" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    <path d="M318 216 h30 a10 10 0 0 1 10 10 v56 a10 10 0 0 1 -10 10 h-30" fill="none" stroke="#0C1425" stroke-width="6" opacity="0.3" stroke-linecap="round"/>
+    <rect x="206" y="275" width="100" height="12" rx="6" fill="#E2E8F0" opacity="0.7"/>
+    <g fill="url(#foamGrad)">
+      <rect x="188" y="166" width="136" height="24" rx="12"/>
+      <circle cx="208" cy="160" r="15"/><circle cx="231" cy="150" r="19"/><circle cx="257" cy="145" r="22"/><circle cx="283" cy="151" r="18"/><circle cx="305" cy="161" r="14"/>
+      <rect x="298" y="176" width="14" height="36" rx="7"/>
+      <rect x="208" y="176" width="12" height="26" rx="6"/>
+      <rect x="252" y="178" width="10" height="18" rx="5"/>
+    </g>
+    <g fill="#FFFFFF" opacity="0.85"><circle cx="248" cy="138" r="4"/><circle cx="226" cy="146" r="2.6"/><circle cx="287" cy="146" r="2.4"/></g>
   </g>
-
-  <!-- Foam top -->
-  <ellipse cx="256" cy="172" rx="64" ry="14" fill="url(#foamGrad)" opacity="0.95"/>
-  <!-- Foam bubbles -->
-  <circle cx="236" cy="168" r="10" fill="white" opacity="0.7"/>
-  <circle cx="258" cy="164" r="12" fill="white" opacity="0.6"/>
-  <circle cx="278" cy="167" r="9" fill="white" opacity="0.65"/>
-  <circle cx="248" cy="160" r="7" fill="white" opacity="0.5"/>
-  <circle cx="268" cy="158" r="6" fill="white" opacity="0.45"/>
-
-  <!-- Mug handle -->
-  <path d="M320 210 h14 c24 0 44 20 44 44 s-20 44-44 44 h-14"
-        fill="none" stroke="#CBD5E1" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
-  <path d="M320 218 h10 c20 0 36 16 36 36 s-16 36-36 36 h-10"
-        fill="none" stroke="#0C1425" stroke-width="6" opacity="0.3" stroke-linecap="round"/>
-
-  <!-- Mug band / label area -->
-  <rect x="206" y="275" width="100" height="12" rx="6" fill="#E2E8F0" opacity="0.7"/>
-
-  <!-- Stars — sports club feel -->
-  <g fill="url(#accentGrad)" opacity="0.8">
-    <!-- Left star -->
-    <polygon points="176,130 180,140 191,140 182,147 186,157 176,150 166,157 170,147 161,140 172,140" transform="scale(0.8) translate(40,18)"/>
-    <!-- Right star -->
-    <polygon points="336,130 340,140 351,140 342,147 346,157 336,150 326,157 330,147 321,140 332,140" transform="scale(0.8) translate(-18,18)"/>
-    <!-- Top small star -->
-    <circle cx="256" cy="110" r="4"/>
-  </g>
-
-  <!-- "club" text -->
-  <text x="256" y="408" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="800" font-size="54" letter-spacing="8" fill="#E2E8F0" opacity="0.95">CLUB</text>
-
-  <!-- "bar" text with accent -->
-  <text x="256" y="452" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="300" font-size="38" letter-spacing="14" fill="url(#accentGrad)" opacity="0.9">BAR</text>
+  <text x="256" y="424" text-anchor="middle" font-family="'SF Pro Display', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="50" letter-spacing="8" fill="#E2E8F0"><tspan font-weight="800">CLUB</tspan><tspan font-weight="300" fill="url(#accentGrad)">BAR</tspan></text>
 </svg>
