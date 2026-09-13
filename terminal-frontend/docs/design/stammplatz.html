@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design mockup for the terminal UX concept "Stammplatz" (see the GitHub issue that links here).
+     Self-contained: open in a browser. Fonts come from Google Fonts; everything else is inline. -->
+<title>Stammplatz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@500&family=Roboto:wght@400;500;700;900&display=swap">
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #111a2b;
+    --muted: #56637a;
+    --rule: #d6dde8;
+    --accent: #b8720a;
+    --accent-ink: #7a4a05;
+    --accent-soft: #f6e7c7;
+    --code-bg: #e9edf4;
+
+    /* The terminal's own tokens. Fixed: these are its screens, not this page. */
+    --t-bg: #0a1628;
+    --t-header: #0f1d32;
+    --t-card: #1a2744;
+    --t-primary: #3b82f6;
+    --t-strong: #2563eb;
+    --t-teal: #14b8a6;
+    --t-text: #f1f5f9;
+    --t-secondary: #94a3b8;
+    --t-muted: #8494a8;
+    --t-border: #334155;
+    --t-price: #38bdf8;
+    --t-price-bg: rgba(14,165,233,.22);
+    --t-price-border: rgba(56,189,248,.45);
+    --t-success: #22c55e;
+    --t-beer: #f59e0b;
+    --t-foam: #fcd34d;
+    --t-emerald: #34d399;
+    --t-cyan: #06b6d4;
+
+    --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Sans 3", "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    --ui: Roboto, "Helvetica Neue", Arial, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c1424; --card: #131d31; --ink: #edf1f7; --muted: #9aa7bb;
+      --rule: #25324a; --accent: #f0b429; --accent-ink: #f7d27a;
+      --accent-soft: #2b2412; --code-bg: #1a2640; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c1424; --card: #131d31; --ink: #edf1f7; --muted: #9aa7bb;
+    --rule: #25324a; --accent: #f0b429; --accent-ink: #f7d27a;
+    --accent-soft: #2b2412; --code-bg: #1a2640; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--body); font-size: 18px; line-height: 1.55;
+    padding-inline: 20px; padding-block: 0 96px;
+  }
+  main { max-width: 1040px; margin: 0 auto; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.05; }
+  h1 { font-size: clamp(44px, 8vw, 88px); font-weight: 800; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(30px, 4.2vw, 44px); font-weight: 700; letter-spacing: -0.015em; }
+  h3 { font-size: 22px; font-weight: 700; }
+  p { max-width: 68ch; margin: 0; }
+  p + p { margin-top: 1em; }
+  a { color: var(--accent-ink); }
+  strong { font-weight: 600; }
+  code { font-family: var(--mono); font-size: .82em; background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  .eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .lede { font-size: 22px; line-height: 1.45; max-width: 60ch; }
+  .muted { color: var(--muted); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .masthead { padding-block: 72px 40px; display: grid; gap: 22px; }
+  .masthead .rule { height: 3px; width: 88px; background: var(--accent); border-radius: 2px; }
+
+  section { padding-block: 48px; border-top: 1px solid var(--rule); }
+  .sec-head { display: grid; gap: 12px; margin-bottom: 28px; }
+  .sec-head .eyebrow { color: var(--accent-ink); }
+
+  /* The three moves, as a compact index */
+  .moves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 28px; }
+  .move { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 20px 20px 18px; display: grid; gap: 8px; align-content: start; }
+  .move .word { font-family: var(--display); font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+  .move .gloss { color: var(--muted); font-style: italic; font-size: 16px; }
+  .move p { font-size: 16.5px; }
+
+  /* ---- Screen mockups: 1280x800, everything in container units ---- */
+  .screen {
+    container-type: inline-size; position: relative; width: 100%; aspect-ratio: 1280 / 800;
+    background: var(--t-bg); color: var(--t-text); font-family: var(--ui);
+    border-radius: 12px; overflow: hidden; box-shadow: 0 30px 60px -30px rgba(10,22,40,.55), 0 0 0 1px rgba(10,22,40,.25);
+    --u: calc(1cqw / 12.8);
+  }
+  .screen * { box-sizing: border-box; }
+  .t-header {
+    position: absolute; inset: 0 0 auto 0; height: calc(56*var(--u)); background: var(--t-header);
+    border-bottom: calc(1*var(--u)) solid rgba(51,65,85,.6);
+    display: flex; align-items: center; padding: 0 calc(16*var(--u)); gap: calc(12*var(--u));
+  }
+  .t-club { font-size: calc(22*var(--u)); font-weight: 700; letter-spacing: -0.01em; flex: 1; }
+  .t-online {
+    display: inline-flex; align-items: center; gap: calc(6*var(--u)); height: calc(36*var(--u)); padding: 0 calc(14*var(--u));
+    border-radius: calc(18*var(--u)); border: calc(1*var(--u)) solid rgba(34,197,94,.55); background: rgba(34,197,94,.12);
+    color: var(--t-success); font-size: calc(16*var(--u)); font-weight: 500;
+  }
+  .t-online::before { content: ""; width: calc(8*var(--u)); height: calc(8*var(--u)); border-radius: 50%; background: var(--t-success); }
+  .t-clock { font-family: var(--mono); font-size: calc(18*var(--u)); color: var(--t-secondary); }
+
+  .t-memberbar {
+    position: absolute; left: calc(16*var(--u)); right: calc(16*var(--u)); top: calc(66*var(--u)); height: calc(70*var(--u));
+    background: var(--t-card); border: calc(1*var(--u)) solid var(--t-border); border-radius: calc(12*var(--u));
+    display: flex; align-items: center; gap: calc(12*var(--u)); padding: 0 calc(12*var(--u));
+  }
+  .t-avatar {
+    width: calc(40*var(--u)); height: calc(40*var(--u)); border-radius: 50%; background: #db2777; color: #fff;
+    display: grid; place-items: center; font-size: calc(14*var(--u)); font-weight: 700;
+  }
+  .t-who { flex: 1; display: grid; line-height: 1.15; }
+  .t-name { font-size: calc(26*var(--u)); font-weight: 700; }
+  .t-deckel { font-size: calc(17*var(--u)); color: var(--t-secondary); display: flex; align-items: center; gap: calc(8*var(--u)); }
+  .t-deckel .mat-glyph { width: calc(40*var(--u)); height: calc(40*var(--u)); margin-top: calc(-8*var(--u)); }
+  .t-btn {
+    height: calc(52*var(--u)); padding: 0 calc(18*var(--u)); border-radius: calc(10*var(--u)); font: inherit;
+    font-size: calc(18*var(--u)); font-weight: 600; color: var(--t-secondary); background: #0f1d32;
+    border: calc(1*var(--u)) solid var(--t-border); display: inline-flex; align-items: center; gap: calc(8*var(--u));
+  }
+  .t-btn.primary { background: var(--t-strong); color: #fff; border-color: var(--t-primary); }
+
+  .t-chips { position: absolute; left: calc(16*var(--u)); right: calc(16*var(--u)); top: calc(146*var(--u)); display: flex; gap: calc(12*var(--u)); }
+  .t-chip {
+    flex: 1; height: calc(52*var(--u)); border-radius: calc(26*var(--u)); display: flex; align-items: center; gap: calc(8*var(--u)); padding: 0 calc(18*var(--u));
+    background: #0f1d32; border: calc(1*var(--u)) solid var(--t-border); color: var(--t-secondary); font-size: calc(20*var(--u));
+  }
+  .t-chip svg { width: calc(30*var(--u)); height: calc(30*var(--u)); }
+  .t-chip.sel { background: var(--t-strong); border-color: var(--t-primary); color: #fff; font-weight: 600; }
+
+  .t-grid {
+    position: absolute; left: calc(16*var(--u)); right: calc(16*var(--u)); top: calc(210*var(--u));
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(12*var(--u));
+  }
+  .t-tile {
+    position: relative; height: calc(200*var(--u)); background: var(--t-card); border-radius: calc(14*var(--u));
+    border: calc(1*var(--u)) solid var(--t-border); display: grid; align-content: center; justify-items: center; gap: calc(6*var(--u)); padding: calc(10*var(--u));
+  }
+  .t-tile.incart { border: calc(2*var(--u)) solid var(--t-primary); }
+  .t-tile svg.icon { width: calc(56*var(--u)); height: calc(56*var(--u)); }
+  .t-tile .name { font-size: calc(26*var(--u)); font-weight: 700; line-height: 1.2; white-space: nowrap; }
+  .pill {
+    display: inline-flex; align-items: stretch; border-radius: calc(20*var(--u)); border: calc(1*var(--u)) solid var(--t-price-border); overflow: hidden; line-height: 1.2;
+  }
+  .pill .vol { background: rgba(148,163,184,.14); color: var(--t-secondary); font-weight: 700; font-size: calc(17*var(--u)); padding: calc(4*var(--u)) calc(8*var(--u)) calc(4*var(--u)) calc(12*var(--u)); display: flex; align-items: center; border-right: calc(1*var(--u)) solid var(--t-price-border); }
+  .pill .price { background: var(--t-price-bg); color: var(--t-price); font-weight: 900; font-size: calc(23*var(--u)); padding: calc(4*var(--u)) calc(12*var(--u)); }
+  .badge {
+    position: absolute; top: calc(8*var(--u)); right: calc(8*var(--u)); background: var(--t-strong); color: #fff;
+    font-size: calc(18*var(--u)); font-weight: 700; padding: calc(4*var(--u)) calc(10*var(--u)); border-radius: calc(16*var(--u));
+  }
+  .minus {
+    position: absolute; top: calc(8*var(--u)); left: calc(8*var(--u)); width: calc(44*var(--u)); height: calc(44*var(--u)); border-radius: 50%;
+    background: #1e293b; border: calc(1.5*var(--u)) solid var(--t-primary); display: grid; place-items: center; color: var(--t-secondary);
+  }
+  .minus::before { content: ""; width: calc(16*var(--u)); height: calc(3*var(--u)); background: currentColor; border-radius: 2px; }
+
+  /* The round tile: one order, several lines */
+  .t-tile.round { border: calc(2*var(--u)) solid var(--t-beer); background: linear-gradient(160deg, #1f2a46, #1a2744 60%); gap: calc(4*var(--u)); }
+  .t-tile.round .stack { display: flex; gap: calc(-10*var(--u)); }
+  .t-tile.round .stack svg { width: calc(46*var(--u)); height: calc(46*var(--u)); margin-right: calc(-8*var(--u)); }
+  .t-tile.round .name { font-size: calc(24*var(--u)); color: var(--t-foam); }
+  .t-tile.round .lines { font-size: calc(16*var(--u)); color: var(--t-secondary); white-space: nowrap; }
+
+  .t-summary {
+    position: absolute; left: calc(16*var(--u)); right: calc(16*var(--u)); bottom: 0; height: calc(83*var(--u));
+    background: var(--t-card); border: calc(1*var(--u)) solid var(--t-border); border-bottom: 0;
+    border-radius: calc(14*var(--u)) calc(14*var(--u)) 0 0; display: flex; align-items: center; gap: calc(12*var(--u)); padding: 0 calc(20*var(--u));
+  }
+  .t-summary .label { font-size: calc(20*var(--u)); color: var(--t-secondary); }
+  .t-summary .total { flex: 1; font-size: calc(32*var(--u)); font-weight: 900; color: var(--t-price); font-variant-numeric: tabular-nums; }
+  .t-summary .t-btn { height: calc(60*var(--u)); font-size: calc(21*var(--u)); padding: 0 calc(28*var(--u)); }
+
+  /* Receipt screen */
+  .r-headline { position: absolute; left: 0; right: 0; top: calc(92*var(--u)); text-align: center; font-size: calc(46*var(--u)); font-weight: 900; letter-spacing: -0.01em; }
+  .r-mat { position: absolute; left: calc(196*var(--u)); top: calc(178*var(--u)); width: calc(300*var(--u)); height: calc(300*var(--u)); }
+  .r-mat svg { width: 100%; height: 100%; display: block; }
+  .r-lines { position: absolute; left: calc(560*var(--u)); right: calc(196*var(--u)); top: calc(196*var(--u)); display: grid; gap: calc(14*var(--u)); font-size: calc(26*var(--u)); }
+  .r-line { display: flex; align-items: center; gap: calc(14*var(--u)); }
+  .r-line svg { width: calc(40*var(--u)); height: calc(40*var(--u)); }
+  .r-line .qty { color: var(--t-secondary); }
+  .r-line .what { font-weight: 700; flex: 1; }
+  .r-line .amt { font-variant-numeric: tabular-nums; }
+  .r-total { border-top: calc(1*var(--u)) solid var(--t-border); padding-top: calc(14*var(--u)); display: flex; align-items: center; }
+  .r-total .l { color: var(--t-secondary); flex: 1; }
+  .r-total .v { font-size: calc(32*var(--u)); font-weight: 900; color: var(--t-price); font-variant-numeric: tabular-nums; }
+  .r-tab { position: absolute; left: 0; right: 0; top: calc(600*var(--u)); text-align: center; display: grid; gap: calc(2*var(--u)); }
+  .r-tab .l { font-size: calc(20*var(--u)); color: var(--t-secondary); }
+  .r-tab .v { font-size: calc(40*var(--u)); font-weight: 900; }
+  .r-drain { position: absolute; left: 50%; top: calc(730*var(--u)); width: calc(240*var(--u)); height: calc(5*var(--u)); margin-left: calc(-120*var(--u)); background: rgba(148,163,184,.25); border-radius: 3px; overflow: hidden; }
+  .r-drain::after { content: ""; position: absolute; inset: 0; width: 62%; background: var(--t-secondary); }
+
+  /* The mat's printed tally motif, and one pencil stroke drawn on for the booking */
+  .tally path { stroke: #1e2a44; stroke-width: 6.5; stroke-linecap: round; fill: none; stroke-dasharray: 90; stroke-dashoffset: 0; }
+  .tally.print path { stroke: #bfae86; stroke-width: 5; }
+  .r-mat.draw .tally.new path { animation: draw .34s cubic-bezier(.3,.8,.3,1) .2s both; }
+  .r-mat.draw .tally.new path:nth-child(2) { animation-delay: .32s; }
+  .r-mat.draw .tally.new path:nth-child(3) { animation-delay: .44s; }
+  .r-mat.draw .tally.new path:nth-child(4) { animation-delay: .56s; }
+  .r-mat.draw .tally.new path:nth-child(5) { animation-delay: .72s; animation-duration: .42s; }
+  .screen[data-round="one"] .only-round { display: none; }
+  .screen[data-round="five"] .only-one { display: none; }
+  .replay-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .replay-row .hint { font-size: 15px; color: var(--muted); }
+  @keyframes draw { from { stroke-dashoffset: 90; } to { stroke-dashoffset: 0; } }
+  @media (prefers-reduced-motion: reduce) { .r-mat.draw .tally.new path { animation: none; } }
+  .replay { font: 600 15px var(--body); color: var(--accent-ink); background: var(--accent-soft); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+
+  /* Idle board */
+  .i-club { position: absolute; left: 0; right: 0; top: calc(96*var(--u)); text-align: center; font-size: calc(40*var(--u)); font-weight: 900; letter-spacing: -0.01em; }
+  .i-club::after { content: ""; display: block; width: calc(120*var(--u)); height: calc(4*var(--u)); margin: calc(8*var(--u)) auto 0; border-radius: 2px; background: linear-gradient(90deg, var(--t-emerald), var(--t-cyan)); }
+  .i-disc {
+    position: absolute; left: 50%; top: calc(190*var(--u)); width: calc(200*var(--u)); height: calc(200*var(--u)); margin-left: calc(-100*var(--u)); border-radius: 50%;
+    background: linear-gradient(135deg, rgba(59,130,246,.22), rgba(20,184,166,.22));
+    box-shadow: 0 0 calc(50*var(--u)) calc(3*var(--u)) rgba(59,130,246,.3); display: grid; place-items: center;
+  }
+  .i-disc svg { width: calc(112*var(--u)); height: calc(112*var(--u)); }
+  .i-title { position: absolute; left: 0; right: 0; top: calc(412*var(--u)); text-align: center; font-size: calc(55*var(--u)); font-weight: 700; }
+  .i-sub { position: absolute; left: 0; right: 0; top: calc(486*var(--u)); text-align: center; font-size: calc(22*var(--u)); color: var(--t-secondary); }
+  .i-board { position: absolute; left: calc(16*var(--u)); right: calc(16*var(--u)); top: calc(620*var(--u)); display: grid; gap: calc(10*var(--u)); justify-items: center; }
+  .i-board .l { font-family: var(--mono); font-size: calc(13*var(--u)); letter-spacing: .14em; text-transform: uppercase; color: var(--t-muted); }
+  .i-board .row { display: flex; gap: calc(12*var(--u)); }
+  .i-pour { display: inline-flex; align-items: center; gap: calc(8*var(--u)); height: calc(48*var(--u)); padding: 0 calc(16*var(--u)) 0 calc(10*var(--u)); border-radius: calc(24*var(--u)); background: var(--t-card); border: calc(1*var(--u)) solid var(--t-border); font-size: calc(19*var(--u)); color: var(--t-secondary); }
+  .i-pour svg { width: calc(30*var(--u)); height: calc(30*var(--u)); }
+  .i-pour b { color: var(--t-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .i-version { position: absolute; left: calc(16*var(--u)); bottom: calc(10*var(--u)); font-size: calc(13*var(--u)); color: var(--t-muted); }
+
+  /* Callouts over a screen */
+  .co {
+    position: absolute; width: calc(30*var(--u)); height: calc(30*var(--u)); border-radius: 50%; background: var(--accent); color: #1a1000;
+    font: 700 calc(16*var(--u)) var(--display); display: grid; place-items: center; box-shadow: 0 0 0 calc(3*var(--u)) rgba(10,22,40,.9);
+  }
+  .legend { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 28px; margin-top: 18px; padding: 0; list-style: none; }
+  .legend li { display: flex; gap: 12px; align-items: baseline; font-size: 16.5px; }
+  .legend .n { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #1a1000; font: 700 13px var(--display); display: grid; place-items: center; transform: translateY(3px); }
+
+  .notes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px 36px; margin-top: 36px; }
+  .note { display: grid; gap: 6px; align-content: start; }
+  .note h3 { font-size: 18px; }
+  .note p { font-size: 16.5px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 16.5px; margin-top: 18px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .taps { display: inline-grid; grid-auto-flow: column; gap: 4px; vertical-align: middle; }
+  .taps i { width: 9px; height: 9px; border-radius: 2px; background: var(--muted); opacity: .55; }
+  .taps i.keep { background: var(--accent); opacity: 1; }
+
+  pre { font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; background: var(--code-bg); color: var(--ink); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .proto { display: grid; gap: 18px; margin-top: 28px; }
+  .ext { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 22px 24px; display: grid; gap: 14px; }
+  .ext-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+  .ext-head h3 { font-size: 22px; }
+  .ext-head .verb { font-family: var(--mono); font-size: 13px; letter-spacing: .06em; color: var(--accent-ink); background: var(--accent-soft); padding: 3px 9px; border-radius: 5px; }
+  .ext-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px 26px; align-items: start; }
+  .ext-body p { font-size: 16px; }
+  .ext dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 15.5px; }
+  .ext dt { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+  .ext dd { margin: 0; }
+  @media (max-width: 860px) { .ext-body { grid-template-columns: 1fr; } }
+
+  .not-list { list-style: none; padding: 0; margin: 24px 0 0; display: grid; gap: 14px; }
+  .not-list li { display: grid; grid-template-columns: 26px 1fr; gap: 12px; font-size: 16.5px; max-width: 76ch; }
+  .not-list .x { font-family: var(--display); font-weight: 800; color: var(--accent-ink); }
+
+  .plan { display: grid; gap: 14px; margin-top: 24px; counter-reset: step; }
+  .step { display: grid; grid-template-columns: 56px 1fr auto; gap: 18px; align-items: start; background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 18px 20px; }
+  .step .k { font-family: var(--display); font-size: 30px; font-weight: 800; color: var(--accent-ink); line-height: 1; }
+  .step h3 { font-size: 20px; margin-bottom: 4px; }
+  .step p { font-size: 16px; }
+  .size { font-family: var(--mono); font-size: 12.5px; letter-spacing: .1em; color: var(--muted); border: 1px solid var(--rule); padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+
+  @media (max-width: 860px) {
+    .moves, .legend, .notes { grid-template-columns: 1fr; }
+    .step { grid-template-columns: 44px 1fr; }
+    .step .size { grid-column: 2; justify-self: start; }
+  }
+  @media (max-width: 520px) {
+    body { font-size: 17px; }
+    .lede { font-size: 19px; }
+    .screen { border-radius: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-mug" viewBox="0 0 64 64">
+      <rect x="14" y="20" width="30" height="34" rx="6" fill="#f59e0b"/>
+      <rect x="14" y="20" width="30" height="10" rx="4" fill="#fde68a"/>
+      <ellipse cx="29" cy="19" rx="17" ry="7" fill="#fff"/>
+      <path d="M44 28h6a6 6 0 0 1 6 6v8a6 6 0 0 1-6 6h-6" fill="none" stroke="#f59e0b" stroke-width="5"/>
+      <rect x="20" y="32" width="4" height="16" rx="2" fill="#fbbf24" opacity=".8"/>
+    </symbol>
+    <symbol id="i-pils" viewBox="0 0 64 64">
+      <path d="M20 14h24l-4 40H24z" fill="#f59e0b"/>
+      <path d="M20 14h24l-1 10H21z" fill="#fde68a"/>
+      <ellipse cx="32" cy="13" rx="13" ry="5" fill="#fff"/>
+      <rect x="27" y="26" width="3" height="18" rx="1.5" fill="#fbbf24" opacity=".8"/>
+    </symbol>
+    <symbol id="i-radler" viewBox="0 0 64 64">
+      <rect x="14" y="20" width="30" height="34" rx="6" fill="#fcd34d"/>
+      <ellipse cx="29" cy="19" rx="17" ry="7" fill="#fff"/>
+      <path d="M44 28h6a6 6 0 0 1 6 6v8a6 6 0 0 1-6 6h-6" fill="none" stroke="#fcd34d" stroke-width="5"/>
+      <circle cx="46" cy="18" r="8" fill="#fef08a" stroke="#eab308" stroke-width="2"/>
+      <path d="M46 10v16M38 18h16" stroke="#eab308" stroke-width="1.5"/>
+    </symbol>
+    <symbol id="i-water" viewBox="0 0 64 64">
+      <rect x="27" y="8" width="10" height="8" rx="2" fill="#38bdf8"/>
+      <path d="M24 16h16v6c4 3 6 7 6 12v16a6 6 0 0 1-6 6H24a6 6 0 0 1-6-6V34c0-5 2-9 6-12z" fill="#7dd3fc"/>
+      <rect x="22" y="34" width="20" height="12" rx="2" fill="#0ea5e9" opacity=".6"/>
+    </symbol>
+    <symbol id="i-schorle" viewBox="0 0 64 64">
+      <path d="M18 14h28l-3 38H21z" fill="#bef264"/>
+      <circle cx="28" cy="28" r="2.5" fill="#fff"/><circle cx="36" cy="38" r="2" fill="#fff"/><circle cx="31" cy="44" r="1.8" fill="#fff"/>
+      <circle cx="44" cy="14" r="7" fill="#84cc16"/><path d="M44 8c2-3 5-3 6-2" stroke="#166534" stroke-width="2" fill="none"/>
+    </symbol>
+    <symbol id="i-pretzel" viewBox="0 0 64 64">
+      <path d="M16 48C4 34 20 12 32 30C44 12 60 34 48 48" fill="none" stroke="#c2410c" stroke-width="7" stroke-linecap="round"/>
+      <path d="M14 46q18 14 36 0" fill="none" stroke="#c2410c" stroke-width="7" stroke-linecap="round"/>
+      <path d="M22 32l20 12M42 32l-20 12" fill="none" stroke="#c2410c" stroke-width="7" stroke-linecap="round"/>
+      <circle cx="26" cy="24" r="1.6" fill="#fff"/><circle cx="40" cy="26" r="1.6" fill="#fff"/><circle cx="32" cy="50" r="1.6" fill="#fff"/>
+    </symbol>
+    <symbol id="i-apple" viewBox="0 0 64 64">
+      <path d="M32 20c-4-4-14-4-16 6-2 12 6 26 14 26 2 0 3-1 4-1s2 1 4 1c8 0 16-14 14-26-2-10-12-10-16-6z" fill="#84cc16"/>
+      <path d="M32 20c0-6 3-9 8-10" stroke="#166534" stroke-width="2.5" fill="none"/>
+      <path d="M33 17c-6-2-9 0-10 4 6 1 9-1 10-4z" fill="#22c55e"/>
+    </symbol>
+    <symbol id="i-sauna" viewBox="0 0 64 64">
+      <path d="M20 12c-4 6 4 8 0 14M32 12c-4 6 4 8 0 14M44 12c-4 6 4 8 0 14" stroke="#fb923c" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+      <rect x="10" y="34" width="44" height="8" rx="3" fill="#d6a86b"/>
+      <rect x="14" y="42" width="6" height="12" fill="#b8865b"/><rect x="44" y="42" width="6" height="12" fill="#b8865b"/>
+    </symbol>
+    <symbol id="i-coffee" viewBox="0 0 64 64">
+      <path d="M14 26h32v14a12 12 0 0 1-12 12H26a12 12 0 0 1-12-12z" fill="#fff"/>
+      <path d="M46 30h4a6 6 0 0 1 0 12h-4" fill="none" stroke="#fff" stroke-width="4"/>
+      <path d="M16 30h28v10a10 10 0 0 1-10 10H26a10 10 0 0 1-10-10z" fill="#78350f"/>
+      <path d="M24 10c-3 5 3 6 0 11M32 10c-3 5 3 6 0 11" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    </symbol>
+    <symbol id="i-star" viewBox="0 0 64 64">
+      <path d="M32 6l7.6 16.6L58 24.8l-13.4 12.4L48 55 32 45.6 16 55l3.4-17.8L6 24.8l18.4-2.2z" fill="#fcd34d"/>
+    </symbol>
+    <symbol id="i-card" viewBox="0 0 64 64">
+      <rect x="6" y="16" width="40" height="30" rx="5" fill="none" stroke="#e2e8f0" stroke-width="3"/>
+      <rect x="12" y="24" width="10" height="8" rx="2" fill="#e2e8f0"/>
+      <path d="M48 22a12 12 0 0 1 0 18M53 16a20 20 0 0 1 0 30" fill="none" stroke="#5eead4" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-mat" viewBox="0 0 48 48">
+      <circle cx="24" cy="24" r="23" fill="#e6d7b0"/>
+      <circle cx="24" cy="24" r="19" fill="none" stroke="#c7b48a" stroke-width="1" stroke-dasharray="1.5 2"/>
+      <path d="M13 17v14M18 17v14M23 17v14M28 17v14M10 30l21-12M34 17v14" stroke="#bfae86" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+    </symbol>
+  </defs>
+</svg>
+
+<main>
+  <header class="masthead">
+    <div class="eyebrow">Club Bar · Terminal · UX concept · September 2026</div>
+    <h1>Stammplatz</h1>
+    <div class="rule"></div>
+    <p class="lede">The buying loop is fast, and since last week it moves. The next jump is not more motion. It is <strong>recognition</strong>: a terminal that behaves like the bartender who already knows your order, your Deckel, and the room.</p>
+    <p class="muted">Three moves, one theme. Each ships on its own, none touches the server or the schema, and every one of them respects the rules the terminal already lives by: zero idle frames, nothing personal on a public screen that was not already there, and one owner for the session.</p>
+    <div class="moves">
+      <div class="move">
+        <div class="word">Stammplatz</div>
+        <div class="gloss">your regular spot at the bar</div>
+        <p>A first category that is yours: what you actually buy here, plus last time's round as one tile.</p>
+      </div>
+      <div class="move">
+        <div class="word">Der Deckel</div>
+        <div class="gloss">the tab as a beer mat</div>
+        <p>The receipt says <em>Prost, Jana!</em> and pencils tonight's strokes onto a Bierdeckel, one per item: the round is on the Deckel, in the picture every member already has of it.</p>
+      </div>
+      <div class="move">
+        <div class="word">Das Brett</div>
+        <div class="gloss">the idle screen as the club's board</div>
+        <p>The club's name, the scan invitation, and what the bar poured today. Repainted on events only, never on a clock.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MOVE 1 ================= -->
+  <section id="stammplatz">
+    <div class="sec-head">
+      <div class="eyebrow">Move 1 · after the scan</div>
+      <h2>Stammplatz: the first tap is the drink you came for</h2>
+      <p>When a returning member scans in, the first category chip is theirs. Its tiles are the products this member actually buys at this terminal, ranked by recency-weighted count over the terminal's own booking history, as many as fit one grid page. Ahead of them sits one tile that is not a product: <strong>Nochmal die Runde</strong>, last visit's cart in one tap.</p>
+    </div>
+
+    <div class="screen" role="img" aria-label="Product screen mockup with a Stammplatz category selected: a round tile followed by the member's usual products">
+      <div class="t-header"><span class="t-club">FRGS Ruderbar</span><span class="t-online">Online</span><span class="t-clock">20:41</span></div>
+      <div class="t-memberbar">
+        <div class="t-avatar">JB</div>
+        <div class="t-who"><div class="t-name">Jana Berger</div><div class="t-deckel"><svg class="mat-glyph"><use href="#i-mat"/></svg>Offener Betrag: 16,30 €</div></div>
+        <span class="t-btn primary">Buchungen</span><span class="t-btn">Abmelden</span>
+      </div>
+      <div class="t-chips">
+        <div class="t-chip sel"><svg><use href="#i-star"/></svg>Stammplatz</div>
+        <div class="t-chip"><svg><use href="#i-mug"/></svg>Getränke</div>
+        <div class="t-chip"><svg><use href="#i-pretzel"/></svg>Essen</div>
+        <div class="t-chip"><svg><use href="#i-sauna"/></svg>Sauna</div>
+      </div>
+      <div class="t-grid">
+        <div class="t-tile round">
+          <div class="stack"><svg><use href="#i-mug"/></svg><svg><use href="#i-mug"/></svg><svg><use href="#i-water"/></svg></div>
+          <div class="name">Nochmal die Runde</div>
+          <div class="lines">2 × Helles · 1 × Wasser</div>
+          <div class="pill"><span class="price">6,50 €</span></div>
+        </div>
+        <div class="t-tile incart"><span class="minus"></span><span class="badge">2x</span><svg class="icon"><use href="#i-mug"/></svg><div class="name">Helles</div><div class="pill"><span class="vol">0,5 l</span><span class="price">2,50 €</span></div></div>
+        <div class="t-tile incart"><span class="minus"></span><span class="badge">1x</span><svg class="icon"><use href="#i-water"/></svg><div class="name">Wasser</div><div class="pill"><span class="vol">0,5 l</span><span class="price">1,50 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-pretzel"/></svg><div class="name">Brezel</div><div class="pill"><span class="price">2,50 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-apple"/></svg><div class="name">Äppler</div><div class="pill"><span class="vol">0,3 l</span><span class="price">3,20 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-radler"/></svg><div class="name">Radler</div><div class="pill"><span class="vol">0,5 l</span><span class="price">2,50 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-schorle"/></svg><div class="name">Apfelschorle</div><div class="pill"><span class="vol">0,5 l</span><span class="price">2,00 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-sauna"/></svg><div class="name">Sauna-Session</div><div class="pill"><span class="price">5,00 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-coffee"/></svg><div class="name">Kaffee</div><div class="pill"><span class="price">1,50 €</span></div></div>
+        <div class="t-tile"><svg class="icon"><use href="#i-pils"/></svg><div class="name">Pils</div><div class="pill"><span class="vol">0,5 l</span><span class="price">3,50 €</span></div></div>
+      </div>
+      <div class="t-summary"><span class="label">Gesamt</span><span class="total">6,50 €</span><span class="t-btn">Warenkorb</span><span class="t-btn primary">Bezahlen</span></div>
+
+      <span class="co" style="left:calc(148*var(--u));top:calc(132*var(--u))">1</span>
+      <span class="co" style="left:calc(232*var(--u));top:calc(196*var(--u))">2</span>
+      <span class="co" style="left:calc(720*var(--u));top:calc(196*var(--u))">3</span>
+      <span class="co" style="left:calc(150*var(--u));top:calc(110*var(--u));display:none"></span>
+    </div>
+    <ul class="legend">
+      <li><span class="n">1</span><span><strong>The chip, not a row.</strong> It costs the grid no vertical pixel; #369 fought for a whole second row of tiles and this keeps it. Selected on login whenever the member has history here.</span></li>
+      <li><span class="n">2</span><span><strong>Nochmal die Runde.</strong> Last session's lines, one tap. The fly-to-cart fires once per line, so three sprites fan out into the total. Shown only when that round was more than a single item, otherwise the product tile already is the round.</span></li>
+      <li><span class="n">3</span><span><strong>Ordinary tiles.</strong> The usuals are the same <code>ProductCard</code> as everywhere else, so the size solver, the count badge, the minus button, the session freeze, the credit limit and the age refusal all apply unchanged.</span></li>
+    </ul>
+
+    <table>
+      <thead><tr><th>What Jana does</th><th>Today</th><th>With Stammplatz</th></tr></thead>
+      <tbody>
+        <tr><td>One Helles</td><td class="num"><span class="taps"><i class="keep"></i><i class="keep"></i></span> 2 taps</td><td class="num"><span class="taps"><i class="keep"></i><i class="keep"></i></span> 2 taps, no searching</td></tr>
+        <tr><td>A Brezel from the Essen category</td><td class="num"><span class="taps"><i></i><i class="keep"></i><i class="keep"></i></span> 3 taps</td><td class="num"><span class="taps"><i class="keep"></i><i class="keep"></i></span> 2 taps</td></tr>
+        <tr><td>The round she buys most weeks: 2 Helles, 2 Wasser, 1 Brezel</td><td class="num"><span class="taps"><i></i><i></i><i></i><i></i><i></i><i class="keep"></i><i class="keep"></i></span> 7 taps</td><td class="num"><span class="taps"><i class="keep"></i><i class="keep"></i><i class="keep"></i></span> 3 taps</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:15px;margin-top:10px">Taps after the scan, ending on Bezahlen. The single beer does not get faster; it gets found. The round is where the time goes today, and where it comes back.</p>
+
+    <div class="notes">
+      <div class="note"><h3>The data is already on the device</h3><p><code>transactions_local</code> keeps every synced booking with its product, member and session id, and nothing purges it. Ranking is one query. Nothing new syncs, nothing leaves the terminal, no migration, no server work.</p></div>
+      <div class="note"><h3>First visit</h3><p>No history means no Stammplatz. The chip reads <em>Beliebt</em> and holds the terminal's house favourites across everyone, with one line under the member bar: <em>Tippe ein Getränk, dann Bezahlen.</em> The second visit is personal.</p></div>
+      <div class="note"><h3>Frozen catalogue, respected</h3><p>The usuals are resolved against the session snapshot (ADR-0027 rule 11). A product deactivated since last visit is simply not there; a price change shows the new price, because the tile is the tile.</p></div>
+      <div class="note"><h3>Erased members never rank</h3><p>An anonymised member's row is tombstoned, so their card scans as unknown and their history is never read. The house favourites count bookings, not people, and a tombstoned member's rows are excluded from those too.</p></div>
+      <div class="note"><h3>Two terminals, two memories</h3><p>History is this terminal's. The Küche terminal learns your food, the Ruderbar your beer. That is right, not a gap, and the section on data locality below says what a second terminal, a wiped one, and an offline one each see.</p></div>
+      <div class="note"><h3>Who can see it</h3><p>The screen is read by whoever stands at the bar. A row of your usuals says less than the Deckel and the Buchungen button already on the same screen, and it names no number, no date, no age.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= MOVE 2 ================= -->
+  <section id="deckel">
+    <div class="sec-head">
+      <div class="eyebrow">Move 2 · after the purchase</div>
+      <h2>Der Deckel: the receipt is a beer mat, and it says your name</h2>
+      <p>The app already calls the tab a Deckel, and German has the idiom ready: <em>das kommt auf den Deckel</em>, <em>einen Strich machen</em>. So the receipt is a beer mat: a coaster in the club's colours with a printed tally motif, and the moment the booking lands a pencil draws <strong>one stroke per item in tonight's Warenkorb</strong> onto it, one after another. Most members buy one thing after training, so most nights that is one stroke; a round for the table is a gate of five, closed with the diagonal. It reflects only tonight, which the receipt already knows, and claims nothing about the month. The receipt says <strong>Prost, Jana!</strong> instead of <em>Buchung erfolgreich!</em>, then the lines, the total, and the tab as it now stands, exactly as today.</p>
+    </div>
+
+    <div class="screen" id="receipt" data-round="one" role="img" aria-label="Receipt screen mockup: the headline Prost, Jana!, a beer mat with a printed tally motif and tonight's freshly pencilled strokes, one per item, the booked lines and the new tab balance">
+      <div class="t-header"><span class="t-club">FRGS Ruderbar</span><span class="t-online">Online</span><span class="t-clock">20:42</span></div>
+      <div class="r-headline">Prost, Jana!</div>
+      <div class="r-mat" id="mat">
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          <defs><path id="rim" d="M120,120 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
+          <circle cx="120" cy="120" r="118" fill="#e6d7b0"/>
+          <circle cx="120" cy="120" r="118" fill="none" stroke="#c7b48a" stroke-width="2"/>
+          <circle cx="120" cy="120" r="108" fill="none" stroke="#c7b48a" stroke-width="1.5" stroke-dasharray="2 3"/>
+          <circle cx="120" cy="120" r="84" fill="none" stroke="#cdbd96" stroke-width="1"/>
+          <circle cx="146" cy="104" r="52" fill="none" stroke="rgba(120,80,20,.16)" stroke-width="7"/>
+          <text font-family="Roboto, sans-serif" font-size="10.5" font-weight="700" letter-spacing="3.2" fill="#8a7448">
+            <textPath href="#rim" startOffset="50%" text-anchor="middle">FRGS RUDERBAR · DEIN DECKEL · FRGS RUDERBAR · DEIN DECKEL ·</textPath>
+          </text>
+          <g class="tally print">
+            <path d="M74 66 L 74 104"/>
+            <path d="M88 66 L 88 104"/>
+            <path d="M102 66 L 102 104"/>
+            <path d="M116 66 L 116 104"/>
+            <path d="M66 100 L 124 70"/>
+            <path d="M140 66 L 140 104"/>
+            <path d="M154 66 L 154 104"/>
+            <path d="M168 66 L 168 104"/>
+          </g>
+          <g class="tally new only-one">
+            <path d="M119 126 L 121 178"/>
+          </g>
+          <g class="tally new only-round">
+            <path d="M80 126 L 81 178"/>
+            <path d="M100 124 L 100 177"/>
+            <path d="M120 126 L 119 178"/>
+            <path d="M140 125 L 141 177"/>
+            <path d="M68 172 L 152 134"/>
+          </g>
+        </svg>
+      </div>
+      <div class="r-lines only-one">
+        <div class="r-line"><svg><use href="#i-mug"/></svg><span class="qty">1 ×</span><span class="what">Helles 0,5 l</span><span class="amt">2,50 €</span></div>
+        <div class="r-total"><span class="l">Gesamt</span><span class="v">2,50 €</span></div>
+      </div>
+      <div class="r-lines only-round">
+        <div class="r-line"><svg><use href="#i-mug"/></svg><span class="qty">2 ×</span><span class="what">Helles 0,5 l</span><span class="amt">5,00 €</span></div>
+        <div class="r-line"><svg><use href="#i-water"/></svg><span class="qty">2 ×</span><span class="what">Wasser 0,5 l</span><span class="amt">3,00 €</span></div>
+        <div class="r-line"><svg><use href="#i-pretzel"/></svg><span class="qty">1 ×</span><span class="what">Brezel</span><span class="amt">2,50 €</span></div>
+        <div class="r-total"><span class="l">Gesamt</span><span class="v">10,50 €</span></div>
+      </div>
+      <div class="r-tab only-one"><span class="l">Dein Deckel jetzt</span><span class="v">Offener Betrag: 18,80 €</span></div>
+      <div class="r-tab only-round"><span class="l">Dein Deckel jetzt</span><span class="v">Offener Betrag: 26,80 €</span></div>
+      <div class="r-drain"></div>
+
+      <span class="co" style="left:calc(430*var(--u));top:calc(96*var(--u))">1</span>
+      <span class="co" style="left:calc(470*var(--u));top:calc(440*var(--u))">2</span>
+      <span class="co" style="left:calc(1098*var(--u));top:calc(196*var(--u))">3</span>
+    </div>
+    <div class="replay-row">
+      <button class="replay" type="button" id="draw-one">Ein Helles</button>
+      <button class="replay" type="button" id="draw-round">Eine Runde</button>
+      <span class="hint">Switch the receipt and watch the pencil.</span>
+    </div>
+    <ul class="legend">
+      <li><span class="n">1</span><span><strong>The send-off follows what was bought.</strong> Beer, wine or cider on the receipt: <em>Prost, Jana!</em> Only food: <em>Guten Appetit, Jana!</em> Only sauna: <em>Gute Erholung, Jana!</em> Anything else: <em>Bis bald, Jana!</em> Derived from the icon family the Getränkewart already picked for the product, so it needs no new field, and a wrong guess costs nothing.</span></li>
+      <li><span class="n">2</span><span><strong>Tonight's strokes, one per item.</strong> The gates above them are print: part of the coaster's artwork, in the cardboard's own ink, exact and faded like a logo. Below, the pencil draws the Warenkorb: one Helles is one stroke; two Helles, two Wasser and a Brezel are a gate of five, the diagonal last. Darker, slightly crooked, staggered about 120 ms apart, and the only thing on the screen that moves. The rim carries the club's name from <code>instance_name</code>.</span></li>
+      <li><span class="n">3</span><span><strong>Nothing else moves.</strong> The lines, the total, the balance caption and the draining bar are the receipt of #862, unchanged. Eight seconds, a tap dismisses, a card starts the next round.</span></li>
+    </ul>
+    <div class="notes">
+      <div class="note"><h3>Tonight only, and that is the point</h3><p>The strokes are the items on this receipt, summed over quantities, which the receipt already holds. They say nothing about the month: the printed gates are obviously print, and the euro figure beside them is the only figure for the tab. So the mat is true about the one thing it draws and silent about everything else, and needs no data the terminal does not have.</p></div>
+      <div class="note"><h3>Gates of five</h3><p>Four uprights and a diagonal, the way a Deckel is kept. A second gate starts beside the first. The pencil stops at fifteen strokes, three gates, which covers any round a person carries from a bar; a cart of thirty sauna tokens is a dispenser sale, not an evening, and three closed gates say "a lot" well enough.</p></div>
+      <div class="note"><h3>Cheap, and bounded</h3><p>Stroke-offset animations on a handful of paths, paths and transforms only, staggered so five strokes finish inside 1.2 s, skipped under reduced motion. The same rules #921 set for the buying loop. Pure Flutter, no data, no sync.</p></div>
+      <div class="note"><h3>The member bar, a little</h3><p>The same coaster, small, beside the balance, with its printed motif and no pencil. It ties the word on the bar to the object on the receipt, so <em>Dein Deckel jetzt</em> reads as a thing the member has, not a caption.</p></div>
+      <div class="note"><h3>If the mat should ever show the month</h3><p>The count of drinks on the open tab is one map away: the server could return it beside <code>member_balances</code> in the same response, cached with the balance, exact and offline-safe. Not proposed, because tonight's strokes need nothing. Noted so the door is known to be there.</p></div>
+      <div class="note"><h3>The greeting, too</h3><p>The login burst says <em>Hi Jana!</em> at nine in the morning and at eleven at night. It should say <em>Guten Morgen, Jana</em>, <em>Hallo, Jana</em>, <em>Guten Abend, Jana</em>. Three strings per language and the terminal's own clock.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= MOVE 3 ================= -->
+  <section id="brett">
+    <div class="sec-head">
+      <div class="eyebrow">Move 3 · between members</div>
+      <h2>Das Brett: the idle screen is the club's board</h2>
+      <p>The idle screen is what the terminal shows almost all the time, and today it is a login prompt with a version number. It should be the club's: the club's name where a wordmark goes, the scan invitation as it is, and one quiet line about the evening. What the bar poured today, across everyone, with no names on it.</p>
+    </div>
+
+    <div class="screen" role="img" aria-label="Idle screen mockup: the club's name, the scan disc, the Durstig? invitation and a row of today's pours">
+      <div class="t-header"><span class="t-club">FRGS Ruderbar</span><span class="t-online">Online</span><span class="t-clock">20:43</span></div>
+      <div class="i-club">FRGS Ruderbar</div>
+      <div class="i-disc"><svg><use href="#i-card"/></svg></div>
+      <div class="i-title">Durstig?</div>
+      <div class="i-sub">Halte deinen Chip an den Scanner</div>
+      <div class="i-board">
+        <div class="l">Heute an dieser Theke</div>
+        <div class="row">
+          <span class="i-pour"><svg><use href="#i-mug"/></svg><b>23</b> Helles</span>
+          <span class="i-pour"><svg><use href="#i-water"/></svg><b>11</b> Wasser</span>
+          <span class="i-pour"><svg><use href="#i-apple"/></svg><b>6</b> Äppler</span>
+          <span class="i-pour"><svg><use href="#i-sauna"/></svg><b>4</b> Sauna</span>
+        </div>
+      </div>
+      <div class="i-version">v1.0.9</div>
+
+      <span class="co" style="left:calc(860*var(--u));top:calc(100*var(--u))">1</span>
+      <span class="co" style="left:calc(966*var(--u));top:calc(650*var(--u))">2</span>
+    </div>
+    <ul class="legend">
+      <li><span class="n">1</span><span><strong>The club, not the product.</strong> <code>instance_name</code> already syncs (ADR-0034); the header shows it small. On the screen that faces the room all evening, it should be the largest thing after the invitation, with the logo's emerald-to-cyan band under it.</span></li>
+      <li><span class="n">2</span><span><strong>Today's pours, nobody's, and this bar's.</strong> Counts per product for the calendar day, across all members, top four, from what <em>this</em> terminal booked. The label says so: <em>an dieser Theke</em>, not <em>im Verein</em>, because the Küche terminal has its own evening. Repainted only when a checkout lands or a sync arrives, never on a timer, so the idle screen still renders zero frames (#760). Below a floor of a handful of bookings it shows nothing: a line with one item on it tells the room who just bought.</span></li>
+    </ul>
+    <div class="notes">
+      <div class="note"><h3>Why it is professional</h3><p>A member walking up sees a bar with an evening in it and their club's name on it, instead of a spinner-shaped disc and a build string. The disc and <em>Durstig?</em> stay exactly where they are; they are the job.</p></div>
+      <div class="note"><h3>Why it is cheap</h3><p>One aggregate query over <code>transactions_local</code> for today, a rebuild on two existing events, a floor. The version string moves to the corner; the status modal already reports it.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= LOCALITY ================= -->
+  <section id="locality">
+    <div class="sec-head">
+      <div class="eyebrow">Data locality · offline · several terminals</div>
+      <h2>What each terminal knows, and what it may pretend to</h2>
+      <p>The terminal is offline-first (ADR-0033) and there are two of them in service, in different rooms. Every screen here renders from the local cache alone, and a card scan never waits on the network. The rule for what to derive where is the one ADR-0042 and ADR-0047 already apply: <strong>derive on the device what must be right offline</strong> (the tab, the limit, the age), and let the server supply, cached, only what goes stale <em>harmlessly</em>. A suggestion is harmless when stale. A balance is not.</p>
+    </div>
+    <table>
+      <thead><tr><th>Move</th><th>Reads</th><th>Offline</th><th>On a second terminal</th><th>On a wiped or new terminal</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Stammplatz</strong> usuals</td><td>This terminal's own bookings for the member, <code>transactions_local</code>, synced and unsynced alike</td><td>Yes. One <code>GROUP BY</code> at session start, sub-millisecond at club scale</td><td>Its own list. Ruderbar knows your beer, Küche your food</td><td>Blank until it has seen you; <em>Beliebt</em> until then, and <em>Beliebt</em> itself is empty on the first evening</td></tr>
+        <tr><td><strong>Stammplatz</strong> last round</td><td>The newest <code>session_id</code> of the member on this terminal</td><td>Yes</td><td>Not known. The session id never leaves the terminal: <code>/sync/transactions</code> does not carry it, so the server cannot see rounds at all</td><td>Not known</td></tr>
+        <tr><td><strong>Der Deckel</strong></td><td>Tonight's cart, the member's name, the clock, the icon family. The strokes are the cart's items and nothing older. The balance is what it is today: server figure plus local unsynced</td><td>Yes, entirely</td><td>Identical. Nothing here is per terminal</td><td>Identical</td></tr>
+        <tr><td><strong>Das Brett</strong></td><td>This terminal's bookings for the calendar day, all members, tombstoned members excluded</td><td>Yes</td><td>Its own evening, and the label says <em>an dieser Theke</em> so it never claims the club's</td><td>Empty, honestly</td></tr>
+      </tbody>
+    </table>
+    <div class="notes">
+      <div class="note"><h3>Level 0 ships first, and it is complete</h3><p>Everything above needs no server, no schema change and no new sync step. The two terminals disagree about a member's usuals only in the way two bartenders in two rooms do, and the tab, which is the thing that must agree, already does: the balance comes from the server on every members delta and the local outbox is added on top (UC-T14).</p></div>
+      <div class="note"><h3>Level 1, if the club wants one memory</h3><p>The server already holds every booking from every terminal, so it can compute what no single terminal can: a member's usuals across rooms, their last round wherever it was bought, and the club's evening. Three protocol extensions in the next section carry that to the terminals, cached, on the same cursor pattern the contract already uses. Offline, a terminal shows the last answer it got, which is exactly as good as a suggestion needs to be.</p></div>
+      <div class="note"><h3>Merging the two</h3><p>With Level 1 the terminal takes the server's list and layers its own rows that are newer than the list's <code>computed_at</code> on top, so the beer bought thirty seconds ago counts before the next sync, and counts offline. The last round is the server's when it is newer, the terminal's otherwise.</p></div>
+      <div class="note"><h3>The board, club-wide</h3><p>Same shape: the server's day, with this terminal's unsynced rows added, and the label switches from <em>an dieser Theke</em> to <em>im Verein</em> only when a server board is present and dated today. Worth having when the terminals share a room; harmless when they do not.</p></div>
+      <div class="note"><h3>What locality does not change</h3><p>Erasure still rides the ordinary delta: a tombstoned member's rows are excluded from every query here, on every terminal, within one sync interval. No terminal gains any member data it does not hold today. Level 1 would add a list of product ids per member, nothing more.</p></div>
+      <div class="note"><h3>Timing at the scan</h3><p>The scan-to-grid budget is 500 ms and the products screen must not wait for a ranking. The query runs off the session start and the chip appears when it returns, which at this scale is the same frame. It is never fetched.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= PROTOCOL ================= -->
+  <section id="protocol">
+    <div class="sec-head">
+      <div class="eyebrow">Protocol extensions · Level 1 · ADR-0033 amendment</div>
+      <h2>Three additions to the terminal API, shaped like the contract already is</h2>
+      <p>The sync contract has two shapes: a <strong>delta stream</strong> with a cursor (<code>/sync/members</code>, <code>/sync/products</code>) and a <strong>whole document</strong> re-read each cycle (<code>/sync/config</code>). The additions use the same two, and the same rule for choosing between them. One field joins the upload. Nothing is fetched at scan time; everything lands in the cache on the ordinary 60-second cycle and is read from there.</p>
+    </div>
+
+    <div class="proto">
+      <div class="ext">
+        <div class="ext-head"><span class="verb">POST /sync/transactions</span><h3>A. <code>session_id</code> on the uploaded transaction</h3></div>
+        <div class="ext-body">
+          <div>
+            <p>One optional field on <code>Transaction</code>, owned by the terminal like <code>id</code> is. It says "these rows were one order at the bar", which the terminal has known all along (<code>transactions_local.session_id</code>) and never told anyone. The server stores it as sent and never interprets it beyond grouping. The allowlist admits it; <code>additionalProperties: false</code> lists it; the migration adds one nullable column, and the master ERM says why.</p>
+            <p>This is what lets the server know a <em>round</em> at all. Without it, extension B can rank usuals but cannot say what last time's order was, and staff reading the ledger cannot see that five lines were one purchase.</p>
+            <dl>
+              <dt>authority</dt><dd>terminal, stored as sent, nullable</dd>
+              <dt>compat</dt><dd>optional, so a terminal that predates it still validates. ADR-0054 rolls terminals after the backend anyway</dd>
+              <dt>cost</dt><dd>one column, one field, one allowlist entry, one ERM paragraph</dd>
+            </dl>
+          </div>
+<pre><code>{
+  "transactions": [
+    { "id": "550e8400-…-446655440001",
+      "member_id": "123e4567-…-426614174000",
+      "product_id": "987f6543-…-426614174999",
+      "amount_cents": 250,
+      "created_at": "2026-09-13T18:41:07Z",
+      "session_id": "7b2f1c0e-…-9d3a4e5f6a70" },
+    { "id": "550e8400-…-446655440002",
+      "member_id": "123e4567-…-426614174000",
+      "product_id": "0c1d2e3f-…-1a2b3c4d5e6f",
+      "amount_cents": 150,
+      "created_at": "2026-09-13T18:41:07Z",
+      "session_id": "7b2f1c0e-…-9d3a4e5f6a70" }
+  ]
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="ext">
+        <div class="ext-head"><span class="verb">GET /sync/usuals?since=</span><h3>B. A delta stream of each member's usuals</h3></div>
+        <div class="ext-body">
+          <div>
+            <p><strong>Why not on the member row.</strong> The contract already argues this twice, for the ceiling and for the band: <code>/sync/members</code> is a delta on <code>updated_at</code>, and a purchase touches no member row. Usuals change on purchase. Riding the member delta would mean bumping <code>updated_at</code> on every beer, which re-sends the whole member row, birth date included, for a change to a suggestion. So usuals get their own stream with their own key, exactly as categories and products do.</p>
+            <p><strong>What one entry says.</strong> Up to ten product ids with a weight, and the last round as product and quantity pairs. No amounts, no timestamps beyond the round's, no names. The weight is a recency-weighted count with a 30-day half-life over the last 90 days, written down once in the ADR so the on-device Level 0 ranking and the server's agree; the server additionally leaves out purchases that were stornoed, which the terminal cannot know.</p>
+            <p><strong>Erasure rides the same cursor.</strong> An anonymised member is emitted once more with empty <code>products</code>, a null <code>last_round</code> and a fresh <code>computed_at</code>, the way the birth date arrives nulled. The terminal's cache forgets them within one sync interval, on every terminal.</p>
+            <dl>
+              <dt>delta key</dt><dd><code>computed_at</code>, ms since epoch, returned as <code>cursor</code>; recomputed for a member when a purchase of theirs is accepted</dd>
+              <dt>first sync</dt><dd>every member with history in the window; a club of two hundred is a few kilobytes</dd>
+              <dt>terminal</dt><dd>a small <code>usuals_cache</code> table and one more cursor in <code>sync_state</code>; local rows newer than <code>computed_at</code> are layered on top</dd>
+              <dt>cost</dt><dd>one backend query, one endpoint, one terminal table. The data-model change that needs a yes</dd>
+            </dl>
+          </div>
+<pre><code>{
+  "usuals": [
+    { "member_id": "123e4567-…-426614174000",
+      "products": [
+        { "product_id": "987f6543-…-426614174999", "weight": 7.4 },
+        { "product_id": "0c1d2e3f-…-1a2b3c4d5e6f", "weight": 3.1 },
+        { "product_id": "5a6b7c8d-…-2f3e4d5c6b7a", "weight": 1.2 }
+      ],
+      "last_round": {
+        "session_id": "7b2f1c0e-…-9d3a4e5f6a70",
+        "occurred_at": "2026-09-06T19:12:40Z",
+        "lines": [
+          { "product_id": "987f6543-…-426614174999", "quantity": 2 },
+          { "product_id": "0c1d2e3f-…-1a2b3c4d5e6f", "quantity": 1 }
+        ]
+      },
+      "computed_at": 1789412467000 },
+    { "member_id": "aa11bb22-…-erased",
+      "products": [],
+      "last_round": null,
+      "computed_at": 1789412470000 }
+  ],
+  "cursor": 1789412470000
+}</code></pre>
+        </div>
+      </div>
+
+      <div class="ext">
+        <div class="ext-head"><span class="verb">GET /sync/board</span><h3>C. The club's day, as one whole document</h3></div>
+        <div class="ext-body">
+          <div>
+            <p>No cursor: the day's counts per product across every terminal, top four, re-read whole each cycle like <code>/sync/config</code>. It is not folded into <code>/sync/config</code>, although that document invites the next club <em>setting</em> to join it, because a board is not a setting: it changes every minute and its cache lifetime is a day, not "until the treasurer edits it". Two documents with two lifetimes stay two endpoints.</p>
+            <p><strong>The floor lives on the server</strong>, so every terminal keeps the same silence: below a handful of bookings <code>pours</code> is empty and the terminals show nothing. <strong>The day is the club's calendar day</strong> (pattern 020), and a terminal discards a cached board whose <code>day</code> is not its own today, so a Monday morning never opens with Saturday's evening on it. The terminal adds its unsynced rows on top, which is what keeps an offline terminal counting.</p>
+            <dl>
+              <dt>authority</dt><dd>server; aggregate only, never per member, tombstoned members excluded at the source</dd>
+              <dt>cache</dt><dd>one row in <code>sync_state</code>, replaced whole; stale by definition after midnight</dd>
+              <dt>cost</dt><dd>one grouped query over today, one endpoint, no schema change beyond the cache row</dd>
+            </dl>
+          </div>
+<pre><code>{
+  "day": "2026-09-13",
+  "pours": [
+    { "product_id": "987f6543-…-426614174999", "count": 23 },
+    { "product_id": "0c1d2e3f-…-1a2b3c4d5e6f", "count": 11 },
+    { "product_id": "5a6b7c8d-…-2f3e4d5c6b7a", "count": 6 },
+    { "product_id": "9e8d7c6b-…-5a4b3c2d1e0f", "count": 4 }
+  ],
+  "total": 51,
+  "floor": 5,
+  "computed_at": 1789412470000
+}</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><h3>Considered and not taken</h3><p>Returning usuals inside <code>TransactionBatchResponse</code> next to <code>member_balances</code>: tempting, since the terminal already names members there, but it only ever covers members this terminal has seen, which is precisely the case Level 1 exists to fix. The delta stream covers a member before their first scan on a new terminal. A count of drinks on the open tab in that same response would make the mat's strokes real; it is not proposed, because the mat is decoration by decision.</p></div>
+      <div class="note"><h3>Enforcement, as the contract has it</h3><p>Both new response schemas and the widened <code>Transaction</code> carry <code>additionalProperties: false</code>; the OAS enforces in CI and the server allowlist guards production (ADR-0033 §8). API tests: the cursor semantics of B, the erased-member entry, the ten-id cap, a stornoed purchase not counting; the floor and the midnight boundary of C in the club's timezone; A round-tripping to the ledger.</p></div>
+      <div class="note"><h3>What the terminals gain in data</h3><p>Per member, a list of product ids and one round. That is the whole widening, and it is data the terminal that booked it already holds. It is still habit data, so it gets the same treatment the birth date got: named in the ERM, erased through the ordinary delta, never rendered beyond the tiles themselves.</p></div>
+      <div class="note"><h3>Rollout</h3><p>Backend first, terminals follow by OTA (ADR-0054). A terminal that does not yet call B or C is simply on Level 0; a terminal that sends A to a backend that ignores it loses nothing. There is no flag day.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= NOT ================= -->
+  <section id="not">
+    <div class="sec-head">
+      <div class="eyebrow">Deliberately not</div>
+      <h2>Personal touches that would be the wrong kind</h2>
+      <p>Each of these came up while sketching, and each one runs into a rule the project already wrote down for a reason.</p>
+    </div>
+    <ul class="not-list">
+      <li><span class="x">×</span><span><strong>No birthday greeting.</strong> ADR-0045 rule 6 says the terminal never states a member's birth date, and <em>Alles Gute zum Geburtstag</em> states it to the whole room.</span></li>
+      <li><span class="x">×</span><span><strong>No streaks, badges or "your hundredth Helles".</strong> That is gamifying alcohol at a club whose membership includes people under 18, and whose terminal enforces Jugendschutz. Recognition, yes; reward, no.</span></li>
+      <li><span class="x">×</span><span><strong>No second card to split a round.</strong> ADR-0027 rule 3: a foreign card during an active session is rejected, and the reasons it gives still hold.</span></li>
+      <li><span class="x">×</span><span><strong>No ambient motion on the idle screen.</strong> #760 measured what a breathing disc costs a Pi. The board is still, and changes only when the bar does.</span></li>
+      <li><span class="x">×</span><span><strong>No server work in the first cut.</strong> Everything here is on-device and per terminal. Cross-terminal usuals are Level 1 above, a real later feature and a small one, once the on-device version has shown the shape is right.</span></li>
+      <li><span class="x">×</span><span><strong>No mat that pretends to know the month.</strong> The pencil draws tonight's items and nothing else; the gates above are print, and the tab is the euro figure. A stroke count the receipt cannot vouch for would be read as a billing error at a bar.</span></li>
+      <li><span class="x">×</span><span><strong>No network at scan time, ever.</strong> Nothing in these three moves fetches. A terminal that has been offline for a week shows the same Stammplatz, the same Deckel and the same board it would show online, from the same rows.</span></li>
+    </ul>
+  </section>
+
+  <!-- ================= PLAN ================= -->
+  <section id="plan">
+    <div class="sec-head">
+      <div class="eyebrow">Order of work</div>
+      <h2>Three pull requests, biggest win first</h2>
+      <p>Each is its own use-case amendment and its own PR, verifiable on its own. Stammplatz wants a short ADR: a category the terminal infers from history is a new kind of thing on the grid, and the rules for it should be written down before the second terminal disagrees with the first.</p>
+    </div>
+    <div class="plan">
+      <div class="step">
+        <div class="k">1</div>
+        <div>
+          <h3>Stammplatz</h3>
+          <p>A ranking query on <code>transactions_local</code>; a virtual category in <code>ProductsProvider</code> resolved against the session snapshot; the round tile and a cart add-many that fires one flight per line; the <em>Beliebt</em> fallback and the first-visit hint; strings. Tests: ranking unit tests with tombstones and quarantined rows; a widget test that the chip is selected on login for a member with history and absent for one without; the round tile's lines land in the cart.</p>
+        </div>
+        <span class="size">M · pure Flutter</span>
+      </div>
+      <div class="step">
+        <div class="k">2</div>
+        <div>
+          <h3>Der Deckel</h3>
+          <p>The send-off derived from icon families; the coaster painter with its printed motif and one staggered stroke per cart item, gates of five, capped at fifteen, with the reduced-motion skip; the time-of-day greeting; the small coaster on the member bar. Tests: send-off derivation per family and for mixed receipts; goldens of the coaster at 1, 5 and 15 strokes; quantities summed, not lines counted; the animation skipped under reduced motion; the greeting at three hours of the day.</p>
+        </div>
+        <span class="size">S · pure Flutter</span>
+      </div>
+      <div class="step">
+        <div class="k">3</div>
+        <div>
+          <h3>Das Brett</h3>
+          <p>Today's aggregate query with its floor; a rebuild on checkout completion and on sync, and nowhere else; the club name and its band; the version to the corner. Tests: the floor; the query ignores tombstoned members; no ticker exists, asserted the way #760's regression test does.</p>
+        </div>
+        <span class="size">S · pure Flutter</span>
+      </div>
+      <div class="step">
+        <div class="k">4</div>
+        <div>
+          <h3>Level 1, only if wanted</h3>
+          <p>The three protocol extensions above, in the order A, B, C: the field first, because B is only half useful without it. Needs your yes on the data model and an ADR-0033 amendment. Everything before it stands on its own without this.</p>
+        </div>
+        <span class="size">M · backend + terminal</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  (function () {
+    var mat = document.getElementById('mat');
+    var screen = document.getElementById('receipt');
+    var one = document.getElementById('draw-one');
+    var round = document.getElementById('draw-round');
+    if (!mat || !screen || !one || !round) return;
+    function draw(which) {
+      screen.setAttribute('data-round', which);
+      mat.classList.remove('draw');
+      void mat.offsetWidth;
+      mat.classList.add('draw');
+    }
+    one.addEventListener('click', function () { draw('one'); });
+    round.addEventListener('click', function () { draw('five'); });
+  })();
+</script>
+
+</body>
+</html>
