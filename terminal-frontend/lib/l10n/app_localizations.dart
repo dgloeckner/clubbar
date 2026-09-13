@@ -110,17 +110,35 @@ abstract class AppLocalizations {
   /// **'Halte deinen Chip an den Scanner'**
   String get idleSubtitle;
 
-  /// Greeting shown by the login success animation right after a card scan
+  /// Greeting shown by the login success animation right after a card scan. The greeting itself comes from the terminal's own clock (#929)
   ///
   /// In de, this message translates to:
-  /// **'Hi {firstName}!'**
-  String loginWelcome(String firstName);
+  /// **'{greeting}, {firstName}!'**
+  String loginWelcome(String greeting, String firstName);
 
   /// Login success greeting for a member record without a first name
   ///
   /// In de, this message translates to:
-  /// **'Hi!'**
-  String get loginWelcomeNoName;
+  /// **'{greeting}!'**
+  String loginWelcomeNoName(String greeting);
+
+  /// Time-of-day greeting, from the terminal's own clock: early morning until late morning
+  ///
+  /// In de, this message translates to:
+  /// **'Guten Morgen'**
+  String get greetingMorning;
+
+  /// Time-of-day greeting, from the terminal's own clock: late morning until evening
+  ///
+  /// In de, this message translates to:
+  /// **'Hallo'**
+  String get greetingDay;
+
+  /// Time-of-day greeting, from the terminal's own clock: evening and night
+  ///
+  /// In de, this message translates to:
+  /// **'Guten Abend'**
+  String get greetingEvening;
 
   /// Demo button to simulate card scan
   ///
@@ -313,6 +331,36 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'(nicht {amount})'**
   String checkoutOriginalTotal(String amount);
+
+  /// Receipt headline when the round contained beer, wine or cider (#929)
+  ///
+  /// In de, this message translates to:
+  /// **'Prost, {firstName}!'**
+  String receiptSendOffProst(String firstName);
+
+  /// Receipt headline when only food was bought
+  ///
+  /// In de, this message translates to:
+  /// **'Guten Appetit, {firstName}!'**
+  String receiptSendOffAppetit(String firstName);
+
+  /// Receipt headline when only sauna products were bought
+  ///
+  /// In de, this message translates to:
+  /// **'Gute Erholung, {firstName}!'**
+  String receiptSendOffErholung(String firstName);
+
+  /// Receipt headline for anything else, and for a mixture
+  ///
+  /// In de, this message translates to:
+  /// **'Bis bald, {firstName}!'**
+  String receiptSendOffBisBald(String firstName);
+
+  /// Accessible label for the beer mat on the receipt
+  ///
+  /// In de, this message translates to:
+  /// **'Bierdeckel mit {count} {count, plural, =1{Strich} other{Strichen}}'**
+  String receiptMatLabel(int count);
 
   /// Caption above the balance on the post-checkout receipt — the tab as it stands after this purchase
   ///

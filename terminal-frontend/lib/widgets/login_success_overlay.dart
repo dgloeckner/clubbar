@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/login_moment.dart';
 import 'package:clubbar_terminal/providers/rfid_provider.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/utils/greeting.dart';
 
 /// Zero-size listener that plays the login success animation into the **root**
 /// overlay whenever a card scan starts a session.
@@ -119,9 +120,18 @@ class LoginBurst extends StatefulWidget {
   /// reduced motion). The owner removes the overlay entry here.
   final VoidCallback onCompleted;
 
+  /// When this login happened, for the time-of-day greeting (#929).
+  ///
+  /// The terminal's own clock, read once at construction — an injection
+  /// point for the test, never a second source of truth: the terminal is the
+  /// only clock in the room and nothing here converts a timezone (pattern
+  /// 020 governs stored instants, and this greeting is stored nowhere).
+  final DateTime? now;
+
   const LoginBurst({
     required this.firstName,
     required this.onCompleted,
+    this.now,
     super.key,
   });
 
@@ -133,6 +143,10 @@ class _LoginBurstState extends State<LoginBurst>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   bool _started = false;
+
+  /// The moment the burst was raised — fixed here, so a greeting cannot
+  /// change while it is on screen.
+  late final DateTime _greetedAt = widget.now ?? DateTime.now();
 
   /// Whole-burst fade-out at the end; everything sits under this.
   static const _fadeOut = Interval(0.84, 1.0, curve: Curves.easeIn);
@@ -226,8 +240,13 @@ class _LoginBurstState extends State<LoginBurst>
                             children: [
                               Text(
                                 widget.firstName.isEmpty
-                                    ? l10n.loginWelcomeNoName
-                                    : l10n.loginWelcome(widget.firstName),
+                                    ? l10n.loginWelcomeNoName(
+                                        greetingText(l10n, _greetedAt),
+                                      )
+                                    : l10n.loginWelcome(
+                                        greetingText(l10n, _greetedAt),
+                                        widget.firstName,
+                                      ),
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: AppColors.textPrimary,

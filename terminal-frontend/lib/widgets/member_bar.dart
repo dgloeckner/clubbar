@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
+import 'package:clubbar_terminal/widgets/beer_mat.dart';
 import 'package:clubbar_terminal/widgets/member_details_modal.dart';
 
 class MemberBar extends StatelessWidget {
@@ -50,6 +51,16 @@ class MemberBar extends StatelessWidget {
   /// name gets its step up and the grid keeps its row.
   static const double _nameLineHeight = 1.15;
   static const double _balanceLineHeight = 1.2;
+
+  /// The coaster beside the balance (#929): the same Bierdeckel the receipt
+  /// draws, small, printed motif only and no pencil. It ties the word on the
+  /// bar to the object on the receipt, so "Dein Deckel jetzt" over there
+  /// reads as a thing the member has rather than a caption.
+  ///
+  /// 20 px, under the balance line's own 22 (`lg` × [_balanceLineHeight]), so
+  /// the name/balance column stays pinned to the button edge and the band
+  /// #369 measured above the product grid keeps its height.
+  static const double _matGlyphSize = 20.0;
 
   const MemberBar({
     required this.member,
@@ -182,23 +193,37 @@ class MemberBar extends StatelessWidget {
                                 height: _nameLineHeight,
                               ),
                             ),
-                            Text(
-                              formatBalance(
-                                deckelCents ?? member.balanceCents,
-                                l10n,
-                                locale,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: balanceColor(
-                                  deckelCents ?? member.balanceCents,
-                                  warnAtCents: warnAtCents,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const ExcludeSemantics(
+                                  child: BeerMat(
+                                    key: Key('member-bar-mat'),
+                                    size: _matGlyphSize,
+                                  ),
                                 ),
-                                fontSize: AppFontSizes.lg,
-                                fontWeight: FontWeight.w500,
-                                height: _balanceLineHeight,
-                              ),
+                                const SizedBox(width: 6),
+                                Flexible(
+                                  child: Text(
+                                    formatBalance(
+                                      deckelCents ?? member.balanceCents,
+                                      l10n,
+                                      locale,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: balanceColor(
+                                        deckelCents ?? member.balanceCents,
+                                        warnAtCents: warnAtCents,
+                                      ),
+                                      fontSize: AppFontSizes.lg,
+                                      fontWeight: FontWeight.w500,
+                                      height: _balanceLineHeight,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),

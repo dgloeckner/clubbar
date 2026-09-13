@@ -16,7 +16,7 @@ Member scans RFID card
 
 ## Main Flow
 1. Member scans RFID card
-2. System displays greeting with member name and current tab balance
+2. System displays greeting with member name and current tab balance. The greeting follows the terminal's own clock — *Guten Morgen / Hallo / Guten Abend*, not one word for nine in the morning and eleven at night
 3. System shows product view with category tabs
 4. Member taps category tab to browse products
 5. Member taps product tile to add to cart
@@ -26,7 +26,11 @@ Member scans RFID card
 9. Member taps same or different products to add more; the running total grows with each tap
 10. Member taps "Buy" in the summary bar to confirm purchase
 11. System creates transactions for all cart items
-12. System displays the receipt: every line booked with its count and price, the total, and the tab as it now stands
+12. System displays the receipt: a Bierdeckel in the club's colours beside every line booked with its count and price, the total, and the tab as it now stands
+    - The headline is the send-off a bartender would give, by first name — *Prost* to beer, wine or cider anywhere on the receipt, *Guten Appetit* to a receipt that is only food, *Gute Erholung* to one that is only sauna, *Bis bald* otherwise. Derived from the icon family already on the product, so a wrong guess costs nothing
+    - A pencil draws **one stroke per item on this receipt** onto the mat, quantities summed, gates of five closed with the diagonal, at most fifteen. The strokes are tonight's and say nothing about the month; the euro figure beside them remains the only figure for the tab. The printed gates above them are the coaster's own artwork
+    - The mat's rim carries `instance_name` (ADR-0034), and the same coaster, small and unpencilled, sits beside the balance on the member bar
+    - A short dispense keeps the warning it has always had instead: an attention receipt is not the moment for a send-off
 13. The receipt has no buttons. It returns to idle by itself after 8 s (a tap anywhere returns at once); scanning a card — the same member's included — starts the next session straight from the receipt (ADR-0027 rule 9)
 
 The shopping cart view (UC-T11) is an optional detour for reviewing or removing

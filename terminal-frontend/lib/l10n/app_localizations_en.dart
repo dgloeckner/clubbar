@@ -15,12 +15,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get idleSubtitle => 'Hold your token to the scanner';
 
   @override
-  String loginWelcome(String firstName) {
-    return 'Hi $firstName!';
+  String loginWelcome(String greeting, String firstName) {
+    return '$greeting, $firstName!';
   }
 
   @override
-  String get loginWelcomeNoName => 'Hi!';
+  String loginWelcomeNoName(String greeting) {
+    return '$greeting!';
+  }
+
+  @override
+  String get greetingMorning => 'Good morning';
+
+  @override
+  String get greetingDay => 'Hello';
+
+  @override
+  String get greetingEvening => 'Good evening';
 
   @override
   String get demoScanCard => 'Demo: Scan Token';
@@ -150,6 +161,37 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String checkoutOriginalTotal(String amount) {
     return '(not $amount)';
+  }
+
+  @override
+  String receiptSendOffProst(String firstName) {
+    return 'Cheers, $firstName!';
+  }
+
+  @override
+  String receiptSendOffAppetit(String firstName) {
+    return 'Enjoy your meal, $firstName!';
+  }
+
+  @override
+  String receiptSendOffErholung(String firstName) {
+    return 'Enjoy the sauna, $firstName!';
+  }
+
+  @override
+  String receiptSendOffBisBald(String firstName) {
+    return 'See you soon, $firstName!';
+  }
+
+  @override
+  String receiptMatLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'strokes',
+      one: 'stroke',
+    );
+    return 'Beer mat with $count $_temp0';
   }
 
   @override

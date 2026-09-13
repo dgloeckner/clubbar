@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/widgets/beer_mat.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 
 import '../test_helpers.dart';
@@ -627,6 +628,82 @@ void main() {
       // line heights explicitly — this holds either way.
       final bar = tester.getSize(find.byType(MemberBar));
       expect(bar.height, MemberBar.height);
+    });
+  });
+
+  // Issue #929, move 2: the same Bierdeckel the receipt draws, small, beside
+  // the balance — so "Dein Deckel jetzt" over there reads as a thing the
+  // member has rather than a caption.
+  group('the coaster beside the balance (#929)', () {
+    testWidgets('is there, printed only, and starts no ticker',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
+      await tester.pump();
+
+      final mat = tester.widget<BeerMat>(
+        find.byKey(const Key('member-bar-mat')),
+      );
+      // No pencil: a mat on the bar states nothing about tonight.
+      expect(mat.strokes, 0);
+      // …and therefore no frames, for a widget worn for a whole session.
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('does not grow the band above the grid', (tester) async {
+      // The glyph sits inside the balance line, whose height is what pins
+      // the name column to the button edge (#369).
+      await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
+
+      expect(tester.getSize(find.byType(MemberBar)).height, MemberBar.height);
+      expect(
+        tester.getSize(find.byKey(const Key('member-bar-mat'))).height,
+        lessThan(AppFontSizes.lg * 1.2),
+      );
+    });
+
+    testWidgets('yields to a long member name rather than overflowing',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('de'),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en'), Locale('de')],
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SessionController>.value(value: session),
+              Provider<ConfigService>.value(value: config),
+            ],
+            child: Scaffold(
+              body: MemberBar(
+                member: MembersCacheData(
+                  id: 'member-3',
+                  cardUid: 'card-789',
+                  firstName: 'Maximiliane-Charlotte',
+                  lastName: 'von Hohenberg-Lichtenstein',
+                  preferredLanguage: 'de',
+                  isActive: 1,
+                  isSepaValid: 1,
+                  balanceCents: -12345,
+                  updatedAt: '2025-02-01T10:00:00Z',
+                ),
+                onLogoutPressed: () {},
+                showBackButton: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // No RenderFlex overflow: the glyph is fixed-width and the balance
+      // beside it is what yields.
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('member-bar-mat')), findsOneWidget);
     });
   });
 }
