@@ -6,6 +6,7 @@ import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/models/transaction_list_item.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/transaction_history_service.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
@@ -131,6 +132,12 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
     final initials = '${firstName.isNotEmpty ? firstName[0] : '?'}${lastName.isNotEmpty ? lastName[0] : '?'}'.toUpperCase();
     final membersProvider = context.watch<MembersProvider>();
     final balanceCents = membersProvider.memberDeckel ?? member.balanceCents;
+    // Their own warning band, resolved the one way it is ever resolved
+    // (ADR-0047 rule 1); `null` when no ceiling is enforced for them.
+    final warnAtCents = context
+        .read<ConfigService>()
+        .creditLimitPolicy
+        .warnAtCentsFor(member.creditLimitCents);
     final locale = member.preferredLanguage;
 
     final screenHeight = MediaQuery.of(context).size.height;
@@ -220,7 +227,10 @@ class _MemberDetailsModalState extends State<MemberDetailsModal> {
                         Text(
                           formatBalance(balanceCents, l10n, locale),
                           style: TextStyle(
-                            color: balanceColor(balanceCents),
+                            color: balanceColor(
+                              balanceCents,
+                              warnAtCents: warnAtCents,
+                            ),
                             fontSize: AppFontSizes.base,
                             fontWeight: FontWeight.w500,
                           ),

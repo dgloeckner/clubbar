@@ -1098,8 +1098,19 @@ precisely because pages decided this for themselves:
 
 | You are rendering | Use | Result |
 |---|---|---|
-| a member's balance (Deckel) | `getBalanceColor(cents)` | credit green, settled/small tab neutral, tab above `MONEY_WARN_ABOVE_CENTS` amber |
+| a member's balance (Deckel) | `getBalanceColor(cents, member.credit_limit_warn_at_cents)` | credit green, settled/ordinary tab neutral, tab inside that member's own credit-limit warning band amber |
 | a single transaction amount | `getTransactionAmountColor(cents)` | credit green, charge neutral |
+
+**The band is received, never computed.** `credit_limit_warn_at_cents` arrives
+on the roster row already resolved — the member's own ceiling where they have
+one, the club's where they do not, times the club's warn percentage. Do not
+re-derive it from `credit_limit_cents` and the credit-limit config: that rule
+is expressed once per side (ADR-0047 rule 1), and the panel is online on every
+render, so it asks. `null` means no ceiling is enforced for that member, which
+the helper renders as "never amber" — passing `0` instead would amber the whole
+column. (`warnAtCents()` in `CreditLimitsTab` is not a counter-example: it
+previews a value the admin has typed and not yet saved, so there is nothing to
+ask about.)
 
 **A charge is never red.** An everyday booking is not an error, and
 `theme.colors.semantic.danger` has to keep meaning "something is wrong" for the

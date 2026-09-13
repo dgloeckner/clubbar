@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
+import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/member_details_modal.dart';
 import '../test_helpers.dart';
@@ -515,6 +516,97 @@ void main() {
       final languageLabel = tester.getTopLeft(find.text('Bevorzugte Sprache'));
       expect(listHeader.dy, lessThan(languageLabel.dy),
           reason: 'the reason for the visit comes before the setting');
+    });
+  });
+
+  group('MemberDetailsModal balance colour (#926)', () {
+    late MockMembersProvider mockMembersProvider;
+    late MockNetworkService mockNetworkService;
+    late ClubBarDatabase db;
+
+    MembersCacheData member({int balanceCents = 0, int? creditLimitCents}) =>
+        MembersCacheData(
+          id: 'member-1',
+          cardUid: 'card-123',
+          firstName: 'John',
+          lastName: 'Doe',
+          preferredLanguage: 'de',
+          isActive: 1,
+          isSepaValid: 1,
+          balanceCents: balanceCents,
+          creditLimitCents: creditLimitCents,
+          updatedAt: '2025-02-01T10:00:00Z',
+        );
+
+    setUp(() {
+      db = ClubBarDatabase.forTesting(NativeDatabase.memory());
+      mockMembersProvider = MockMembersProvider();
+      mockNetworkService = MockNetworkService();
+      when(() => mockMembersProvider.addListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.removeListener(any())).thenReturn(null);
+      when(() => mockMembersProvider.memberDeckel).thenReturn(null);
+      when(() => mockNetworkService.checkHealth()).thenThrow(
+        NetworkException('offline'),
+      );
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    Future<void> pumpModal(WidgetTester tester, MembersCacheData m) async {
+      when(() => mockMembersProvider.selectedMember).thenReturn(m);
+      await tester.pumpWidget(
+        createTestApp(
+          child: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<MembersProvider>.value(
+                value: mockMembersProvider,
+              ),
+              Provider<NetworkService>.value(value: mockNetworkService),
+              Provider<ClubBarDatabase>.value(value: db),
+            ],
+            child: const Scaffold(body: MemberDetailsModal()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Text balanceText(WidgetTester tester, String startsWith) =>
+        tester.widget<Text>(
+          find.byWidgetPredicate(
+            (w) => w is Text && (w.data ?? '').startsWith(startsWith),
+          ),
+        );
+
+    testWidgets('an ordinary tab is neutral', (WidgetTester tester) async {
+      await pumpModal(tester, member(balanceCents: 2300));
+
+      expect(
+        balanceText(tester, 'Offener Betrag: 23,00').style?.color,
+        AppColors.textPrimary,
+      );
+    });
+
+    testWidgets('a tab in their own band is amber',
+        (WidgetTester tester) async {
+      await pumpModal(tester, member(balanceCents: 8000));
+
+      expect(
+        balanceText(tester, 'Offener Betrag: 80,00').style?.color,
+        AppColors.semanticWarning,
+      );
+    });
+
+    testWidgets('a member with no ceiling is never amber',
+        (WidgetTester tester) async {
+      await pumpModal(tester, member(balanceCents: 50000, creditLimitCents: 0));
+
+      expect(
+        balanceText(tester, 'Offener Betrag: 500,00').style?.color,
+        AppColors.textPrimary,
+      );
     });
   });
 }

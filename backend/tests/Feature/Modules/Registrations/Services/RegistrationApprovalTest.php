@@ -7,6 +7,8 @@ namespace Tests\Feature\Modules\Registrations\Services;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
+use App\Modules\CreditLimits\Repositories\CreditLimitConfigRepository;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Members\Services\MembersService;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
@@ -302,6 +304,10 @@ final class RegistrationApprovalTest extends DatabaseTestCase
             new AuditLogRepository($this->db, $this->logger),
             $this->createMock(\App\Modules\Notifications\Services\NotificationsService::class),
             $this->db,
+            new CreditLimitConfigService(
+                new CreditLimitConfigRepository($this->db, $this->logger),
+                new AuditService(new AuditLogRepository($this->db, $this->logger)),
+            ),
         );
 
         $synced = array_map(

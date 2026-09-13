@@ -6590,6 +6590,10 @@ components:
         `has_date_of_birth` carries the *flag* instead (#629), so the members a
         terminal will refuse every age-restricted product to can be found from
         the roster without putting a birth date on every row.
+        That narrowness is about personal data, not field count:
+        `credit_limit_warn_at_cents` is the same pattern in the other
+        direction — a figure derived server-side so the row can answer "is this
+        tab in the warning band?" without the panel resolving a ceiling itself.
       properties:
         id:
           type: string
@@ -6613,6 +6617,20 @@ components:
             The member's Deckel: the sum of their transactions that no
             settlement has collected yet, in cents. Positive means they owe
             the club; negative is a credit, which a payout leaves behind.
+        credit_limit_warn_at_cents:
+          type: integer
+          nullable: true
+          description: >-
+            The tab from which this member is shown in the warning colour —
+            their own ceiling's band where they have one, the club's where
+            they do not ([ADR-0047](../../adr/0047-configurable-credit-limits.md)).
+            `null` means no ceiling is enforced for them (`NULL` inherits, `0`
+            is unlimited), and the roster must read that as "never amber"
+            rather than as a band of zero.
+            Derived and sent, like `/sync/config`'s `warn_at_cents`, so the
+            panel reproduces neither the override-or-default rule nor its
+            integer-division rounding: a boundary cent the two sides compute
+            differently is a member one of them warns and the other does not.
         card_uid:
           type: string
           nullable: true

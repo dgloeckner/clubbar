@@ -155,27 +155,40 @@ class AppColors {
 ///
 /// Colour rules, encoded once in [balanceColor] / [transactionAmountColor]:
 ///   * green is reserved for actual credit — it never shows debt
-///   * a settled account or a small open tab stays neutral (primary text)
-///   * an open tab above [AppMoney.warnAboveCents] turns amber
-class AppMoney {
-  /// Open tabs above this amount are shown in the warning colour.
-  ///
-  /// Deliberately *not* the credit limit: this is a reading cue ("that tab is
-  /// getting substantial"), while `CreditLimitCheck` decides what the member
-  /// may still buy. The limit's own warning band and hard stop are surfaced
-  /// by `CreditLimitBanner` and the checkout button, not by this colour.
-  static const int warnAboveCents = 2000; // €20.00
-}
+///   * a settled account or an ordinary open tab stays neutral (primary text)
+///   * a tab inside the member's own credit-limit warning band turns amber
 
 /// Colour for a *balance* (member bar, details modal, cart, confirmation).
-Color balanceColor(int balanceCents) {
+///
+/// [warnAtCents] is the tab from which **this member** is warned — their own
+/// ceiling's band where they have one, the club's where they do not — and
+/// `null` means no ceiling is enforced for them, so no tab of theirs is ever
+/// amber. Resolve it through `CreditLimitPolicy.warnAtCentsFor()` (or
+/// `CreditLimitCheck.warnAtCentsOrNull` where a cart has already been
+/// evaluated); never compute a threshold at a call site.
+///
+/// The parameter is required though nullable, for the reason
+/// `CreditLimitCheck.evaluate` gives: a caller that forgets should fail to
+/// compile rather than quietly never warn anybody.
+///
+/// Amber begins **at** the band (`>=`), the same boundary
+/// `CreditLimitCheck.status` and PHP's `CreditLimit::status()` use, so the
+/// number and `CreditLimitBanner` flip on the same cent. A member *past* the
+/// ceiling stays amber rather than turning red: colour-by-state belongs to the
+/// banner and the checkout button, not to the amount (ADR-0042 scope).
+///
+/// Debt is required for amber, not merely a band: `warn_threshold_percent` may
+/// be as low as 1, so a small ceiling yields a band of zero — and a settled
+/// account rendered in warning colour is bug #28, which this rule exists to
+/// prevent.
+Color balanceColor(int balanceCents, {required int? warnAtCents}) {
   if (balanceCents < 0) {
     return AppColors.semanticSuccess; // credit
   }
-  if (balanceCents > AppMoney.warnAboveCents) {
-    return AppColors.semanticWarning; // large open tab
+  if (warnAtCents != null && balanceCents > 0 && balanceCents >= warnAtCents) {
+    return AppColors.semanticWarning; // inside their own warning band
   }
-  return AppColors.textPrimary; // settled or small open tab
+  return AppColors.textPrimary; // settled, or an ordinary open tab
 }
 
 /// Colour for a single *transaction amount* in a booking history.

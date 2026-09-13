@@ -654,6 +654,15 @@ void main() {
         when(() => mockMembersProvider.memberDeckel).thenReturn(cents);
       }
 
+      /// The "Neuer offener Betrag" line under the cart total.
+      Text projectedBalanceText(WidgetTester tester) => tester.widget<Text>(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is Text &&
+                  (w.data ?? '').startsWith('Neuer offener Betrag'),
+            ),
+          );
+
       InkWell checkoutInkWell(WidgetTester tester) => tester.widget<InkWell>(
             find.descendant(
               of: find.byKey(const Key('checkout-button')),
@@ -682,6 +691,35 @@ void main() {
         expect(find.text('Du näherst dich deinem Limit.'), findsOneWidget);
         expect(find.text('Bezahlen'), findsOneWidget);
         expect(checkoutInkWell(tester).onTap, isNotNull);
+      });
+
+      // #926: one threshold, one meaning. The number and the banner read the
+      // same verdict, so a member is never told "you are close" by a banner
+      // while the amount beside it still looks like an ordinary evening.
+      testWidgets('the projected balance is neutral just short of the band',
+          (WidgetTester tester) async {
+        withDeckel(6800); // + €11.00 = €79.00 — one euro short of the band
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsNothing);
+        expect(
+          projectedBalanceText(tester).style?.color,
+          AppColors.textPrimary,
+        );
+      });
+
+      testWidgets('it turns amber on the same cent the banner appears',
+          (WidgetTester tester) async {
+        withDeckel(6900); // + €11.00 = €80.00 — exactly on the band
+
+        await tester.pumpWidget(buildTestWidget());
+
+        expect(find.byKey(const Key('credit-limit-banner')), findsOneWidget);
+        expect(
+          projectedBalanceText(tester).style?.color,
+          AppColors.semanticWarning,
+        );
       });
 
       testWidgets('blocks checkout once the cart would exceed the limit',

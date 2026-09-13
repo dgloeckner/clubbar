@@ -12,8 +12,11 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/screens/checkout_confirmation_screen.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/members_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+
+import '../test_helpers.dart';
 
 class MockCartProvider extends Mock implements CartProvider {}
 class MockMembersProvider extends Mock implements MembersProvider {}
@@ -118,6 +121,9 @@ void main() {
             value: mockSessionController,
           ),
           Provider<TransactionsRepository>.value(value: mockRepo),
+          // The receipt resolves the member's warning band at mount
+          // (ADR-0047) to decide whether their tab reads as amber.
+          Provider<ConfigService>.value(value: createMockConfigService()),
         ],
         child: child,
       );
@@ -261,7 +267,10 @@ void main() {
       // awaits refreshDeckel() before navigating here.
       final balance = tester.widget<Text>(find.byKey(const Key('receipt-balance')));
       expect(balance.data, 'Offener Betrag: 14,50\u00a0€');
-      expect(balance.style!.color, balanceColor(1450));
+      // Named, not `balanceColor(1450)`: an assertion that re-runs the
+      // function under test agrees with it whatever it does. €14.50 is far
+      // short of the shipped 8000 band, so the tab reads as ordinary.
+      expect(balance.style!.color, AppColors.textPrimary);
     });
 
     // Issue #921: the balance counts from what the tab was before this
@@ -298,7 +307,38 @@ void main() {
       final balance =
           tester.widget<Text>(find.byKey(const Key('receipt-balance')));
       expect(balance.data, 'Offener Betrag: 14,50\u00a0€');
-      expect(balance.style!.color, balanceColor(1450));
+      expect(balance.style!.color, AppColors.textPrimary);
+    });
+
+    testWidgets(
+        'the band is captured at mount, not followed (ADR-0027 rule 9)',
+        (WidgetTester tester) async {
+      // A card scan on this screen starts the next member's session. The
+      // amount is snapshotted for that reason, and so is the band it is
+      // coloured against — a receipt that re-read the club policy could
+      // repaint a finished purchase in the next member's terms.
+      await pumpReceipt(tester);
+      await settleBalance(tester);
+
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('receipt-balance')))
+            .style!
+            .color,
+        AppColors.textPrimary,
+      );
+
+      // The session moves on underneath the receipt: no member selected, and
+      // a tab that would be deep inside anybody's band.
+      when(() => mockMembersProvider.selectedMember).thenReturn(null);
+      when(() => mockMembersProvider.memberDeckel).thenReturn(50000);
+      mockMembersProvider.notifyListeners();
+      await tester.pump();
+
+      final balance =
+          tester.widget<Text>(find.byKey(const Key('receipt-balance')));
+      expect(balance.data, 'Offener Betrag: 14,50\u00a0€');
+      expect(balance.style!.color, AppColors.textPrimary);
     });
 
     testWidgets('has no buttons at all', (WidgetTester tester) async {

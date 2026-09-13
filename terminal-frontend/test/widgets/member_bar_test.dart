@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,7 +8,10 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
+
+import '../test_helpers.dart';
 
 class MockSessionController extends Mock implements SessionController {}
 
@@ -25,15 +29,24 @@ final _member = MembersCacheData(
 
 void main() {
   late MockSessionController session;
+  late ConfigService config;
 
   setUp(() {
     session = MockSessionController();
+    // MemberBar resolves the member's warning band through the club policy
+    // (ADR-0047), so every tree here needs one. The mock answers with the
+    // shipped 10000/80 — a band at 8000.
+    config = createMockConfigService();
     when(() => session.addListener(any())).thenReturn(null);
     when(() => session.removeListener(any())).thenReturn(null);
     when(() => session.isCriticalOperationInFlight).thenReturn(false);
   });
 
-  Widget buildTestWidget({VoidCallback? onLogoutPressed, int balanceCents = 0}) {
+  Widget buildTestWidget({
+    VoidCallback? onLogoutPressed,
+    int balanceCents = 0,
+    int? creditLimitCents,
+  }) {
     return MaterialApp(
       locale: const Locale('de'),
       localizationsDelegates: const [
@@ -43,15 +56,21 @@ void main() {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('en'), Locale('de')],
-      home: ChangeNotifierProvider<SessionController>.value(
-        value: session,
+      home: MultiProvider(
+        providers: [
+          ChangeNotifierProvider<SessionController>.value(value: session),
+          Provider<ConfigService>.value(value: config),
+        ],
         child: Scaffold(
           // Top-aligned, as the screens lay it out: a body-sized bar would
           // hide a height regression behind the Scaffold's own constraints.
           body: Column(
             children: [
               MemberBar(
-                member: _member.copyWith(balanceCents: balanceCents),
+                member: _member.copyWith(
+                  balanceCents: balanceCents,
+                  creditLimitCents: Value(creditLimitCents),
+                ),
                 onLogoutPressed: onLogoutPressed,
               ),
             ],
@@ -76,22 +95,62 @@ void main() {
         ),
       );
 
-  group('MemberBar balance (#28)', () {
-    testWidgets('labels an open tab and colours it neutral below the threshold',
-        (tester) async {
+  group('MemberBar balance (#28, #926)', () {
+    testWidgets('an ordinary open tab is neutral', (tester) async {
       await tester.pumpWidget(buildTestWidget(balanceCents: 1480));
 
       final text = balanceText(tester, 'Offener Betrag: 14,80');
       expect(text.style?.color, AppColors.textPrimary);
     });
 
-    testWidgets('colours a large open tab amber', (tester) async {
+    testWidgets('a tab well short of the band is neutral (#926)',
+        (tester) async {
+      // The report: €23.00 under a policy that warns at €80.00. Amber here
+      // said "something is wrong" about an ordinary evening, and a cue that
+      // fires on ordinary evenings stops being read.
+      await tester.pumpWidget(buildTestWidget(balanceCents: 2300));
+
+      final text = balanceText(tester, 'Offener Betrag: 23,00');
+      expect(text.style?.color, AppColors.textPrimary);
+    });
+
+    testWidgets('a tab that reaches their own band is amber', (tester) async {
+      // 80% of the shipped 10000 ceiling.
+      await tester.pumpWidget(buildTestWidget(balanceCents: 8000));
+
+      final text = balanceText(tester, 'Offener Betrag: 80,00');
+      expect(text.style?.color, AppColors.semanticWarning);
+    });
+
+    testWidgets('a member with their own ceiling is warned against it',
+        (tester) async {
+      // 80% of 5000. The same 4000 under the club default is neutral, which
+      // is the point of an override: one member's "close" is not another's.
       await tester.pumpWidget(
-        buildTestWidget(balanceCents: AppMoney.warnAboveCents + 1),
+        buildTestWidget(balanceCents: 4000, creditLimitCents: 5000),
       );
 
-      final text = balanceText(tester, 'Offener Betrag: 20,01');
+      final text = balanceText(tester, 'Offener Betrag: 40,00');
       expect(text.style?.color, AppColors.semanticWarning);
+    });
+
+    testWidgets('the same tab is neutral for a member on the club default',
+        (tester) async {
+      await tester.pumpWidget(buildTestWidget(balanceCents: 4000));
+
+      final text = balanceText(tester, 'Offener Betrag: 40,00');
+      expect(text.style?.color, AppColors.textPrimary);
+    });
+
+    testWidgets('a member with no ceiling is never amber', (tester) async {
+      // 0 is "no ceiling for this member" (ADR-0047 rule 2), so there is no
+      // line to approach however large the tab gets.
+      await tester.pumpWidget(
+        buildTestWidget(balanceCents: 50000, creditLimitCents: 0),
+      );
+
+      final text = balanceText(tester, 'Offener Betrag: 500,00');
+      expect(text.style?.color, AppColors.textPrimary);
     });
 
     testWidgets('labels credit and colours it green', (tester) async {
@@ -268,8 +327,11 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [Locale('en'), Locale('de')],
-          home: ChangeNotifierProvider<SessionController>.value(
-            value: session,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SessionController>.value(value: session),
+              Provider<ConfigService>.value(value: config),
+            ],
             child: Scaffold(
               body: MemberBar(
                 member: MembersCacheData(
@@ -393,8 +455,11 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [Locale('en'), Locale('de')],
-          home: ChangeNotifierProvider<SessionController>.value(
-            value: session,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SessionController>.value(value: session),
+              Provider<ConfigService>.value(value: config),
+            ],
             child: Scaffold(
               body: MemberBar(
                 member: MembersCacheData(
@@ -432,8 +497,11 @@ void main() {
             GlobalCupertinoLocalizations.delegate,
           ],
           supportedLocales: const [Locale('en'), Locale('de')],
-          home: ChangeNotifierProvider<SessionController>.value(
-            value: session,
+          home: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SessionController>.value(value: session),
+              Provider<ConfigService>.value(value: config),
+            ],
             child: Scaffold(
               body: MemberBar(
                 member: _member,

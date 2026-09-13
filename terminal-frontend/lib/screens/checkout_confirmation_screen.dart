@@ -9,6 +9,7 @@ import 'package:clubbar_terminal/models/receipt_line.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
@@ -113,6 +114,19 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   late final int _balanceCents;
   late final String _locale;
 
+  /// The tab from which *this* member is warned, captured with the rest.
+  ///
+  /// A band, not a colour: what the colour is, is decided once in
+  /// [balanceColor], and a receipt that pre-computed one would be a call site
+  /// making that decision for itself (ADR-0042 scope). `null` means no ceiling
+  /// is enforced for them, so the amount is never amber.
+  ///
+  /// Snapshotted for the same reason the identity is: a one-time `read`, never
+  /// a `watch`, so neither the next card scan nor a `/sync/config` poll can
+  /// repaint a finished receipt. A member the session no longer knows falls
+  /// back to the club default, as `_locale` falls back to German.
+  late final int? _warnAtCents;
+
   /// What the checkout actually billed, captured once at mount.
   ///
   /// The only amount left if the session lookup fails (#16): [CartProvider]
@@ -129,6 +143,10 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         : 'Member';
     _locale = selectedMember?.preferredLanguage ?? 'de';
     _balanceCents = context.read<MembersProvider>().memberDeckel ?? 0;
+    _warnAtCents = context
+        .read<ConfigService>()
+        .creditLimitPolicy
+        .warnAtCentsFor(selectedMember?.creditLimitCents);
     _lastBilledCents = context.read<CartProvider>().lastCheckoutTotalCents;
 
     _scaleController = AnimationController(
@@ -499,7 +517,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         // Per value, not fixed: a count that crosses zero crosses from the
         // "open tab" colour to the "credit" one with it.
         styleFor: (cents) => TextStyle(
-          color: balanceColor(cents),
+          color: balanceColor(cents, warnAtCents: _warnAtCents),
           fontSize: _receiptBalanceSize,
           fontWeight: FontWeight.w700,
         ),

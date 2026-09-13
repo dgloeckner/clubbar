@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Members\Services;
 
 use App\Modules\BankCodes\Services\BankCodeService;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Members\DTOs\MemberDto;
 use App\Modules\Members\DTOs\MemberAdminDto;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -35,6 +36,11 @@ class MembersService
         private AuditLogRepository $auditLogRepository,
         private NotificationsService $notificationsService,
         private PDO $db,
+        // Required, unlike the two optional collaborators below: the roster's
+        // warning colour is part of this endpoint's response contract, not a
+        // side effect that may be swallowed. A wiring that omitted it would
+        // answer a money question differently depending on how it was built.
+        private CreditLimitConfigService $creditLimitConfigService,
         private ?BankCodeService $bankCodeService = null,
         // Optional and last, so the three call sites that predate it keep
         // working. A member notice that cannot be queued is swallowed rather
@@ -109,11 +115,34 @@ class MembersService
         // roster. `has_date_of_birth` says whether the date exists without
         // putting the date itself on a list an admin scrolls, which is what
         // ADR-0045 was protecting.
+        // The roster colours a balance amber once the member has entered their
+        // own credit-limit warning band, so the band is resolved here and sent
+        // (ADR-0042, ADR-0047). The admin never reproduces the
+        // override-or-default rule or the `intdiv` rounding: it is online on
+        // every render, so the reason the terminal is allowed its own copy —
+        // it decides at checkout with nothing reachable — does not apply. The
+        // same reason `/sync/config` sends a derived `warn_at_cents`: a
+        // boundary cent the two sides round differently is a member one warns
+        // and the other does not.
+        //
+        // `null` means no ceiling is enforced for this member, which the
+        // roster must render as "never amber" rather than as a band of zero.
+        //
+        // Resolved once for the page, not per row: the club setting is a
+        // single row that does not vary between members, and `policy()` reads
+        // it on every call.
+        $policy = $this->creditLimitConfigService->policy();
+
         $items = array_map(
-            function ($row): array {
+            function ($row) use ($policy): array {
                 $member = MemberAdminDto::fromRow($row)->toArray();
                 $member['has_date_of_birth'] = $member['date_of_birth'] !== null;
                 unset($member['date_of_birth']);
+
+                $limit = $policy->forMember($member['credit_limit_cents'] ?? null);
+                $member['credit_limit_warn_at_cents'] = $limit->isEnforced()
+                    ? $limit->warnAtCents()
+                    : null;
 
                 return $member;
             },

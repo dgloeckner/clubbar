@@ -63,26 +63,34 @@ MockConfigService createMockConfigService() {
 
 /// Creates a MaterialApp with localization support for testing widgets
 /// that require AppLocalizations. Automatically provides a ConfigService.
+///
+/// The provider sits **above** the MaterialApp, where `main.dart` puts it —
+/// not on `home:`. Providers are scoped to the subtree they are inserted in,
+/// and a route pushed onto the Navigator is a sibling of `home`, not a child:
+/// a bottom sheet opened with `showModalBottomSheet` (MemberDetailsModal) can
+/// read a provider above the app and cannot read one below it. Keeping the two
+/// wirings the same is what stops a widget from passing here and throwing
+/// `ProviderNotFoundException` on a real terminal.
 Widget createTestApp({
   required Widget child,
   Locale locale = const Locale('de'),
   ConfigService? configService,
 }) {
-  return MaterialApp(
-    locale: locale,
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: const [
-      Locale('de'),
-      Locale('en'),
-    ],
-    home: Provider<ConfigService>.value(
-      value: configService ?? createMockConfigService(),
-      child: child,
+  return Provider<ConfigService>.value(
+    value: configService ?? createMockConfigService(),
+    child: MaterialApp(
+      locale: locale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('de'),
+        Locale('en'),
+      ],
+      home: child,
     ),
   );
 }
