@@ -18,8 +18,8 @@
       <path d="M210 174c12-8 20-4 24 14v130c-4 14-12 20-24 16z" fill="#FDE68A" opacity="0.5"/>
       <g fill="#FEF3C7" opacity="0.55"><circle cx="292" cy="300" r="3"/><circle cx="300" cy="262" r="2.2"/><circle cx="286" cy="236" r="2.6"/><circle cx="296" cy="212" r="2"/><circle cx="278" cy="318" r="2.2"/><circle cx="270" cy="282" r="1.8"/></g>
     </g>
-    <path d="M318 208 h32 a16 16 0 0 1 16 16 v60 a16 16 0 0 1 -16 16 h-32" fill="none" stroke="#CBD5E1" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
-    <path d="M318 216 h30 a10 10 0 0 1 10 10 v56 a10 10 0 0 1 -10 10 h-30" fill="none" stroke="#0C1425" stroke-width="6" opacity="0.3" stroke-linecap="round"/>
+    <path d="M318 208 h18 a16 16 0 0 1 16 16 v60 a16 16 0 0 1 -16 16 h-18" fill="none" stroke="#CBD5E1" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+    <path d="M318 216 h16 a10 10 0 0 1 10 10 v56 a10 10 0 0 1 -10 10 h-16" fill="none" stroke="#0C1425" stroke-width="6" opacity="0.3" stroke-linecap="round"/>
     <rect x="206" y="275" width="100" height="12" rx="6" fill="#E2E8F0" opacity="0.7"/>
     <g fill="url(#foamGrad)">
       <rect x="188" y="166" width="136" height="24" rx="12"/>
