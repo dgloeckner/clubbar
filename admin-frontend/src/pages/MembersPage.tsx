@@ -1219,7 +1219,10 @@ export function MembersPage() {
                         fontVariantNumeric: 'tabular-nums',
                         color: (member.balance_cents ?? 0) === 0
                           ? theme.colors.text.muted
-                          : getBalanceColor(member.balance_cents ?? 0),
+                          : getBalanceColor(
+                              member.balance_cents ?? 0,
+                              member.credit_limit_warn_at_cents
+                            ),
                       }}
                     >
                       {formatters.formatPrice(member.balance_cents ?? 0)}
@@ -1819,7 +1822,10 @@ export function MembersPage() {
                         fontVariantNumeric: 'tabular-nums',
                         color: (member.balance_cents ?? 0) === 0
                           ? theme.colors.text.muted
-                          : getBalanceColor(member.balance_cents ?? 0),
+                          : getBalanceColor(
+                              member.balance_cents ?? 0,
+                              member.credit_limit_warn_at_cents
+                            ),
                       }}
                     >
                       {formatters.formatPrice(member.balance_cents ?? 0)}

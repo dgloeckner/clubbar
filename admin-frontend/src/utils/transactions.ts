@@ -26,30 +26,41 @@ export function getTransactionTypeColor(
 }
 
 /**
- * Open tabs above this amount are shown in the warning colour.
- *
- * Mirrors `AppMoney.warnAboveCents` in
- * `terminal-frontend/lib/utils/design_tokens.dart`. Deliberately *not* the
- * credit limit: this is a reading cue ("that tab is getting substantial"),
- * while the credit limit decides what a member may still buy and is surfaced
- * by the dashboard's near-limit widget.
- */
-export const MONEY_WARN_ABOVE_CENTS = 2000 // €20.00
-
-/**
  * Colour for a *balance* (the Deckel) — members table and member cards.
  *
  * Mirrors `balanceColor()` in the terminal's `design_tokens.dart`. See
  * ADR-0042 for the cross-app rule and the sign convention it rests on.
  *
+ * `warnAtCents` is the tab from which **this member** is warned, and it
+ * arrives from the API as `credit_limit_warn_at_cents` — it is never derived
+ * here. The override-or-default rule and its integer-division rounding are
+ * expressed once per side (ADR-0047 rule 1); the panel is online on every
+ * render, so it asks rather than computes. It replaces a hard-coded €20.00
+ * cue that had nothing to do with the member's ceiling (#926).
+ *
+ * `null` means no ceiling is enforced for them, so no tab of theirs is amber.
+ * `undefined` is the same answer for a different reason — a backend that
+ * predates the field — and both degrade to *no cue* rather than a false one.
+ * The parameter is required though nullable, so a call site that forgets
+ * fails typecheck instead of silently never warning anybody.
+ *
+ * Amber begins **at** the band, and a positive balance is required for it:
+ * `warn_threshold_percent` may be as low as 1, so a small ceiling rounds its
+ * band down to zero, and a settled account in warning colour is bug #28.
+ *
  * Note for git archaeology: a `getBalanceColor` existed here before and was
  * deleted in 26b4ea3 (#455) because it mapped the sign to a colour exactly
  * backwards. The name is the right one; this is the corrected polarity.
  */
-export function getBalanceColor(balanceCents: number): string {
+export function getBalanceColor(
+  balanceCents: number,
+  warnAtCents: number | null | undefined
+): string {
   if (balanceCents < 0) return theme.colors.semantic.success // credit
-  if (balanceCents > MONEY_WARN_ABOVE_CENTS) return theme.colors.semantic.warning
-  return theme.colors.text.primary // settled account or small open tab
+  if (warnAtCents != null && balanceCents > 0 && balanceCents >= warnAtCents) {
+    return theme.colors.semantic.warning // inside their own warning band
+  }
+  return theme.colors.text.primary // settled, or an ordinary open tab
 }
 
 /**
