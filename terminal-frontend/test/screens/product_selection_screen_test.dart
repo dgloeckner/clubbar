@@ -24,6 +24,7 @@ import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
+import 'package:clubbar_terminal/widgets/staggered_entry.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import '../test_helpers.dart';
@@ -1789,12 +1790,17 @@ void main() {
         await pumpScreen(tester, cart: cart);
         expect(runningTotal(tester), formatPrice(0, 'de'));
 
+        // Settled, not on the next frame: since #921 the total *counts* to
+        // its new value over 250 ms rather than jumping, so the frame right
+        // after the tap still reads the old amount. The cart itself is
+        // updated synchronously on the tap either way — that is what the
+        // `addItem` verifications elsewhere in this file hold.
         await tester.tap(find.text('Bier'));
-        await tester.pump();
+        await tester.pumpAndSettle();
         expect(runningTotal(tester), formatPrice(350, 'de'));
 
         await tester.tap(find.text('Bier'));
-        await tester.pump();
+        await tester.pumpAndSettle();
         expect(runningTotal(tester), formatPrice(700, 'de'));
       });
 
@@ -1993,5 +1999,257 @@ void main() {
         verify(() => mockCartProvider.clearError()).called(1);
       });
     });
+
+    // Issue #921: the buying loop's motion — a tapped tile's icon flies into
+    // the running total, and a new category's tiles arrive staggered.
+    group('buying loop animations (#921)', () {
+      ProductsCacheData drink(String id, String name) => ProductsCacheData(
+            id: id,
+            categoryId: 'cat-1',
+            names: jsonEncode({'de': name}),
+            descriptions: null,
+            priceCents: 350,
+            isActive: 1,
+            requiresDispenser: 0,
+            iconName: 'PilsIcon',
+            updatedAt: '2025-02-01T10:00:00Z',
+          );
+
+      ProductsCacheData snack(String id, String name) => ProductsCacheData(
+            id: id,
+            categoryId: 'cat-2',
+            names: jsonEncode({'de': name}),
+            descriptions: null,
+            priceCents: 150,
+            isActive: 1,
+            requiresDispenser: 0,
+            iconName: null,
+            updatedAt: '2025-02-01T10:00:00Z',
+          );
+
+      final drinks = [drink('prod-beer', 'Bier')];
+      final snacks = [
+        for (var i = 0; i < 8; i++) snack('prod-snack-$i', 'Snack $i'),
+      ];
+
+      final member = MembersCacheData(
+        id: 'member-1',
+        cardUid: 'card-1',
+        firstName: 'Anna',
+        lastName: 'Member',
+        preferredLanguage: 'de',
+        isActive: 1,
+        isSepaValid: 1,
+        balanceCents: 0,
+        updatedAt: '2025-02-01T10:00:00Z',
+      );
+
+      Future<void> pumpGridScreen(
+        WidgetTester tester, {
+        bool disableAnimations = false,
+        bool available = true,
+      }) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        when(() => mockProductsProvider.categories).thenReturn([
+          CategoriesCacheData(
+            id: 'cat-1',
+            names: jsonEncode({'de': 'Getränke'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+          CategoriesCacheData(
+            id: 'cat-2',
+            names: jsonEncode({'de': 'Snacks'}),
+            isActive: 1,
+            updatedAt: '2025-02-01T10:00:00Z',
+          ),
+        ]);
+        when(() => mockProductsProvider.products).thenReturn(drinks + snacks);
+        when(() => mockProductsProvider.getVisibleProducts('cat-1'))
+            .thenReturn(drinks);
+        when(() => mockProductsProvider.getVisibleProducts('cat-2'))
+            .thenReturn(snacks);
+        when(() => mockProductsProvider.isProductAvailable(any()))
+            .thenReturn(available);
+        when(() => mockProductsProvider.lastError).thenReturn(null);
+        when(() => mockProductsProvider.getTranslatedName(any(), any()))
+            .thenAnswer((invocation) {
+          final product =
+              invocation.positionalArguments[0] as ProductsCacheData;
+          return (jsonDecode(product.names) as Map<String, dynamic>)['de']
+              as String;
+        });
+        when(() => mockMembersProvider.selectedMember).thenReturn(member);
+        when(() => mockMembersProvider.sessionId).thenReturn('session-1');
+        when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+        when(() => mockCartProvider.addItem(
+              any(),
+              any(),
+              any(),
+              any(),
+              any(),
+              iconName: any(named: 'iconName'),
+              requiresDispenser: any(named: 'requiresDispenser'),
+              minAge: any(named: 'minAge'),
+              volumeMl: any(named: 'volumeMl'),
+            )).thenReturn(null);
+
+        await tester.pumpWidget(
+          createTestApp(
+            child: MultiProvider(
+              providers: [
+                ChangeNotifierProvider<ProductsProvider>.value(
+                    value: mockProductsProvider),
+                ChangeNotifierProvider<CartProvider>.value(
+                    value: mockCartProvider),
+                ChangeNotifierProvider<SyncProvider>.value(
+                    value: mockSyncProvider),
+                ChangeNotifierProvider<MembersProvider>.value(
+                    value: mockMembersProvider),
+                ChangeNotifierProvider<SessionController>.value(
+                    value: mockSessionController),
+                Provider<SoundService>.value(value: mockSoundService),
+                Provider<ConfigService>.value(value: createMockConfigService()),
+              ],
+              child: MediaQuery(
+                data: MediaQueryData(disableAnimations: disableAnimations),
+                child: const Scaffold(body: ProductSelectionScreen()),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      /// Each tile's entrance opacity, in grid order.
+      ///
+      /// The *outermost* [Opacity] of each entry: the card inside carries one
+      /// of its own, which is what dims an unavailable product.
+      List<double> tileOpacities(WidgetTester tester) => [
+            for (final entry in find.byType(StaggeredEntry).evaluate())
+              tester
+                  .widget<Opacity>(find
+                      .descendant(
+                        of: find.byWidget(entry.widget),
+                        matching: find.byType(Opacity),
+                      )
+                      .first)
+                  .opacity,
+          ];
+
+      testWidgets('a tap adds the product and flies its icon to the total',
+          (WidgetTester tester) async {
+        await pumpGridScreen(tester);
+
+        await tester.tap(find.text('Bier'));
+        await tester.pump();
+
+        // State first: the cart heard about the tap on the tap.
+        verify(() => mockCartProvider.addItem(
+              'prod-beer',
+              'Bier',
+              350,
+              1,
+              'de',
+              iconName: any(named: 'iconName'),
+              requiresDispenser: any(named: 'requiresDispenser'),
+              minAge: any(named: 'minAge'),
+              volumeMl: any(named: 'volumeMl'),
+            )).called(1);
+
+        // Motion second: exactly one sprite, in the root overlay.
+        expect(find.byKey(const Key('cart-flight')), findsOneWidget);
+
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('cart-flight')), findsNothing);
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+
+      testWidgets('a disabled tile flies nothing', (WidgetTester tester) async {
+        // A dispenser that is offline: the tile stays on the grid, greyed
+        // out, and adds nothing — so there is nothing to fly either (#31).
+        await pumpGridScreen(tester, available: false);
+
+        await tester.tap(find.text('Bier'));
+        await tester.pump();
+
+        expect(find.byKey(const Key('cart-flight')), findsNothing);
+      });
+
+      testWidgets('a new category enters staggered, and settles at rest',
+          (WidgetTester tester) async {
+        await pumpGridScreen(tester);
+
+        await tester.tap(find.text('Snacks'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 10));
+
+        final early = tileOpacities(tester);
+        expect(early.length, greaterThanOrEqualTo(6));
+        // The first tile is already on its way in…
+        expect(early.first, greaterThan(0.0));
+        // …while a later one has not started.
+        expect(early[5], equals(0.0));
+
+        // Two pumps: the tiles whose delay expires during the first one
+        // only *start* their controller there — a ticker's first tick is
+        // always zero elapsed — so the frame that shows them in place is the
+        // second. Either way the whole stagger is over well inside 400 ms.
+        await tester.pump(const Duration(milliseconds: 250));
+        await tester.pump(const Duration(milliseconds: 150));
+        expect(tileOpacities(tester), everyElement(closeTo(1.0, 0.001)));
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+
+      testWidgets('re-tapping the category already shown starts nothing',
+          (WidgetTester tester) async {
+        await pumpGridScreen(tester);
+
+        await tester.tap(find.text('Getränke'));
+        await tester.pump();
+
+        expect(tileOpacities(tester), everyElement(closeTo(1.0, 0.001)));
+        expect(tester.hasRunningAnimations, isFalse);
+        // The sound is the chip's own business and still plays.
+        verify(() => mockSoundService.play(SoundEvent.categorySwitch))
+            .called(1);
+      });
+
+      testWidgets('a cart change does not restage the entrance',
+          (WidgetTester tester) async {
+        await pumpGridScreen(tester);
+
+        await tester.tap(find.text('Snacks'));
+        await tester.pumpAndSettle();
+        expect(tileOpacities(tester), everyElement(closeTo(1.0, 0.001)));
+
+        // The grid rebuilds for a reason that is not a category switch.
+        when(() => mockCartProvider.total).thenReturn(350);
+        mockCartProvider.notifyListeners();
+        await tester.pump();
+
+        expect(tileOpacities(tester), everyElement(closeTo(1.0, 0.001)));
+      });
+
+      testWidgets('reduced motion: no stagger, no sprite',
+          (WidgetTester tester) async {
+        await pumpGridScreen(tester, disableAnimations: true);
+
+        await tester.tap(find.text('Bier'));
+        await tester.pump();
+        expect(find.byKey(const Key('cart-flight')), findsNothing);
+
+        await tester.tap(find.text('Snacks'));
+        await tester.pump();
+        expect(tileOpacities(tester), everyElement(closeTo(1.0, 0.001)));
+
+        await tester.pumpAndSettle();
+        expect(tester.hasRunningAnimations, isFalse);
+      });
+    });
   });
 }
+

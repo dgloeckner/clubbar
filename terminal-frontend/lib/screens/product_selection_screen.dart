@@ -19,12 +19,14 @@ import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/product_grid_layout.dart';
+import 'package:clubbar_terminal/widgets/cart_flight.dart';
 import 'package:clubbar_terminal/widgets/cart_summary_bar.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
 import 'package:clubbar_terminal/widgets/scroll_more_hint.dart';
+import 'package:clubbar_terminal/widgets/staggered_entry.dart';
 import 'package:clubbar_terminal/widgets/styled_components/product_card.dart';
 import 'package:clubbar_terminal/widgets/styled_components/category_chip.dart';
 
@@ -37,6 +39,46 @@ class ProductSelectionScreen extends StatefulWidget {
 
 class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
   int _selectedCategoryIndex = 0;
+
+  /// Where the running total is, so a tapped tile's icon can be flown into it
+  /// (#921). Held by the screen rather than the bar: the bar is rebuilt on
+  /// every cart change, and the flight has to be aimed from *outside* it.
+  final GlobalKey _totalKey = GlobalKey();
+
+  /// Told by each sprite as it arrives; the total pops in answer.
+  final CartLandingSignal _landingSignal = CartLandingSignal();
+
+  /// When the selected category last changed, which is what the tiles'
+  /// entrance stagger is timed from. Null until the first switch: the first
+  /// paint after login does not stagger, and neither does a rebuild.
+  DateTime? _categorySwitchedAt;
+
+  @override
+  void dispose() {
+    _landingSignal.dispose();
+    super.dispose();
+  }
+
+  /// Flies a copy of the tapped tile's icon from [iconRect] into the total.
+  ///
+  /// The cart has already been updated by the time this runs. Everything here
+  /// is decoration: if the bar is not laid out, or the member has asked for
+  /// reduced motion, the tap is simply over.
+  void _flyToCart(Rect iconRect, String? iconName) {
+    final box = _totalKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    CartFlight.launch(
+      context,
+      from: iconRect,
+      to: box.localToGlobal(Offset.zero) & box.size,
+      iconName: iconName,
+      // `mounted` because a member can be logged out, or scanned over by the
+      // next member, while a sprite is still in the air.
+      onLanded: () {
+        if (mounted) _landingSignal.landed();
+      },
+    );
+  }
 
   String _getCategoryName(CategoriesCacheData category, String language, String fallback) {
     try {
@@ -250,8 +292,18 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
                                       selected: _selectedCategoryIndex == index,
                                       onSelected: () {
                                         context.read<SoundService>().play(SoundEvent.categorySwitch);
+                                        // Only a *change* stages an entrance
+                                        // (#921). Re-tapping the chip already
+                                        // showing plays the sound and leaves
+                                        // the grid alone.
+                                        final changed =
+                                            _selectedCategoryIndex != index;
                                         setState(() {
                                           _selectedCategoryIndex = index;
+                                          if (changed) {
+                                            _categorySwitchedAt =
+                                                DateTime.now();
+                                          }
                                         });
                                       },
                                     ),
@@ -300,6 +352,8 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
               // behind the bar. On an empty cart it shows 0,00 € and both
               // buttons are inert.
               CartSummaryBar(
+                totalKey: _totalKey,
+                landingSignal: _landingSignal,
                 totalCents: cartProvider.total,
                 locale: locale,
                 isCartEmpty: cartProvider.items.isEmpty,
@@ -397,16 +451,24 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
             mainAxisSpacing: _gridSpacing,
           ),
           itemCount: products.length,
-          itemBuilder: (context, index) => _buildTile(
-            context,
-            products[index],
-            names[index],
-            memberLang,
-            geometry,
-            productsProvider,
-            cartProvider,
-            selectedMember,
-            l10n,
+          itemBuilder: (context, index) => StaggeredEntry(
+            // Keyed by category, so the tiles of a *new* category are new
+            // widgets with a fresh entrance rather than the old ones updated
+            // in place.
+            key: ValueKey('tile-${category.id}-$index'),
+            index: index,
+            switchedAt: _categorySwitchedAt,
+            child: _buildTile(
+              context,
+              products[index],
+              names[index],
+              memberLang,
+              geometry,
+              productsProvider,
+              cartProvider,
+              selectedMember,
+              l10n,
+            ),
           ),
         );
 
@@ -484,6 +546,9 @@ class _ProductSelectionScreenState extends State<ProductSelectionScreen> {
       onDecrement: quantity > 0
         ? () => cartProvider.decreaseItem(product.id)
         : null,
+      // Fired after the cart has been told, with the icon's global rect: the
+      // sprite leaves the picture the member touched (#921).
+      onAdded: (iconRect) => _flyToCart(iconRect, product.iconName),
       onTap: () {
         cartProvider.addItem(
           product.id,

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
+import 'package:clubbar_terminal/widgets/cart_flight.dart';
 import 'package:clubbar_terminal/widgets/checkout_button.dart';
+import 'package:clubbar_terminal/widgets/counting_amount.dart';
 import 'package:clubbar_terminal/widgets/styled_components/secondary_button.dart';
 
 /// Sticky bottom bar on the product grid: what the cart costs so far, and the
@@ -26,6 +28,8 @@ class CartSummaryBar extends StatelessWidget {
     required this.onCheckout,
     this.isBlockedByCredential = false,
     required this.onViewCart,
+    this.totalKey,
+    this.landingSignal,
     super.key = const Key('cart-summary-bar'),
   });
 
@@ -52,6 +56,15 @@ class CartSummaryBar extends StatelessWidget {
   final Future<void> Function() onCheckout;
 
   final VoidCallback onViewCart;
+
+  /// Key on the total, so the screen can read *where* it is and fly a
+  /// product's icon into it (#921). Resolved at tap time rather than cached:
+  /// the bar moves down the screen whenever a banner appears above it.
+  final GlobalKey? totalKey;
+
+  /// Fires when a fly-to-cart sprite arrives; the total pops. Null — which is
+  /// every caller that has not wired a flight — means no ticker at all.
+  final Listenable? landingSignal;
 
   static const double _buttonHeight = 67.0;
   static const double _borderWidth = 1.0;
@@ -111,13 +124,26 @@ class CartSummaryBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
-                Text(
-                  formatPrice(totalCents, locale),
-                  key: const Key('cart-summary-total'),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 40,
-                    fontWeight: FontWeight.w700,
+                // The total counts to its new value rather than jumping
+                // (#921), and pops when an icon lands in it. It is the one
+                // number a member watches while they tap, so it is worth the
+                // 250 ms; the cart screen's own total still jumps, because
+                // that screen is one tap from checkout and a moving number
+                // there is noise.
+                KeyedSubtree(
+                  key: totalKey,
+                  child: PopOnSignal(
+                    signal: landingSignal,
+                    child: CountingAmount(
+                      cents: totalCents,
+                      format: (cents) => formatPrice(cents, locale),
+                      textKey: const Key('cart-summary-total'),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 40,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],

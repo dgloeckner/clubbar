@@ -5,6 +5,7 @@ import 'package:clubbar_terminal/controllers/checkout_action.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
+import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
@@ -14,11 +15,13 @@ import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/widgets/cart_flight.dart';
 import 'package:clubbar_terminal/widgets/checkout_button.dart';
 import 'package:clubbar_terminal/widgets/credit_limit_banner.dart';
 import 'package:clubbar_terminal/widgets/error_banner.dart';
 import 'package:clubbar_terminal/widgets/loading_overlay.dart';
 import 'package:clubbar_terminal/widgets/member_bar.dart';
+import 'package:clubbar_terminal/widgets/removable_list.dart';
 import 'package:clubbar_terminal/widgets/scroll_more_hint.dart';
 
 class ShoppingCartScreen extends StatelessWidget {
@@ -153,11 +156,16 @@ class ShoppingCartScreen extends StatelessWidget {
               child: ScrollMoreHint(
                 child: LoadingOverlay(
                   isLoading: isCheckoutInFlight,
-                  child: ListView.builder(
+                  // A removed line leaves rather than blinking out (#921):
+                  // it slides out to the left while the rows below close the
+                  // gap. `removeItem`/`decreaseItem` are still called
+                  // synchronously on the tap; the row plays out from a
+                  // snapshot the list took of it.
+                  child: RemovableList<CartItem>(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    itemCount: cartProvider.items.length,
-                    itemBuilder: (context, index) {
-                      final item = cartProvider.items[index];
+                    items: cartProvider.items,
+                    keyOf: (item) => item.productId,
+                    itemBuilder: (context, item) {
                       final unitPriceFormatted = formatPrice(item.priceCents, locale);
                       final lineTotalFormatted = formatPrice(item.priceCents * item.quantity, locale);
 
@@ -254,15 +262,23 @@ class ShoppingCartScreen extends StatelessWidget {
                                 ),
 
                                 // Quantity
+                                // The digit bounces when it changes (#921).
+                                // The line total beside it deliberately does
+                                // not: two moving numbers on one row fight,
+                                // and the quantity is the one the member just
+                                // changed.
                                 SizedBox(
                                   width: 48,
-                                  child: Text(
-                                    '${item.quantity}',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: AppFontSizes.xl,
-                                      fontWeight: FontWeight.w600,
+                                  child: PopOnChange(
+                                    value: item.quantity,
+                                    child: Text(
+                                      '${item.quantity}',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: AppFontSizes.xl,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                 ),

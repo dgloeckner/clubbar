@@ -4,12 +4,22 @@ import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
 import 'package:clubbar_terminal/utils/product_grid_layout.dart';
+import 'package:clubbar_terminal/widgets/cart_flight.dart';
 
 class ProductCard extends StatefulWidget {
   final ProductsCacheData product;
   final String productName;
   final String locale;
   final VoidCallback onTap;
+
+  /// Where the tile's icon is, in global coordinates, at the moment a tap
+  /// added the product (#921) — the launch point of the fly-to-cart sprite.
+  ///
+  /// Fired *after* [onTap], so the cart has already been told about the tap
+  /// before anything moves: state first, motion second. A disabled tile and
+  /// the minus button never fire it; neither adds anything to fly.
+  final void Function(Rect iconRect)? onAdded;
+
   final int quantity;
   final VoidCallback? onDecrement;
 
@@ -81,6 +91,7 @@ class ProductCard extends StatefulWidget {
     required this.productName,
     required this.locale,
     required this.onTap,
+    this.onAdded,
     this.quantity = 0,
     this.onDecrement,
     this.enabled = true,
@@ -110,6 +121,12 @@ class _ProductCardState extends State<ProductCard>
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
+  /// The icon's own box, so its position can be read without measuring the
+  /// whole tile: the sprite has to leave the picture the member touched, not
+  /// the card's centre.
+  final GlobalKey _iconKey = GlobalKey();
+
+
   @override
   void initState() {
     super.initState();
@@ -137,6 +154,19 @@ class _ProductCardState extends State<ProductCard>
     if (!widget.enabled) return;
     _animationController.reverse();
     widget.onTap();
+    _reportAdded();
+  }
+
+  /// Hands the caller the icon's global rect, if there is a caller and the
+  /// icon is laid out. The tile is at 1.05 of its `ScaleTransition` at this
+  /// moment; `localToGlobal` already accounts for that, so the sprite leaves
+  /// exactly where the member is looking.
+  void _reportAdded() {
+    final onAdded = widget.onAdded;
+    if (onAdded == null) return;
+    final box = _iconKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    onAdded(box.localToGlobal(Offset.zero) & box.size);
   }
 
   void _handleTapCancel() {
@@ -265,8 +295,11 @@ class _ProductCardState extends State<ProductCard>
                     children: [
                       // Icon — 52 at the floor, and `sm` under it: the 12 px
                       // this gave back is what paid for the larger name.
-                      getProductIcon(widget.product.iconName,
-                          size: widget.iconSize),
+                      KeyedSubtree(
+                        key: _iconKey,
+                        child: getProductIcon(widget.product.iconName,
+                            size: widget.iconSize),
+                      ),
                       SizedBox(height: ProductCard.metrics.gap),
 
                       // Product name — the headline; see [nameFontSize].
@@ -399,12 +432,18 @@ class _ProductCardState extends State<ProductCard>
                     color: AppColors.semanticPrimaryStrong,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Text(
-                    '${widget.quantity}x',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: AppFontSizes.lg,
-                      fontWeight: FontWeight.w700,
+                  // The badge bumps when its number changes (#921), the same
+                  // pop the running total plays when a sprite lands there —
+                  // the two ends of one flight, reacting alike.
+                  child: PopOnChange(
+                    value: widget.quantity,
+                    child: Text(
+                      '${widget.quantity}x',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: AppFontSizes.lg,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

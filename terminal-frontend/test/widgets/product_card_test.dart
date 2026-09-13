@@ -331,4 +331,128 @@ void main() {
           reason: 'never below the price floor');
     });
   });
+  // Issue #921: the tile hands the screen the launch point of the fly-to-cart
+  // sprite, and only when there is actually something to fly.
+  group('fly-to-cart launch point (#921)', () {
+    Future<void> pumpTappable(
+      WidgetTester tester, {
+      required void Function(Rect rect) onAdded,
+      required VoidCallback onTap,
+      bool enabled = true,
+      VoidCallback? onDecrement,
+      int quantity = 0,
+    }) {
+      return tester.pumpWidget(
+        createTestApp(
+          child: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 240,
+                height: 240,
+                child: ProductCard(
+                  product: product(),
+                  productName: 'Sauna-Token',
+                  locale: 'de',
+                  onTap: onTap,
+                  onAdded: onAdded,
+                  enabled: enabled,
+                  quantity: quantity,
+                  onDecrement: onDecrement,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('an enabled tap reports a rect inside the card',
+        (WidgetTester tester) async {
+      Rect? reported;
+      var taps = 0;
+      await pumpTappable(
+        tester,
+        onTap: () => taps++,
+        onAdded: (rect) => reported = rect,
+      );
+
+      await tester.tap(find.byType(ProductCard));
+      await tester.pumpAndSettle();
+
+      expect(taps, equals(1));
+      expect(reported, isNotNull);
+      expect(reported!.isEmpty, isFalse);
+      // The launch point is the icon the member touched, so it is inside the
+      // tile they touched.
+      final card = tester.getRect(find.byType(ProductCard));
+      expect(card.contains(reported!.center), isTrue);
+    });
+
+    testWidgets('a disabled card reports nothing — there is nothing to fly',
+        (WidgetTester tester) async {
+      Rect? reported;
+      await pumpTappable(
+        tester,
+        enabled: false,
+        onTap: () {},
+        onAdded: (rect) => reported = rect,
+      );
+
+      await tester.tap(find.byType(ProductCard));
+      await tester.pumpAndSettle();
+
+      expect(reported, isNull);
+    });
+
+    testWidgets('the minus button reports nothing', (WidgetTester tester) async {
+      Rect? reported;
+      var decrements = 0;
+      await pumpTappable(
+        tester,
+        quantity: 2,
+        onDecrement: () => decrements++,
+        onTap: () {},
+        onAdded: (rect) => reported = rect,
+      );
+
+      await tester.tap(find.byIcon(Icons.remove));
+      await tester.pumpAndSettle();
+
+      expect(decrements, equals(1));
+      expect(reported, isNull);
+    });
+
+    testWidgets('the count badge bumps when its number changes',
+        (WidgetTester tester) async {
+      double badgeScale() => tester
+          // Closest first: the badge's own pop, not the whole tile's
+          // press-scale further up the tree.
+          .widget<ScaleTransition>(find.ancestor(
+            of: find.text('2x'),
+            matching: find.byType(ScaleTransition),
+          ).first)
+          .scale
+          .value;
+
+      await pumpTappable(
+        tester,
+        quantity: 1,
+        onTap: () {},
+        onAdded: (_) {},
+      );
+      await pumpTappable(
+        tester,
+        quantity: 2,
+        onTap: () {},
+        onAdded: (_) {},
+      );
+      await tester.pump();
+      await tester.pump(AppAnimations.amountPop ~/ 2);
+      expect(badgeScale(), greaterThan(1.0));
+
+      await tester.pumpAndSettle();
+      expect(badgeScale(), closeTo(1.0, 0.001));
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+  });
 }

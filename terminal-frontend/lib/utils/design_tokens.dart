@@ -275,6 +275,45 @@ class AppAnimations {
   static const Duration fast = Duration(milliseconds: 100);
   static const Duration normal = Duration(milliseconds: 150);
   static const Duration slow = Duration(milliseconds: 200);
+
+  /// The buying loop's motion (#921). Every one of these is a **one-shot**
+  /// reward for a tap, started by a tap or a state change and finished within
+  /// its own duration — nothing here repeats, and nothing here outlives its
+  /// effect (#760: the idle screen must produce no frames).
+  ///
+  /// They live here rather than as literals at the call sites so the loop can
+  /// be retuned as one thing. The login burst's 1250 ms is the ceiling for
+  /// the whole app and none of these comes near it: a member on a 7" panel
+  /// taps fast, and an animation they have to wait out is not a reward.
+
+  /// The tapped tile's icon arcing into the running total.
+  static const Duration cartFlight = Duration(milliseconds: 350);
+
+  /// The pop the total (and the tile's `Nx` badge) plays on arrival.
+  static const Duration amountPop = Duration(milliseconds: 220);
+
+  /// The summary bar's total tweening between two amounts.
+  static const Duration countUp = Duration(milliseconds: 250);
+
+  /// The receipt's balance counting to its final value — longer, because it
+  /// is the number the member walks away with and plays exactly once.
+  static const Duration balanceCountUp = Duration(milliseconds: 600);
+
+  /// A removed cart line sliding out while its height collapses.
+  static const Duration lineExit = Duration(milliseconds: 250);
+
+  /// The quantity digit bouncing when it changes.
+  static const Duration digitBounce = Duration(milliseconds: 180);
+
+  /// One tile's fade-and-rise when a new category is shown.
+  static const Duration tileEnter = Duration(milliseconds: 100);
+
+  /// How much later than its predecessor each tile starts…
+  static const Duration tileStagger = Duration(milliseconds: 20);
+
+  /// …and the point past which no tile waits any longer, so a 40-product
+  /// category does not take a second to appear.
+  static const Duration tileStaggerCap = Duration(milliseconds: 120);
 }
 
 /// Avatar gradients (5 colour schemes for member avatars).
