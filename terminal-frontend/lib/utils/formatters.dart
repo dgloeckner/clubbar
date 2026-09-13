@@ -81,9 +81,9 @@ String formatProductLabel(String name, int? millilitres, String locale) {
 
 /// Self-explanatory balance label, e.g. "Open tab: €14.80" or "Credit: €5.00".
 ///
-/// Positive cents mean the member owes money, negative mean credit (see
-/// [AppMoney] in `design_tokens.dart`). The label carries the sign, so the
-/// amount itself is always rendered positive. A settled account (#296) gets
+/// Positive cents mean the member owes money, negative mean credit (see the
+/// money-semantics block above `balanceColor` in `design_tokens.dart`). The
+/// label carries the sign, so the amount itself is always rendered positive. A settled account (#296) gets
 /// its own wording rather than "Open tab: €0.00" — an amount owed of zero.
 String formatBalance(int cents, AppLocalizations l10n, String locale) {
   if (cents == 0) return l10n.balanceSettled;

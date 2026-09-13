@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/widgets/member_details_modal.dart';
 
@@ -73,6 +74,14 @@ class MemberBar extends StatelessWidget {
     final navigationBlocked = context.select<SessionController, bool>(
       (session) => session.isCriticalOperationInFlight,
     );
+    // The tab from which *this* member is warned, resolved through the one
+    // rule that decides it (ADR-0047 rule 1) — their own ceiling where they
+    // have one, the club's where they do not. `null` means no ceiling is
+    // enforced for them, so their Deckel is never shown amber.
+    final warnAtCents = context
+        .read<ConfigService>()
+        .creditLimitPolicy
+        .warnAtCentsFor(member.creditLimitCents);
     final locale = member.preferredLanguage;
     final firstName = member.firstName ?? '';
     final lastName = member.lastName ?? '';
@@ -184,6 +193,7 @@ class MemberBar extends StatelessWidget {
                               style: TextStyle(
                                 color: balanceColor(
                                   deckelCents ?? member.balanceCents,
+                                  warnAtCents: warnAtCents,
                                 ),
                                 fontSize: AppFontSizes.lg,
                                 fontWeight: FontWeight.w500,

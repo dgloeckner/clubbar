@@ -22,7 +22,8 @@ enum CreditLimitStatus {
 /// block, so those three can never disagree about where the line is. The
 /// caller supplies the money; nothing here reads the database or the clock.
 ///
-/// Sign convention follows the rest of the terminal (see `AppMoney`):
+/// Sign convention follows the rest of the terminal (see `balanceColor` in
+/// `design_tokens.dart`):
 /// positive cents mean the member owes money, negative mean credit. Credit is
 /// therefore never a limit problem.
 @immutable
@@ -90,6 +91,17 @@ class CreditLimitCheck {
 
   /// Whether the member should be told about the limit at all.
   bool get warnsMember => status != CreditLimitStatus.ok;
+
+  /// The warning band as a *colour* may read it: the tab from which this
+  /// member is warned, or `null` when no ceiling is enforced for them.
+  ///
+  /// The one place the null-versus-zero distinction is drawn. [warnAtCents]
+  /// equals [limitCents] when nothing is enforced — zero or less — so a caller
+  /// comparing a balance against it raw would find every tab "in the band".
+  /// `null` says the question does not apply: there is no line to approach,
+  /// so nothing is ever marked amber (ADR-0047 rule 2 — `NULL` inherits the
+  /// club default, `0` is a deliberate "no ceiling").
+  int? get warnAtCentsOrNull => limitCents <= 0 ? null : warnAtCents;
 }
 
 /// The club's settings, and the one place the override-or-default rule is
@@ -136,6 +148,20 @@ class CreditLimitPolicy {
   /// different answer: a deliberate "no ceiling for this member", which
   /// survives a change to the club default rather than following it.
   int forMember(int? overrideCents) => overrideCents ?? defaultLimitCents;
+
+  /// The tab from which this member is shown the warning colour, or `null`
+  /// when no ceiling is enforced for them.
+  ///
+  /// What a screen showing a balance asks, as opposed to what a checkout asks:
+  /// there is no cart in the question. Derived from [evaluate] on an empty
+  /// cart rather than recomputed, so the `~/ 100` that decides the boundary
+  /// cent stays written once in Dart — the colour and `CreditLimitBanner`
+  /// cannot round it differently and disagree about one member.
+  int? warnAtCentsFor(int? memberLimitCents) => evaluate(
+        memberLimitCents: memberLimitCents,
+        currentBalanceCents: 0,
+        cartTotalCents: 0,
+      ).warnAtCentsOrNull;
 
   /// Evaluate a cart for one member, resolving their ceiling first — the
   /// single call every screen, widget and service goes through, so the banner,

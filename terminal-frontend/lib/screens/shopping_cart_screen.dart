@@ -401,7 +401,13 @@ class ShoppingCartScreen extends StatelessWidget {
                             Text(
                               formatNewBalance(newBalanceCents, l10n, locale),
                               style: TextStyle(
-                                color: balanceColor(newBalanceCents),
+                                color: balanceColor(
+                                  newBalanceCents,
+                                  // The same verdict the banner and the Buy
+                                  // button read, so the number cannot call a
+                                  // tab ordinary while they call it close.
+                                  warnAtCents: limitCheck.warnAtCentsOrNull,
+                                ),
                                 fontSize: AppFontSizes.xl,
                                 fontWeight: FontWeight.w500,
                               ),
