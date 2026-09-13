@@ -9,7 +9,6 @@ import 'package:clubbar_terminal/controllers/session_controller.dart';
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/l10n/terminal_error_messages.dart';
-import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/products_provider.dart';

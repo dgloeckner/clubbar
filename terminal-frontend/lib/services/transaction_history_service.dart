@@ -123,7 +123,7 @@ class TransactionHistoryService {
     ])
       ..where(database.transactionsLocal.memberId.equals(memberId) &
           database.transactionsLocal.synced.equals(0) &
-          drift.isNull(database.transactionsLocal.quarantinedAt))
+          database.transactionsLocal.quarantinedAt.isNull())
       ..orderBy([drift.OrderingTerm.desc(database.transactionsLocal.createdAt)]);
 
     final rows = await query.get();

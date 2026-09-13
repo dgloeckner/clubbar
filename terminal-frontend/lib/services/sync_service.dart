@@ -305,13 +305,12 @@ class SyncService {
         _logger.i('Members: $deletedCount tombstone(s) applied');
       }
 
-      // Store cursor for next delta sync (API returns int, store as string)
-      if (response.cursor != null) {
-        await _syncRepo.setLastMembersSyncCursor(response.cursor.toString());
-        _logger.i('Members: cursor updated to ${response.cursor}');
-      } else {
-        _logger.w('Members: no cursor in response');
-      }
+      // Store cursor for next delta sync (API returns int, store as string).
+      // `cursor` is required by the contract, so the generated model types it
+      // non-nullable — a response without one fails in `fromJson` and lands in
+      // the catch below. There is no "no cursor" case to fall back to here.
+      await _syncRepo.setLastMembersSyncCursor(response.cursor.toString());
+      _logger.i('Members: cursor updated to ${response.cursor}');
 
       // Update sync timestamp
       final now = DateTime.now();
@@ -350,13 +349,12 @@ class SyncService {
         _logger.i('Categories: $deletedCount tombstone(s) applied');
       }
 
-      // Store cursor for next delta sync (API returns int, store as string)
-      if (response.cursor != null) {
-        await _syncRepo.setLastCategoriesSyncCursor(response.cursor.toString());
-        _logger.i('Categories: cursor updated to ${response.cursor}');
-      } else {
-        _logger.w('Categories: no cursor in response');
-      }
+      // Store cursor for next delta sync (API returns int, store as string).
+      // `cursor` is required by the contract, so the generated model types it
+      // non-nullable — a response without one fails in `fromJson` and lands in
+      // the catch below. There is no "no cursor" case to fall back to here.
+      await _syncRepo.setLastCategoriesSyncCursor(response.cursor.toString());
+      _logger.i('Categories: cursor updated to ${response.cursor}');
 
       // Update sync timestamp
       final now = DateTime.now();
@@ -397,13 +395,12 @@ class SyncService {
         _logger.i('Products: $deletedCount tombstone(s) applied');
       }
 
-      // Store cursor for next delta sync (API returns int, store as string)
-      if (response.cursor != null) {
-        await _syncRepo.setLastProductsSyncCursor(response.cursor.toString());
-        _logger.i('Products: cursor updated to ${response.cursor}');
-      } else {
-        _logger.w('Products: no cursor in response');
-      }
+      // Store cursor for next delta sync (API returns int, store as string).
+      // `cursor` is required by the contract, so the generated model types it
+      // non-nullable — a response without one fails in `fromJson` and lands in
+      // the catch below. There is no "no cursor" case to fall back to here.
+      await _syncRepo.setLastProductsSyncCursor(response.cursor.toString());
+      _logger.i('Products: cursor updated to ${response.cursor}');
 
       // Update sync timestamp
       final now = DateTime.now();
