@@ -9,6 +9,8 @@ use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Transactions\Repositories\TransactionsRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Exceptions\NotFoundException;
@@ -23,6 +25,7 @@ class MembersServiceTest extends TestCase
     private AuditService $auditService;
     private AuditLogRepository $auditLogRepository;
     private NotificationsService $notificationsService;
+    private CreditLimitConfigService $creditLimitConfigService;
     private \PDO $db;
     private MembersService $membersService;
 
@@ -40,6 +43,14 @@ class MembersServiceTest extends TestCase
         // exercise it, so the collaborator is present and silent.
         $this->notificationsService = $this->createMock(NotificationsService::class);
 
+        // The club's shipped policy: a 10000 ceiling warned at 80%, so an
+        // inherited band falls at 8000. `CreditLimitPolicy` is final, so the
+        // return is stubbed with the real thing rather than doubled.
+        $this->creditLimitConfigService = $this->createMock(CreditLimitConfigService::class);
+        $this->creditLimitConfigService
+            ->method('policy')
+            ->willReturn(new CreditLimitPolicy(10000, 80));
+
         // Create service instance
         $this->membersService = new MembersService(
             $this->membersRepository,
@@ -48,6 +59,7 @@ class MembersServiceTest extends TestCase
             $this->auditLogRepository,
             $this->notificationsService,
             $this->db,
+            $this->creditLimitConfigService,
         );
     }
 
@@ -264,6 +276,133 @@ class MembersServiceTest extends TestCase
         // The flag replaces the date, it does not accompany it.
         $this->assertArrayNotHasKey('date_of_birth', $result->items[0]);
         $this->assertArrayNotHasKey('date_of_birth', $result->items[1]);
+    }
+
+    /**
+     * The roster's warning colour, resolved here rather than in the browser
+     * (#926, ADR-0042/ADR-0047).
+     *
+     * The panel colours a Deckel amber once the member has entered their own
+     * warning band, which means the band has to travel with the row: the
+     * override-or-default rule and its rounding are expressed once per side,
+     * and the admin — online on every render — is not a side that resolves.
+     */
+    public function test_listMembers_sends_the_band_each_member_is_warned_at(): void
+    {
+        $this->membersRepository
+            ->method('listPaginated')
+            ->willReturn([
+                'items' => [
+                    // No ceiling of their own: they follow the club's 10000.
+                    $this->member('inherits', ['credit_limit_cents' => null]),
+                    // Their own 5000, warned at the club's 80% of it.
+                    $this->member('override', ['credit_limit_cents' => 5000]),
+                ],
+                'total' => 2,
+            ]);
+
+        $result = $this->membersService->listMembers(20, 0);
+
+        $this->assertSame(8000, $result->items[0]['credit_limit_warn_at_cents']);
+        $this->assertSame(4000, $result->items[1]['credit_limit_warn_at_cents']);
+    }
+
+    /**
+     * `0` is "no ceiling for this member", and that is not a band of zero.
+     *
+     * ADR-0047 rule 2: `NULL` inherits and `0` is unlimited. Sending `0` here
+     * would make every tab in the roster sit at or above its band, painting
+     * the whole column amber — the failure the colour change exists to end.
+     */
+    public function test_listMembers_sends_no_band_for_a_member_with_no_ceiling(): void
+    {
+        $this->membersRepository
+            ->method('listPaginated')
+            ->willReturn([
+                'items' => [$this->member('unlimited', ['credit_limit_cents' => 0])],
+                'total' => 1,
+            ]);
+
+        $result = $this->membersService->listMembers(20, 0);
+
+        $this->assertNull($result->items[0]['credit_limit_warn_at_cents']);
+    }
+
+    public function test_listMembers_sends_no_band_when_the_club_caps_nobody(): void
+    {
+        $service = new MembersService(
+            $this->membersRepository,
+            $this->transactionsRepository,
+            $this->auditService,
+            $this->auditLogRepository,
+            $this->notificationsService,
+            $this->db,
+            $this->policyService(new CreditLimitPolicy(0, 80)),
+        );
+
+        $this->membersRepository
+            ->method('listPaginated')
+            ->willReturn([
+                'items' => [
+                    $this->member('inherits', ['credit_limit_cents' => null]),
+                    $this->member('override', ['credit_limit_cents' => 5000]),
+                ],
+                'total' => 2,
+            ]);
+
+        $result = $service->listMembers(20, 0);
+
+        // Nothing to inherit…
+        $this->assertNull($result->items[0]['credit_limit_warn_at_cents']);
+        // …but a member singled out for a ceiling still has a band.
+        $this->assertSame(4000, $result->items[1]['credit_limit_warn_at_cents']);
+    }
+
+    /**
+     * One club setting, one read — not one per row.
+     *
+     * `CreditLimitConfigService::policy()` goes to the database on every call,
+     * and the club's ceiling does not vary between members, so resolving
+     * inside the row loop would put a query behind every name on the page.
+     */
+    public function test_listMembers_reads_the_club_policy_once_for_the_page(): void
+    {
+        $policyService = $this->createMock(CreditLimitConfigService::class);
+        $policyService
+            ->expects($this->once())
+            ->method('policy')
+            ->willReturn(new CreditLimitPolicy(10000, 80));
+
+        $service = new MembersService(
+            $this->membersRepository,
+            $this->transactionsRepository,
+            $this->auditService,
+            $this->auditLogRepository,
+            $this->notificationsService,
+            $this->db,
+            $policyService,
+        );
+
+        $this->membersRepository
+            ->method('listPaginated')
+            ->willReturn([
+                'items' => [
+                    $this->member('one'),
+                    $this->member('two'),
+                    $this->member('three'),
+                ],
+                'total' => 3,
+            ]);
+
+        $service->listMembers(20, 0);
+    }
+
+    private function policyService(CreditLimitPolicy $policy): CreditLimitConfigService
+    {
+        $service = $this->createMock(CreditLimitConfigService::class);
+        $service->method('policy')->willReturn($policy);
+
+        return $service;
     }
 
     public function test_getDataCompleteness_passes_the_repository_counts_through(): void

@@ -7,6 +7,8 @@ namespace Tests\Feature\Modules\Members\Services;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
+use App\Modules\CreditLimits\Repositories\CreditLimitConfigRepository;
+use App\Modules\CreditLimits\Services\CreditLimitConfigService;
 use App\Modules\Members\Enums\SupportedLanguage;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Members\Services\MembersService;
@@ -67,6 +69,10 @@ class MemberLifecycleMailTest extends DatabaseTestCase
                 $this->logger,
             ),
             $this->db,
+            new CreditLimitConfigService(
+                new CreditLimitConfigRepository($this->db, $this->logger),
+                $auditService,
+            ),
             null,
             $this->logger,
         );
