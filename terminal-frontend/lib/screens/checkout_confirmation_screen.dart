@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/widgets/counting_amount.dart';
 
 /// What a session bought, read back from the rows the checkout wrote.
 class _Receipt {
@@ -85,6 +86,10 @@ double get _receiptBalanceSize => AppFontSizes.xxxl * 1.55;
 /// member has to scroll is one they do not read.
 const int _compactAbove = 4;
 
+/// How long the receipt card takes to scale in — and therefore how long the
+/// balance waits before it starts counting (#921).
+const Duration _receiptScaleIn = Duration(milliseconds: 300);
+
 class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     with SingleTickerProviderStateMixin {
   Timer? _autoReturnTimer;
@@ -127,7 +132,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     _lastBilledCents = context.read<CartProvider>().lastCheckoutTotalCents;
 
     _scaleController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: _receiptScaleIn,
       vsync: this,
     );
     _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
@@ -253,7 +258,11 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             ),
             SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
 
-            ..._balanceBlock(l10n, compact: compact),
+            ..._balanceBlock(
+              l10n,
+              compact: compact,
+              billedCents: receipt.billedCents,
+            ),
           ],
         );
       },
@@ -444,13 +453,28 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     );
   }
 
+  /// Where the balance count starts: the final balance minus what this
+  /// receipt says was billed.
+  ///
+  /// The *billed* amount, never the asked-for one — a partial dispense bills
+  /// less than the cart did, and a count that started from the larger figure
+  /// would show two numbers on one screen that do not add up. Falls back to
+  /// [_lastBilledCents] where the session lookup failed and there is no
+  /// read-back total (#16).
+  int _balanceBeforeCents(int? billedCents) =>
+      _balanceCents - (billedCents ?? _lastBilledCents);
+
   /// The tab as it stands now — the number the member walks away with —
   /// and, under it, the bar that drains while the receipt is on screen.
   ///
   /// No session reference here (#25): a raw UUID means nothing to the member
   /// it is shown to, and the transaction is looked up from the local database
   /// or the backend when staff actually need it.
-  List<Widget> _balanceBlock(AppLocalizations l10n, {bool compact = false}) {
+  List<Widget> _balanceBlock(
+    AppLocalizations l10n, {
+    bool compact = false,
+    int? billedCents,
+  }) {
     return [
       Text(
         l10n.receiptBalanceLabel,
@@ -461,14 +485,25 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         textAlign: TextAlign.center,
       ),
       const SizedBox(height: AppSpacing.xs),
-      Text(
-        formatBalance(_balanceCents, l10n, _locale),
-        key: const Key('receipt-balance'),
-        style: TextStyle(
-          color: balanceColor(_balanceCents),
+      // The balance counts from what it was *before* this checkout to what
+      // it is now (#921), starting once the receipt has finished scaling in
+      // so the number is legible before it moves. While it runs, the total
+      // above it and the balance below it add up — which is the whole point:
+      // the member sees their tab absorb what they just bought.
+      CountingAmount(
+        cents: _balanceCents,
+        startCents: _balanceBeforeCents(billedCents),
+        duration: AppAnimations.balanceCountUp,
+        delay: _receiptScaleIn,
+        format: (cents) => formatBalance(cents, l10n, _locale),
+        // Per value, not fixed: a count that crosses zero crosses from the
+        // "open tab" colour to the "credit" one with it.
+        styleFor: (cents) => TextStyle(
+          color: balanceColor(cents),
           fontSize: _receiptBalanceSize,
           fontWeight: FontWeight.w700,
         ),
+        textKey: const Key('receipt-balance'),
         textAlign: TextAlign.center,
       ),
       SizedBox(height: compact ? AppSpacing.md : AppSpacing.xxl),

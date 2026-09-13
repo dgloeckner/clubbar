@@ -128,15 +128,19 @@ void main() {
     Future<void> pumpReceipt(
       WidgetTester tester, {
       MembersProvider? membersProvider,
+      bool disableAnimations = false,
     }) async {
       final router = GoRouter(
         initialLocation: '/',
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => wrap(
-              const CheckoutConfirmationScreen(sessionId: 'sess-abc123'),
-              membersProvider: membersProvider,
+            builder: (context, state) => MediaQuery(
+              data: MediaQueryData(disableAnimations: disableAnimations),
+              child: wrap(
+                const CheckoutConfirmationScreen(sessionId: 'sess-abc123'),
+                membersProvider: membersProvider,
+              ),
             ),
           ),
           GoRoute(
@@ -174,6 +178,20 @@ void main() {
       await tester.pump();
     }
 
+    /// Runs the balance's count-up out (#921).
+    ///
+    /// The receipt's balance starts at what the tab was *before* this
+    /// checkout and counts to the final figure, after the card's own
+    /// scale-in. A test about the number it lands on has to let it land;
+    /// one about the dwell does not, which is why this is a helper rather
+    /// than part of [pumpReceipt] — it would add a second to every timer
+    /// assertion in this file.
+    Future<void> settleBalance(WidgetTester tester) async {
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+    }
+
     testWidgets('keeps the receipt on the member it was issued to when the '
         'session is taken over (#26)', (WidgetTester tester) async {
       final anna = MembersCacheData(
@@ -200,6 +218,7 @@ void main() {
       await membersProvider.setSelectedMember(anna);
 
       await pumpReceipt(tester, membersProvider: membersProvider);
+      await settleBalance(tester);
       expect(find.text('Anna Member'), findsOneWidget);
       expect(find.text('Guthaben: 12,50\u00a0€'), findsOneWidget);
 
@@ -235,11 +254,49 @@ void main() {
     testWidgets('says where the tab stands now, under its own caption',
         (WidgetTester tester) async {
       await pumpReceipt(tester);
+      await settleBalance(tester);
 
       expect(find.text('Dein Deckel jetzt'), findsOneWidget);
       // memberDeckel is the balance *after* the purchase — the cart screen
       // awaits refreshDeckel() before navigating here.
       final balance = tester.widget<Text>(find.byKey(const Key('receipt-balance')));
+      expect(balance.data, 'Offener Betrag: 14,50\u00a0€');
+      expect(balance.style!.color, balanceColor(1450));
+    });
+
+    // Issue #921: the balance counts from what the tab was before this
+    // checkout to what it is now, so the member sees their tab absorb what
+    // they just bought — and, while it runs, the two numbers on the screen
+    // add up.
+    testWidgets('the balance counts to its final value, after the scale-in',
+        (WidgetTester tester) async {
+      await pumpReceipt(tester);
+
+      String balance() => tester
+          .widget<Text>(find.byKey(const Key('receipt-balance')))
+          .data!;
+
+      // Still scaling in: the number is legible and has not started moving.
+      // The tab was settled before this round (1450 billed of a 1450 tab).
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(balance(), 'Nichts offen');
+
+      // Counting — past the start, not yet at the end.
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(balance(), isNot('Nichts offen'));
+      expect(balance(), isNot('Offener Betrag: 14,50\u00a0€'));
+
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(balance(), 'Offener Betrag: 14,50\u00a0€');
+    });
+
+    testWidgets('reduced motion shows the final balance on the first frame',
+        (WidgetTester tester) async {
+      await pumpReceipt(tester, disableAnimations: true);
+
+      final balance =
+          tester.widget<Text>(find.byKey(const Key('receipt-balance')));
       expect(balance.data, 'Offener Betrag: 14,50\u00a0€');
       expect(balance.style!.color, balanceColor(1450));
     });
@@ -403,6 +460,7 @@ void main() {
       testWidgets('falls back to what the checkout recorded as billed',
           (WidgetTester tester) async {
         await pumpReceipt(tester);
+        await settleBalance(tester);
 
         // The cart is already empty here; the €25.00 comes from what
         // checkout recorded as billed.
