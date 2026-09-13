@@ -115,7 +115,7 @@ These are the commands CI runs, in order:
 
 ```bash
 flutter pub get
-flutter pub run build_runner build --delete-conflicting-outputs   # Drift + generated code
+dart run build_runner build                                        # Drift + generated code
 flutter analyze
 flutter test                                                       # unit tests
 xvfb-run flutter test integration_test/ --exclude-tags=walkthrough # needs a display

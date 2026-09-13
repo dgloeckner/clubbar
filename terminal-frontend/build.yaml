@@ -3,6 +3,11 @@ targets:
     sources:
       - lib/**
       - openapi/**
+      # json_serializable reads pubspec.yaml to verify that package:json_annotation
+      # is a declared dependency. Without it in `sources` the read fails and every
+      # generated file gets "Could not read the `pubspec.yaml` file associated with
+      # this package" on each build.
+      - pubspec.yaml
       - $package$
     builders:
       swagger_dart_code_generator:
