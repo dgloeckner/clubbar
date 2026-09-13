@@ -23,10 +23,17 @@ import 'package:clubbar_terminal/utils/tally.dart';
 /// Cheap by construction, the way #921 requires of the buying loop: one
 /// [CustomPainter], strokes and fills only, no blur, no mask filter, no save
 /// layer. The pencil animates by shortening each line towards its start —
-/// the moral equivalent of the mockup's `stroke-dashoffset` — staggered
-/// [_strokeStagger] apart, so five strokes finish inside 1.2 s. Under reduced
-/// motion ([MediaQuery.maybeDisableAnimationsOf]) the mat renders finished on
-/// its first frame and starts no ticker at all.
+/// the moral equivalent of the mockup's `stroke-dashoffset`.
+///
+/// It is **one pencil**: the strokes are drawn one after another, never two
+/// at once, each taking as long as a hand takes over a line of that length,
+/// with a lift between them and a beat before the first — the schedule is
+/// [strokeStarts]. That is slower than the buying loop's motion, and allowed
+/// to be: nothing waits on it. The pencil is the receipt's content, not a
+/// reward gating the next tap, and a tap dismisses the receipt at any point
+/// of the draw. Even the fifteen-stroke cap finishes inside the receipt's
+/// dwell. Under reduced motion ([MediaQuery.maybeDisableAnimationsOf]) the
+/// mat renders finished on its first frame and starts no ticker at all.
 class BeerMat extends StatefulWidget {
   const BeerMat({
     required this.size,
@@ -51,21 +58,48 @@ class BeerMat extends StatefulWidget {
   /// glyph, and type that cannot be read is just texture.
   final String? rimText;
 
-  /// How long each stroke takes to draw…
-  static const Duration strokeDraw = Duration(milliseconds: 340);
+  /// The beat between the mat landing and the pencil touching it.
+  static const Duration pencilLeadIn = Duration(milliseconds: 250);
 
-  /// …and how much later than its predecessor each one starts. Five strokes
-  /// therefore land in 4 × 120 + 340 = 820 ms.
-  static const Duration strokeStagger = Duration(milliseconds: 120);
+  /// How long an upright takes to draw…
+  static const Duration strokeDraw = Duration(milliseconds: 300);
+
+  /// …the diagonal that closes a gate, a longer line at the same pace…
+  static const Duration gateDraw = Duration(milliseconds: 420);
+
+  /// …and the lift of the hand between one stroke and the next.
+  static const Duration strokeLift = Duration(milliseconds: 90);
+
+  /// How long one stroke takes: the diagonal is the longer line.
+  static Duration strokeLength(TallyStroke stroke) =>
+      stroke.isGate ? gateDraw : strokeDraw;
+
+  /// When each of [strokes] pencil strokes begins, in drawing order.
+  ///
+  /// One pencil: a stroke starts only once the one before it is down and
+  /// the hand has lifted, and the first waits [pencilLeadIn] for the mat to
+  /// land. Pure, so the schedule can be pinned without rendering a frame.
+  static List<Duration> strokeStarts(int strokes) =>
+      _startsFor(tallyStrokes(strokes, into: _pencilArea));
+
+  static List<Duration> _startsFor(List<TallyStroke> strokes) {
+    final starts = <Duration>[];
+    var at = pencilLeadIn;
+    for (final stroke in strokes) {
+      starts.add(at);
+      at += strokeLength(stroke) + strokeLift;
+    }
+    return starts;
+  }
 
   /// Below this edge length the rim text is dropped.
   static const double _rimTextMinSize = 140;
 
   /// How long a mat of [strokes] takes to draw itself out.
   static Duration drawDuration(int strokes) {
-    final n = strokes.clamp(0, kTallyMaxStrokes);
-    if (n == 0) return Duration.zero;
-    return strokeStagger * (n - 1) + strokeDraw;
+    final drawn = tallyStrokes(strokes, into: _pencilArea);
+    if (drawn.isEmpty) return Duration.zero;
+    return _startsFor(drawn).last + strokeLength(drawn.last);
   }
 
   @override
@@ -151,7 +185,6 @@ class _BeerMatState extends State<BeerMat> with TickerProviderStateMixin {
 const Color _matCard = Color(0xffe6d7b0);
 const Color _matRim = Color(0xffc7b48a);
 const Color _matRimFaint = Color(0xffcdbd96);
-const Color _matGlassRing = Color(0x29785014);
 const Color _matPrintInk = Color(0xffbfae86);
 const Color _matPencil = Color(0xff1e2a44);
 const Color _matRimText = Color(0xff8a7448);
@@ -237,17 +270,6 @@ class _BeerMatPainter extends CustomPainter {
         ..strokeWidth = 1
         ..color = _matRimFaint,
     );
-
-    // The ring a wet glass left, off-centre because a glass is put down
-    // where it lands.
-    canvas.drawCircle(
-      const Offset(146, 104),
-      52,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 7
-        ..color = _matGlassRing,
-    );
   }
 
   /// The club's name around the top of the rim, one glyph at a time.
@@ -282,14 +304,17 @@ class _BeerMatPainter extends CustomPainter {
 
     canvas.save();
     canvas.translate(centre.dx, centre.dy);
-    // Centred on top dead centre, reading clockwise.
-    canvas.rotate(-math.pi / 2 - arc / 2);
+    // With the canvas unrotated, `translate(0, -radius)` is top dead centre
+    // and a glyph painted there stands upright, base towards the middle of
+    // the mat. Rotating the canvas by a positive angle walks that point
+    // clockwise on screen (y grows downwards), so the word is centred on the
+    // top and read left to right by starting half its arc anticlockwise.
+    canvas.rotate(-arc / 2);
     for (final tp in painters) {
       final step = tp.width / radius;
       canvas.rotate(step / 2);
       canvas.save();
       canvas.translate(0, -radius);
-      canvas.rotate(math.pi / 2);
       tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
       canvas.restore();
       canvas.rotate(step / 2);
@@ -297,11 +322,14 @@ class _BeerMatPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Tonight's items, in pencil, each one growing from its start point.
+  /// Tonight's items, in pencil, one stroke at a time, each growing from
+  /// its start point at a hand's pace — it sets off, runs, and stops, so the
+  /// profile is ease-in-out rather than the flick of an ease-out.
   void _paintPencil(Canvas canvas) {
     final drawn = tallyStrokes(strokes, into: _pencilArea);
-    final totalMs = BeerMat.drawDuration(strokes).inMilliseconds;
-    final elapsed = progress * totalMs;
+    final starts = BeerMat._startsFor(drawn);
+    final total = starts.last + BeerMat.strokeLength(drawn.last);
+    final elapsed = total * progress;
     _paintTally(
       canvas,
       drawn,
@@ -309,9 +337,9 @@ class _BeerMatPainter extends CustomPainter {
       width: 6.5,
       jitter: true,
       fraction: (i) {
-        final start = BeerMat.strokeStagger.inMilliseconds * i;
-        final t = (elapsed - start) / BeerMat.strokeDraw.inMilliseconds;
-        return Curves.easeOutCubic.transform(t.clamp(0.0, 1.0));
+        final t = (elapsed - starts[i]).inMicroseconds /
+            BeerMat.strokeLength(drawn[i]).inMicroseconds;
+        return Curves.easeInOutSine.transform(t.clamp(0.0, 1.0));
       },
     );
   }

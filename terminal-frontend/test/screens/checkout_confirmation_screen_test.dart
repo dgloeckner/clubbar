@@ -511,8 +511,9 @@ void main() {
       testWidgets('the pencil is skipped under reduced motion',
           (WidgetTester tester) async {
         // Past the card's own 300 ms scale-in, which is the same either way.
-        // A gate of five takes 820 ms, so with motion on the pencil is still
-        // running at 350 ms and with motion off nothing is.
+        // A gate of five is pencilled one stroke at a time over two seconds
+        // and more, so with motion on the pencil is still running at 350 ms
+        // and with motion off nothing is.
         bookedLines([line('beer-pils', quantity: 5)]);
 
         await pumpReceipt(tester);

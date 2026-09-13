@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clubbar_terminal/config/app_config.dart';
+import 'package:clubbar_terminal/utils/tally.dart';
 import 'package:clubbar_terminal/widgets/beer_mat.dart';
 
 /// Issue #929, move 2. The mat's *geometry* is pinned in
@@ -50,8 +52,8 @@ void main() {
   testWidgets('the pencil draws itself out, then stops', (tester) async {
     await pumpMat(tester, size: 260, strokes: 5);
 
-    // Mid-draw the controller is still ticking…
-    await tester.pump(const Duration(milliseconds: 200));
+    // Mid-stroke the controller is still ticking…
+    await tester.pump(BeerMat.pencilLeadIn + const Duration(milliseconds: 100));
     expect(tester.binding.transientCallbackCount, greaterThan(0));
 
     // …and once the last stroke has landed, nothing is left running.
@@ -59,18 +61,49 @@ void main() {
     expect(tester.binding.transientCallbackCount, 0);
   });
 
-  testWidgets('five strokes finish inside 1.2 s (#921 motion budget)',
-      (tester) async {
+  test('one pencil: strokes are drawn one after another, never two at once',
+      () {
+    final starts = BeerMat.strokeStarts(5);
+    final strokes = tallyStrokes(5, into: const Rect.fromLTWH(0, 0, 100, 100));
+
+    // A beat first, so the eye is on the mat before anything moves.
+    expect(starts.first, BeerMat.pencilLeadIn);
+    for (var i = 1; i < starts.length; i++) {
+      expect(
+        starts[i] - starts[i - 1],
+        BeerMat.strokeLength(strokes[i - 1]) + BeerMat.strokeLift,
+        reason: 'stroke $i starts once stroke ${i - 1} is down '
+            'and the hand has lifted',
+      );
+    }
     expect(
-      BeerMat.drawDuration(5).inMilliseconds,
-      lessThanOrEqualTo(1200),
+      BeerMat.drawDuration(5),
+      starts.last + BeerMat.gateDraw,
+      reason: 'the diagonal is drawn last, and the mat is done when it is',
     );
-    // Fifteen is the cap, and even that stays inside the receipt's dwell.
-    expect(BeerMat.drawDuration(15).inMilliseconds, lessThan(3000));
+  });
+
+  test('the diagonal is the longer line, and takes longer', () {
+    expect(BeerMat.gateDraw, greaterThan(BeerMat.strokeDraw));
+    final strokes = tallyStrokes(5, into: const Rect.fromLTWH(0, 0, 100, 100));
+    expect(strokes.last.isGate, isTrue);
+    expect(BeerMat.strokeLength(strokes.last), BeerMat.gateDraw);
+    expect(BeerMat.strokeLength(strokes.first), BeerMat.strokeDraw);
+  });
+
+  testWidgets("even fifteen strokes finish inside the receipt's dwell",
+      (tester) async {
+    // Slower than the buying loop's motion, and allowed to be: nothing waits
+    // on the pencil, a tap dismisses the receipt mid-draw, and even the cap
+    // lands before the receipt would leave on its own.
+    expect(
+      BeerMat.drawDuration(15),
+      lessThan(AppConfig.receiptAutoReturnDelay),
+    );
     expect(BeerMat.drawDuration(0), Duration.zero);
 
-    await pumpMat(tester, size: 260, strokes: 5);
-    await tester.pump(BeerMat.drawDuration(5));
+    await pumpMat(tester, size: 260, strokes: 15);
+    await tester.pump(BeerMat.drawDuration(15));
     await tester.pumpAndSettle();
     expect(tester.binding.transientCallbackCount, 0);
   });
