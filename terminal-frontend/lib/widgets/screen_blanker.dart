@@ -38,6 +38,18 @@ import 'package:clubbar_terminal/services/display_power.dart';
 ///   failure — which is what the old overlay did, since it consumed a key
 ///   before quitting. A member should be able to wake this terminal by
 ///   presenting their card and simply be logged in.
+///
+/// **The hardware, not the flag, decides whether to power the panel on** (#920).
+/// [_blanked] describes one thing only: whether the black overlay is painted.
+/// It says nothing about the panel, and after an ungraceful exit — an OTA
+/// update's `systemctl stop`, a rollback, a crash — it is wrong: the previous
+/// process left the output switched off and this one starts believing it is on,
+/// so no activity ever asks for it back. So the panel's real state is read from
+/// sysfs through [DisplayPower.isOn], and two moments reconcile against it:
+/// startup powers the output on unconditionally, and every activity wakes when
+/// either the overlay is painted *or* the connector reads off. A panel whose
+/// state cannot be read (`null`) falls back to the flag, i.e. to the behaviour
+/// that existed before.
 class ScreenBlanker extends StatefulWidget {
   /// Blanking is opt-in, like [ConfigService.fullscreen]: a kiosk sets it, a
   /// development machine does not want its screen going black mid-work.
@@ -71,6 +83,13 @@ class _ScreenBlankerState extends State<ScreenBlanker> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_onKeyEvent);
+    // Assert a known state before anything else (#920). On a panel that is
+    // already on this is a no-op modeset request; on one left off by a
+    // predecessor that was killed rather than disposed, it is the repair. Not
+    // awaited: on() verifies for up to 20 s and initState must not block, and
+    // there is nothing here to do with the outcome.
+    final power = widget.displayPower;
+    if (power != null) unawaited(power.on());
     _restartTimer();
   }
 
@@ -106,19 +125,35 @@ class _ScreenBlankerState extends State<ScreenBlanker> {
     widget.displayPower?.off();
   }
 
+  /// Clears the overlay if it is painted and always asks for the panel back.
+  ///
+  /// It must **not** early-return on `!_blanked`: the case this exists for is
+  /// exactly a panel that is off with no overlay over it (#920).
   void _wake() {
-    if (!_blanked) return;
-    setState(() => _blanked = false);
+    if (_blanked) setState(() => _blanked = false);
     widget.displayPower?.on();
   }
 
   /// Any input at all is activity: it wakes a blanked screen and otherwise
   /// pushes the deadline out.
-  void _onActivity() {
+  ///
+  /// A painted overlay is handled synchronously, so the touch that wakes the
+  /// screen is still swallowed by the frame it arrives in. Only the hardware
+  /// check is asynchronous, and it is a sysfs read of microseconds — one per
+  /// key of an RFID burst is intended and cheap. It will not spawn a `wlopm`
+  /// per key: [DisplayPower.on] coalesces concurrent calls, and the first one
+  /// flips the state the later reads see.
+  Future<void> _onActivity() async {
+    _restartTimer();
     if (_blanked) {
       _wake();
+      return;
     }
-    _restartTimer();
+    final power = widget.displayPower;
+    if (power == null) return;
+    if (await power.isOn() != false) return;
+    if (!mounted) return;
+    _wake();
   }
 
   /// Always returns false — this only *observes*.
@@ -128,7 +163,7 @@ class _ScreenBlankerState extends State<ScreenBlanker> {
   /// avoids is marking the event **handled**, which would stop it reaching the
   /// focus system below — text fields included.
   bool _onKeyEvent(KeyEvent event) {
-    if (event is KeyDownEvent) _onActivity();
+    if (event is KeyDownEvent) unawaited(_onActivity());
     return false;
   }
 
@@ -138,7 +173,7 @@ class _ScreenBlankerState extends State<ScreenBlanker> {
       // Translucent so the whole surface reports a hit even where nothing is
       // painted, and so this never takes an event away from the app below.
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _onActivity(),
+      onPointerDown: (_) => unawaited(_onActivity()),
       child: Stack(
         children: [
           widget.child,

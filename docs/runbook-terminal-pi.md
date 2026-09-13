@@ -113,6 +113,28 @@ journalctl --user -u clubbar-terminal.service -n 50 --no-pager
 journalctl -t wifi-watchdog --no-pager | tail
 ```
 
+### The panel is off and will not come back
+
+The kernel's DRM connector is the source of truth — `enabled` is what the
+compositor's modeset toggles, and the app reads the same file (#920). A single
+`wlopm --on` is **not** enough to conclude anything: measured on this Pi, an
+`--on` issued a couple of seconds after an `--off` was lost, while a standalone
+one a few seconds later worked. Watch it instead of sampling it once:
+
+```bash
+export WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000
+node=$(ls -d /sys/class/drm/card*-HDMI-A-1 | head -1)
+wlopm --on HDMI-A-1; echo "wlopm exit=$?"
+for i in $(seq 1 15); do
+  printf '%2ss  sysfs=%s/%s  wlopm=%s\n' "$i" "$(cat $node/dpms)" "$(cat $node/enabled)" "$(wlopm | awk '/HDMI-A-1/{print $2}')"
+  sleep 1
+done
+```
+
+If it never reaches `On/enabled` over both loops, the panel or the cable is the
+suspect, not the app: the app issues the same request at startup and on every
+scan, and retries it once.
+
 A terminal that keeps working but cannot reach the backend is a different
 problem — see the terminal's own status modal, and
 [`ADR-0035`](../adr/0035-terminal-backend-instance-pairing.md) if it reports

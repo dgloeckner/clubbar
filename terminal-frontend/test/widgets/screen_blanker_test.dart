@@ -10,11 +10,27 @@ import 'package:clubbar_terminal/widgets/screen_blanker.dart';
 class FakeDisplayPower implements DisplayPower {
   final List<String> calls = [];
 
-  @override
-  Future<void> on() async => calls.add('on');
+  /// What the hardware reports back. `null` is the unreadable panel — no DRM
+  /// node, or a read that failed — where the widget has nothing but its own
+  /// flag to go on.
+  bool? hardwareOn;
+
+  FakeDisplayPower({this.hardwareOn});
 
   @override
-  Future<void> off() async => calls.add('off');
+  Future<void> on() async {
+    calls.add('on');
+    if (hardwareOn != null) hardwareOn = true;
+  }
+
+  @override
+  Future<void> off() async {
+    calls.add('off');
+    if (hardwareOn != null) hardwareOn = false;
+  }
+
+  @override
+  Future<bool?> isOn() async => hardwareOn;
 }
 
 void main() {
@@ -90,6 +106,7 @@ void main() {
     testWidgets('powers the panel down, not just the pixels', (tester) async {
       final power = FakeDisplayPower();
       await tester.pumpWidget(harness(displayPower: power));
+      power.calls.clear(); // the startup reconcile, asserted on its own below
 
       await tester.pump(timeout);
       await tester.pump();
@@ -113,6 +130,7 @@ void main() {
           (tester) async {
         final power = FakeDisplayPower();
         await tester.pumpWidget(harness(displayPower: power));
+        power.calls.clear();
 
         await tester.pump(timeout);
         await tester.pump();
@@ -145,6 +163,7 @@ void main() {
       testWidgets('a key wakes the screen', (tester) async {
         final power = FakeDisplayPower();
         await tester.pumpWidget(harness(displayPower: power));
+        power.calls.clear();
 
         await tester.pump(timeout);
         await tester.pump();
@@ -187,12 +206,106 @@ void main() {
       });
     });
 
+    group('reconciling against the hardware (#920)', () {
+      // The panel's power lives in the hardware, not in this widget. After an
+      // OTA update's `systemctl stop` — SIGTERM, no dispose — the previous
+      // process left the output off and this one starts believing it is on, so
+      // nothing ever asks for it back and the terminal is unusable.
+
+      testWidgets('startup asserts the panel is on, before any input',
+          (tester) async {
+        final power = FakeDisplayPower(hardwareOn: false);
+
+        await tester.pumpWidget(harness(displayPower: power));
+
+        expect(power.calls, ['on'],
+            reason: 'exactly one on(), and nothing else, at startup');
+        expect(blankSurface(), findsNothing);
+      });
+
+      testWidgets('startup without a DisplayPower does nothing and survives',
+          (tester) async {
+        await tester.pumpWidget(harness());
+        await tester.pump();
+
+        expect(blankSurface(), findsNothing);
+      });
+
+      testWidgets(
+          'activity wakes a panel the hardware reports off, overlay or not',
+          (tester) async {
+        // The state the terminal was found in: app running, no overlay
+        // painted, panel dark. This is the regression test for #920.
+        final power = FakeDisplayPower(hardwareOn: false);
+        await tester.pumpWidget(harness(displayPower: power));
+        power.calls.clear();
+        power.hardwareOn = false; // as if the startup on() had been lost
+
+        await simulateKeyDownEvent(LogicalKeyboardKey.digit1);
+        await tester.pump();
+
+        expect(power.calls, ['on']);
+        expect(blankSurface(), findsNothing,
+            reason: 'there was never an overlay to clear');
+      });
+
+      testWidgets('activity on a panel that is on does not re-issue on',
+          (tester) async {
+        // Pins the fix to the reconcile: a card burst is dozens of key events
+        // and must not become dozens of modeset requests.
+        final power = FakeDisplayPower(hardwareOn: true);
+        await tester.pumpWidget(harness(displayPower: power));
+        power.calls.clear();
+
+        await simulateKeyDownEvent(LogicalKeyboardKey.digit1);
+        await simulateKeyDownEvent(LogicalKeyboardKey.digit2);
+        await tester.tapAt(const Offset(400, 300));
+        await tester.pump();
+
+        expect(power.calls, isEmpty);
+      });
+
+      testWidgets('an unreadable panel falls back to the flag', (tester) async {
+        // No DRM node, or a read that failed: behave exactly as before #920.
+        final power = FakeDisplayPower(); // hardwareOn == null
+        await tester.pumpWidget(harness(displayPower: power));
+        power.calls.clear();
+
+        await simulateKeyDownEvent(LogicalKeyboardKey.digit1);
+        await tester.pump();
+        expect(power.calls, isEmpty, reason: 'not blanked, state unknown');
+
+        await tester.pump(timeout);
+        await tester.pump();
+        expect(blankSurface(), findsOneWidget);
+        power.calls.clear();
+
+        await simulateKeyDownEvent(LogicalKeyboardKey.digit2);
+        await tester.pump();
+        expect(power.calls, ['on'], reason: 'blanked, so the flag decides');
+        expect(blankSurface(), findsNothing);
+      });
+
+      testWidgets('a reconciling wake still pushes the deadline out',
+          (tester) async {
+        final power = FakeDisplayPower(hardwareOn: false);
+        await tester.pumpWidget(harness(displayPower: power));
+
+        await tester.pump(timeout - const Duration(seconds: 1));
+        await simulateKeyDownEvent(LogicalKeyboardKey.digit1);
+        await tester.pump(const Duration(seconds: 2));
+
+        expect(blankSurface(), findsNothing);
+      });
+    });
+
     testWidgets('restores the panel if it is disposed while blanked',
         (tester) async {
       // A terminal must never be left with its display switched off because
       // the app went away — the screen is the only thing the bar can see.
       final power = FakeDisplayPower();
       await tester.pumpWidget(harness(displayPower: power));
+      power.calls.clear();
 
       await tester.pump(timeout);
       await tester.pump();
