@@ -4,29 +4,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
+import 'package:clubbar_terminal/utils/greeting.dart';
 import 'package:clubbar_terminal/widgets/login_success_overlay.dart';
 import '../test_helpers.dart';
 
 void main() {
+  /// One evening, pinned: the greeting depends on the terminal's clock
+  /// (#929) and a test that read the real one would say something different
+  /// before lunch.
+  final evening = DateTime(2026, 9, 13, 20, 42);
+
+  late AppLocalizations l10n;
+
   /// The greeting a member actually sees, resolved from the ARB rather than
   /// copied out as a literal.
   late String annaGreeting;
 
   setUpAll(() async {
-    final l10n = await AppLocalizations.delegate.load(const Locale('de'));
-    annaGreeting = l10n.loginWelcome('Anna');
+    l10n = await AppLocalizations.delegate.load(const Locale('de'));
+    annaGreeting = l10n.loginWelcome(greetingText(l10n, evening), 'Anna');
   });
 
   Widget buildBurst({
     required VoidCallback onCompleted,
     bool disableAnimations = false,
+    DateTime? now,
+    Key? key,
   }) =>
       createTestApp(
         child: MediaQuery(
           data: MediaQueryData(disableAnimations: disableAnimations),
           child: Stack(
             children: [
-              LoginBurst(firstName: 'Anna', onCompleted: onCompleted),
+              LoginBurst(
+                key: key,
+                firstName: 'Anna',
+                onCompleted: onCompleted,
+                now: now ?? evening,
+              ),
             ],
           ),
         ),
@@ -41,6 +56,30 @@ void main() {
       await tester.pump(LoginBurst.duration * 0.66);
 
       expect(find.text(annaGreeting), findsOneWidget);
+      expect(annaGreeting, 'Guten Abend, Anna!');
+    });
+
+    // Issue #929: the burst used to say "Hi Anna!" at nine in the morning
+    // and at eleven at night. It reads the terminal's own clock now.
+    testWidgets('greets by the hour of the day', (tester) async {
+      for (final (at, expected) in [
+        (DateTime(2026, 9, 13, 9), 'Guten Morgen, Anna!'),
+        (DateTime(2026, 9, 13, 14), 'Hallo, Anna!'),
+        (DateTime(2026, 9, 13, 23), 'Guten Abend, Anna!'),
+      ]) {
+        // A distinct key per hour: each login raises its own burst, and one
+        // that reused the previous State would keep the previous greeting —
+        // which is exactly the fixing-at-construction this asserts.
+        await tester.pumpWidget(buildBurst(
+          onCompleted: () {},
+          now: at,
+          key: ValueKey(at),
+        ));
+        await tester.pump(LoginBurst.duration * 0.66);
+
+        expect(find.text(expected), findsOneWidget);
+        await tester.pumpAndSettle();
+      }
     });
 
     testWidgets('never blocks taps to the screen underneath', (tester) async {

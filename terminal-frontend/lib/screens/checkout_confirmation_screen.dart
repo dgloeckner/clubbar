@@ -10,9 +10,12 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/providers/members_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/utils/deckel_sendoff.dart';
 import 'package:clubbar_terminal/utils/design_tokens.dart';
 import 'package:clubbar_terminal/utils/formatters.dart';
 import 'package:clubbar_terminal/utils/icon_registry.dart';
+import 'package:clubbar_terminal/utils/tally.dart';
+import 'package:clubbar_terminal/widgets/beer_mat.dart';
 import 'package:clubbar_terminal/widgets/counting_amount.dart';
 
 /// What a session bought, read back from the rows the checkout wrote.
@@ -82,6 +85,18 @@ double get _receiptTitleSize => AppFontSizes.xxxl * 1.3;
 double get _receiptTotalSize => AppFontSizes.xxl * 1.35;
 double get _receiptBalanceSize => AppFontSizes.xxxl * 1.55;
 
+/// The coaster on the receipt, and the smaller one a long round leaves room
+/// for. Fixed pixels rather than a multiple of the font scale: this is an
+/// object on the screen, not type, and it has to stay clear of the lines
+/// beside it at every configured scale.
+const double _matSize = 260;
+const double _matSizeCompact = 200;
+
+/// How wide the two-column receipt may grow. The single-column variants —
+/// the partial dispense and the #16 fallback — keep the 720 they had.
+const double _wideReceiptWidth = 980;
+const double _receiptWidth = 720;
+
 /// Above this many lines the rows tighten up, so a table's round still fits a
 /// 1280×800 terminal at the production scale without scrolling — a receipt a
 /// member has to scroll is one they do not read.
@@ -111,8 +126,18 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   /// it fades out. The balance is already final here — the cart screen awaits
   /// `refreshDeckel()` before navigating.
   late final String _memberName;
+
+  /// What the send-off calls them (#929). A receipt greets a person by their
+  /// first name, the way the bar does.
+  late final String _memberFirstName;
   late final int _balanceCents;
   late final String _locale;
+
+  /// The club's name, printed around the coaster's rim (ADR-0034).
+  ///
+  /// Snapshotted with the rest: a `/sync/config` poll must not repaint a
+  /// finished receipt.
+  late final String _clubName;
 
   /// The tab from which *this* member is warned, captured with the rest.
   ///
@@ -141,6 +166,8 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
     _memberName = selectedMember != null
         ? '${selectedMember.firstName} ${selectedMember.lastName}'
         : 'Member';
+    _memberFirstName = (selectedMember?.firstName ?? '').trim();
+    _clubName = context.read<ConfigService>().displayName;
     _locale = selectedMember?.preferredLanguage ?? 'de';
     _balanceCents = context.read<MembersProvider>().memberDeckel ?? 0;
     _warnAtCents = context
@@ -251,28 +278,73 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
             : AppConfig.receiptAutoReturnDelay);
 
         final compact = receipt.lines.length > _compactAbove;
-        return _receiptFrame(
-          children: [
-            ..._receiptHeader(
-              icon: receipt.isPartial
-                  ? Icons.warning_amber_rounded
-                  : Icons.check_circle,
-              iconColor: receipt.isPartial
-                  ? AppColors.semanticWarning
-                  : AppColors.semanticSuccess,
-              title: receipt.isPartial
-                  ? l10n.checkoutPartialSuccess(receipt.dispensedCount ?? 0)
-                  : l10n.checkoutSuccess,
-              compact: compact,
-            ),
 
-            // What was booked — the lines the member put in the cart, so the
-            // receipt reads like the cart they just confirmed.
-            for (final line in receipt.lines) _lineRow(line, compact: compact),
-            _totalRow(
-              l10n,
-              billedCents: receipt.billedCents,
-              originalTotalCents: receipt.originalTotalCents,
+        // What was booked — the lines the member put in the cart, so the
+        // receipt reads like the cart they just confirmed.
+        final booked = <Widget>[
+          for (final line in receipt.lines) _lineRow(line, compact: compact),
+          _totalRow(
+            l10n,
+            billedCents: receipt.billedCents,
+            originalTotalCents: receipt.originalTotalCents,
+          ),
+        ];
+
+        if (receipt.isPartial) {
+          // An attention receipt keeps the warning triangle it has always
+          // had, and stays a single column. The mat is a send-off, and a
+          // short dispense is not the moment for one.
+          return _receiptFrame(
+            children: [
+              ..._receiptHeader(
+                icon: Icons.warning_amber_rounded,
+                iconColor: AppColors.semanticWarning,
+                title: l10n.checkoutPartialSuccess(receipt.dispensedCount ?? 0),
+                compact: compact,
+              ),
+              ...booked,
+              SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
+              ..._balanceBlock(
+                l10n,
+                compact: compact,
+                billedCents: receipt.billedCents,
+              ),
+            ],
+          );
+        }
+
+        return _receiptFrame(
+          maxWidth: _wideReceiptWidth,
+          children: [
+            // The send-off, by name — what a bartender says, in place of
+            // "Buchung erfolgreich!" (#929).
+            Text(
+              _sendOffText(l10n, receipt.lines),
+              key: const Key('receipt-sendoff'),
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: _receiptTitleSize,
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
+
+            // The Deckel on the left, tonight's lines on the right — the
+            // arrangement the 1280×800 panel has the width for, and the
+            // reason a round of five still needs no scrolling.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _mat(l10n, receipt.lines, compact: compact),
+                const SizedBox(width: AppSpacing.xxxl),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: booked,
+                  ),
+                ),
+              ],
             ),
             SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
 
@@ -329,6 +401,53 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
         ..._balanceBlock(l10n),
       ],
     );
+  }
+
+  /// The Deckel itself: the club's coaster with tonight's items pencilled on.
+  ///
+  /// **Strokes are items, not lines** — [tallyStrokeCount] sums the
+  /// quantities, so "2 × Helles" is two strokes — and it stops at
+  /// [kTallyMaxStrokes]. They say nothing about the month; the euro figure
+  /// beside them is the only figure for the tab.
+  Widget _mat(
+    AppLocalizations l10n,
+    List<ReceiptLine> lines, {
+    required bool compact,
+  }) {
+    final strokes = tallyStrokeCount(lines.map((l) => l.quantity));
+    return Semantics(
+      key: const Key('receipt-mat'),
+      image: true,
+      label: l10n.receiptMatLabel(strokes),
+      child: ExcludeSemantics(
+        child: BeerMat(
+          size: compact ? _matSizeCompact : _matSize,
+          strokes: strokes,
+          rimText: _clubName,
+        ),
+      ),
+    );
+  }
+
+  /// How the receipt says goodbye, by name.
+  ///
+  /// Derived from the icon family the Getränkewart already picked
+  /// ([sendOffFor]); no new field, no lookup, and a wrong guess costs
+  /// nothing. A member record without a first name falls back to the full
+  /// name the header has always shown, so the sentence still addresses
+  /// somebody.
+  String _sendOffText(AppLocalizations l10n, List<ReceiptLine> lines) {
+    final who = _memberFirstName.isEmpty ? _memberName : _memberFirstName;
+    switch (sendOffFor(lines.map((l) => l.iconName))) {
+      case DeckelSendOff.prost:
+        return l10n.receiptSendOffProst(who);
+      case DeckelSendOff.appetit:
+        return l10n.receiptSendOffAppetit(who);
+      case DeckelSendOff.erholung:
+        return l10n.receiptSendOffErholung(who);
+      case DeckelSendOff.bisBald:
+        return l10n.receiptSendOffBisBald(who);
+    }
   }
 
   /// Icon, headline and member name — the top of every receipt variant.
@@ -535,7 +654,10 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
   ///
   /// The whole body takes the dismissing tap, not a control inside it: there
   /// is nothing to find and nothing to aim for.
-  Widget _receiptFrame({required List<Widget> children}) {
+  Widget _receiptFrame({
+    required List<Widget> children,
+    double maxWidth = _receiptWidth,
+  }) {
     return GestureDetector(
       key: const Key('receipt'),
       behavior: HitTestBehavior.opaque,
@@ -549,7 +671,7 @@ class _CheckoutConfirmationScreenState extends State<CheckoutConfirmationScreen>
               vertical: AppSpacing.xl,
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
+              constraints: BoxConstraints(maxWidth: maxWidth),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: children,

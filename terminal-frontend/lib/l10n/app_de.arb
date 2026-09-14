@@ -10,19 +10,41 @@
   "@idleSubtitle": {
     "description": "Instruction to scan RFID card"
   },
-  "loginWelcome": "Hi {firstName}!",
+  "loginWelcome": "{greeting}, {firstName}!",
   "@loginWelcome": {
-    "description": "Greeting shown by the login success animation right after a card scan",
+    "description": "Greeting shown by the login success animation right after a card scan. The greeting itself comes from the terminal's own clock (#929)",
     "placeholders": {
+      "greeting": {
+        "type": "String",
+        "example": "Guten Abend"
+      },
       "firstName": {
         "type": "String",
         "example": "Anna"
       }
     }
   },
-  "loginWelcomeNoName": "Hi!",
+  "loginWelcomeNoName": "{greeting}!",
   "@loginWelcomeNoName": {
-    "description": "Login success greeting for a member record without a first name"
+    "description": "Login success greeting for a member record without a first name",
+    "placeholders": {
+      "greeting": {
+        "type": "String",
+        "example": "Guten Abend"
+      }
+    }
+  },
+  "greetingMorning": "Guten Morgen",
+  "@greetingMorning": {
+    "description": "Time-of-day greeting, from the terminal's own clock: early morning until late morning"
+  },
+  "greetingDay": "Hallo",
+  "@greetingDay": {
+    "description": "Time-of-day greeting, from the terminal's own clock: late morning until evening"
+  },
+  "greetingEvening": "Guten Abend",
+  "@greetingEvening": {
+    "description": "Time-of-day greeting, from the terminal's own clock: evening and night"
   },
   "demoScanCard": "Demo: Chip scannen",
   "@demoScanCard": {
@@ -216,6 +238,41 @@
         "type": "String",
         "example": "€9.00"
       }
+    }
+  },
+  "receiptSendOffProst": "Prost, {firstName}!",
+  "@receiptSendOffProst": {
+    "description": "Receipt headline when the round contained beer, wine or cider (#929)",
+    "placeholders": {
+      "firstName": {"type": "String", "example": "Jana"}
+    }
+  },
+  "receiptSendOffAppetit": "Guten Appetit, {firstName}!",
+  "@receiptSendOffAppetit": {
+    "description": "Receipt headline when only food was bought",
+    "placeholders": {
+      "firstName": {"type": "String", "example": "Jana"}
+    }
+  },
+  "receiptSendOffErholung": "Gute Erholung, {firstName}!",
+  "@receiptSendOffErholung": {
+    "description": "Receipt headline when only sauna products were bought",
+    "placeholders": {
+      "firstName": {"type": "String", "example": "Jana"}
+    }
+  },
+  "receiptSendOffBisBald": "Bis bald, {firstName}!",
+  "@receiptSendOffBisBald": {
+    "description": "Receipt headline for anything else, and for a mixture",
+    "placeholders": {
+      "firstName": {"type": "String", "example": "Jana"}
+    }
+  },
+  "receiptMatLabel": "Bierdeckel mit {count} {count, plural, =1{Strich} other{Strichen}}",
+  "@receiptMatLabel": {
+    "description": "Accessible label for the beer mat on the receipt",
+    "placeholders": {
+      "count": {"type": "int", "example": "5"}
     }
   },
   "receiptBalanceLabel": "Dein Deckel jetzt",

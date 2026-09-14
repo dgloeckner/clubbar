@@ -225,7 +225,8 @@ void main() {
 
       await pumpReceipt(tester, membersProvider: membersProvider);
       await settleBalance(tester);
-      expect(find.text('Anna Member'), findsOneWidget);
+      // The send-off names her (#929) — a beer on the round, so Prost.
+      expect(find.text('Prost, Anna!'), findsOneWidget);
       expect(find.text('Guthaben: 12,50\u00a0€'), findsOneWidget);
 
       // A card tap on this screen ends Anna's session and starts the next
@@ -234,7 +235,7 @@ void main() {
       membersProvider.clearSelectedMember();
       await tester.pump();
 
-      expect(find.text('Anna Member'), findsOneWidget);
+      expect(find.text('Prost, Anna!'), findsOneWidget);
       expect(find.text('Guthaben: 12,50\u00a0€'), findsOneWidget);
     });
 
@@ -242,8 +243,14 @@ void main() {
         (WidgetTester tester) async {
       await pumpReceipt(tester);
 
-      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
-      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      // The send-off, not "Buchung erfolgreich!" (#929). The mock member
+      // record carries no first name, so the sentence falls back to the full
+      // name the header used to print on its own line.
+      expect(find.text('Prost, Member!'), findsOneWidget);
+      expect(find.text('Buchung erfolgreich!'), findsNothing);
+      // The Deckel replaces the green tick.
+      expect(find.byIcon(Icons.check_circle), findsNothing);
+      expect(find.byKey(const Key('receipt-mat')), findsOneWidget);
 
       // The lines the member put in the cart, in the reader's language.
       expect(find.text('2 ×'), findsOneWidget);
@@ -403,7 +410,7 @@ void main() {
       await pumpReceipt(tester);
 
       // Not on a control — on the receipt itself.
-      await tester.tap(find.text('Buchung erfolgreich!'));
+      await tester.tap(find.byKey(const Key('receipt-sendoff')));
       await tester.pumpAndSettle();
 
       verify(() => mockSessionController.endSession()).called(1);
@@ -423,7 +430,148 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Idle'), findsNothing);
-      expect(find.text('Buchung erfolgreich!'), findsOneWidget);
+      expect(find.text('Prost, Member!'), findsOneWidget);
+    });
+
+    // Issue #929, move 2: the receipt is a Bierdeckel and it says your name.
+    group('der Deckel', () {
+      /// One line of [quantity] × the product [iconName] names.
+      ReceiptLine line(String? iconName, {int quantity = 1}) => ReceiptLine(
+            productId: 'prod-$iconName-$quantity',
+            namesJson: '{"de":"Etwas","en":"Something"}',
+            iconName: iconName,
+            quantity: quantity,
+            unitPriceCents: 100,
+            totalCents: 100 * quantity,
+          );
+
+      void bookedLines(List<ReceiptLine> lines) {
+        when(() => mockRepo.getSessionLines(any()))
+            .thenAnswer((_) async => lines);
+      }
+
+      /// What the coaster says it is holding — the accessible label, which
+      /// carries the stroke count without the test having to read pixels.
+      String matLabel(WidgetTester tester) => tester
+          .widget<Semantics>(find.byKey(const Key('receipt-mat')))
+          .properties
+          .label!;
+
+      testWidgets('the strokes are items, summed, not lines counted',
+          (WidgetTester tester) async {
+        // The round Jana buys most weeks: 2 Helles, 2 Wasser, 1 Brezel.
+        // Three lines; five strokes.
+        bookedLines([
+          line('beer-pils', quantity: 2),
+          line('water', quantity: 2),
+          line('food-bretzel'),
+        ]);
+        await pumpReceipt(tester);
+
+        expect(matLabel(tester), 'Bierdeckel mit 5 Strichen');
+      });
+
+      testWidgets('the ordinary evening is one stroke',
+          (WidgetTester tester) async {
+        bookedLines([line('beer-pils')]);
+        await pumpReceipt(tester);
+
+        expect(matLabel(tester), 'Bierdeckel mit 1 Strich');
+      });
+
+      testWidgets('sixteen items draw fifteen', (WidgetTester tester) async {
+        bookedLines([line('sauna-token', quantity: 16)]);
+        await pumpReceipt(tester);
+
+        expect(matLabel(tester), 'Bierdeckel mit 15 Strichen');
+      });
+
+      testWidgets('the send-off follows what was bought',
+          (WidgetTester tester) async {
+        for (final (lines, expected) in [
+          ([line('beer-pils')], 'Prost, Member!'),
+          ([line('wine-red')], 'Prost, Member!'),
+          ([line('food-bretzel'), line('food-steak')],
+              'Guten Appetit, Member!'),
+          ([line('sauna-session')], 'Gute Erholung, Member!'),
+          ([line('water')], 'Bis bald, Member!'),
+          // Mixed, with something to clink: the beer wins.
+          ([line('beer-pils'), line('sauna-token')], 'Prost, Member!'),
+          // Mixed, with nothing to clink: neither claim is true.
+          ([line('food-bretzel'), line('sauna-token')], 'Bis bald, Member!'),
+        ]) {
+          bookedLines(lines);
+          await pumpReceipt(tester);
+
+          expect(find.text(expected), findsOneWidget, reason: expected);
+          await tester.pumpAndSettle();
+        }
+      });
+
+      testWidgets('the pencil is skipped under reduced motion',
+          (WidgetTester tester) async {
+        // Past the card's own 300 ms scale-in, which is the same either way.
+        // A gate of five is pencilled one stroke at a time over two seconds
+        // and more, so with motion on the pencil is still running at 350 ms
+        // and with motion off nothing is.
+        bookedLines([line('beer-pils', quantity: 5)]);
+
+        await pumpReceipt(tester);
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(find.byKey(const Key('receipt-mat')), findsOneWidget);
+        expect(tester.binding.transientCallbackCount, greaterThan(0),
+            reason: 'the pencil should be mid-stroke here');
+        await tester.pumpAndSettle();
+
+        await pumpReceipt(tester, disableAnimations: true);
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(find.byKey(const Key('receipt-mat')), findsOneWidget);
+        expect(tester.binding.transientCallbackCount, 0,
+            reason: 'reduced motion draws the mat finished, and stops');
+      });
+
+      testWidgets('a round of five still fits the kiosk panel',
+          (WidgetTester tester) async {
+        // The reason the mat sits beside the lines rather than above them: a
+        // receipt a member has to scroll is one they do not read, and the
+        // 1280×800 panel has the width but not the height.
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        bookedLines([
+          line('beer-pils', quantity: 2),
+          line('water', quantity: 2),
+          line('food-bretzel'),
+          line('coffee'),
+          line('sauna-token'),
+        ]);
+        await pumpReceipt(tester);
+        await tester.pumpAndSettle();
+
+        final scroll = tester.state<ScrollableState>(
+          find.descendant(
+            of: find.byKey(const Key('receipt')),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        expect(scroll.position.maxScrollExtent, 0,
+            reason: 'the receipt should need no scrolling at 1280×800');
+      });
+
+      testWidgets('a short dispense keeps its warning, not a send-off',
+          (WidgetTester tester) async {
+        // An attention receipt is not the moment for a Prost.
+        when(() => mockRepo.getSessionTotal(any()))
+            .thenAnswer((_) async => 600);
+        when(() => mockRepo.getSessionLines(any()))
+            .thenAnswer((_) async => _partialRound);
+        await pumpReceipt(tester);
+
+        expect(find.byKey(const Key('receipt-mat')), findsNothing);
+        expect(find.byKey(const Key('receipt-sendoff')), findsNothing);
+        expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      });
     });
 
     group('partial dispense', () {
