@@ -23,6 +23,7 @@ use App\Shared\Branding\PublicBranding;
 use App\Shared\Branding\PublicBrandingProvider;
 use App\Shared\Logging\Logger;
 use App\Shared\Security\IbanSealedBox;
+use App\Shared\Sepa\MandateReferenceMinter;
 use App\Shared\Utils\Uuid;
 
 /**
@@ -82,6 +83,7 @@ class RegistrationsService
         private BankCodeService $bankCodes,
         private SepaConfigRepository $sepaConfig,
         private IbanSealedBox $sealedBox,
+        private MandateReferenceMinter $mandateReferences,
         private Logger $logger,
         // Optional and last: the document is best-effort by design (decision
         // 5), and an installation wired without it still registers members.
@@ -156,9 +158,14 @@ class RegistrationsService
             // A bot that could tell the trap apart by a missing key would have
             // learned the one thing the trap exists to hide — and `document`
             // being null is an ordinary outcome for a real submission too.
+            //
+            // `decoy()`, not `mint()`: since #936 a reference carries the
+            // install's mandate count, so a consumed number would let a bot
+            // read that count off the receipt — and then watch it move. The
+            // decoy has the same shape and lands nowhere.
             return new RegistrationReceiptDto(
                 id: Uuid::v4(),
-                mandateReference: str_replace('-', '', Uuid::v4()),
+                mandateReference: $this->mandateReferences->decoy(),
             );
         }
 
@@ -176,7 +183,13 @@ class RegistrationsService
         // Minted here, not at approval: it is printed on the paper the member
         // signs, so it has to exist before the mandate does, and approval
         // carries it across unchanged (ADR-0006, ADR-0052 decision 4).
-        $mandateReference = str_replace('-', '', Uuid::v4());
+        //
+        // The same counter the admin panel draws from (#936), which is what
+        // makes the two paths safe to interleave — an admin creating a member
+        // while a registration lands cannot be handed the same number. A
+        // registration later rejected or purged takes its number with it; gaps
+        // are harmless because nothing reads a reference as a position.
+        $mandateReference = $this->mandateReferences->mint();
 
         $id = $this->registrations->create([
             'first_name' => $data['first_name'],

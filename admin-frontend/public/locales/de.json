@@ -253,7 +253,7 @@
     "accountHolderPlaceholder": "Nur wenn abweichend vom Mitglied",
     "mandateReference": "Mandatsreferenz",
     "mandateReferencePlaceholder": "Wird automatisch erzeugt",
-    "mandateReferenceHint": "Leer lassen für automatische Vergabe. Nur ausfüllen bei vorhandener Mandatsreferenz.",
+    "mandateReferenceHint": "Leer lassen für automatische Vergabe (z.B. CB-000042). Nur ausfüllen bei vorhandener Mandatsreferenz.",
     "mandateSignedAt": "Mandatsdatum",
     "preferredLanguage": "Sprache",
     "lastTransaction": "Letzte Buchung",
@@ -362,7 +362,7 @@
     "mandateReferenceCancelChange": "Abbrechen — {{reference}} bleibt bestehen",
     "mandateReferenceChange": "Ändern",
     "mandateReferenceCopy": "Mandatsreferenz kopieren",
-    "mandateReferenceAssignedNote": "Erscheint als Mandatsreferenz auf dem Kontoauszug.",
+    "mandateReferenceAssignedNote": "Erscheint als Mandatsreferenz auf dem Kontoauszug. Bereits vergebene Referenzen bleiben unverändert.",
     "requirements": {
       "progress": "{{done}} von {{total}} Pflichtangaben ausgefüllt",
       "complete": "Alle Pflichtangaben ausgefüllt",
@@ -730,6 +730,7 @@
     "creditorBic": "BIC",
     "paymentReferencePrefix": "Verwendungszweck-Präfix",
     "mandateTemplateUrl": "URL des Mandatsformulars",
+    "mandateReferencePrefix": "Präfix der Mandatsreferenz",
     "adminUsers": "Admin-Benutzer",
     "loadingSettings": "Lade Einstellungen...",
     "loadingAdminUsers": "Lade Admin-Benutzer...",
@@ -760,7 +761,8 @@
       "city": "z.B. München",
       "country": "z.B. DE",
       "paymentPrefix": "z.B. Club Bar Abrechnung",
-      "mandateTemplateUrl": "z.B. https://club.example/anmeldung"
+      "mandateTemplateUrl": "z.B. https://club.example/anmeldung",
+      "mandateReferencePrefix": "CB"
     },
     "sepaHelpers": {
       "creditorId": "SEPA Gläubiger-Identifikationsnummer (max 35 Zeichen)",
@@ -772,7 +774,8 @@
       "country": "2-stelliger ISO-Ländercode (DE, AT, CH)",
       "paymentPrefix": "Präfix für den Verwendungszweck. Das Abrechnungsdatum wird automatisch angehängt.",
       "creditorIbanStored": "Gespeichert: {{masked}}. Leer lassen, um sie zu behalten, oder vollständige IBAN eingeben, um sie zu ersetzen.",
-      "mandateTemplateUrl": "Link zum extern gehosteten Anmeldeformular, das ein neues Mitglied unterschreibt. Abrechnungen können erst exportiert werden, wenn dies hinterlegt ist."
+      "mandateTemplateUrl": "Link zum extern gehosteten Anmeldeformular, das ein neues Mitglied unterschreibt. Abrechnungen können erst exportiert werden, wenn dies hinterlegt ist.",
+      "mandateReferencePrefix": "Präfix für neu vergebene Mandatsreferenzen, z.B. CB-000042. Leer lassen für CB. Bereits vergebene Referenzen bleiben unverändert."
     },
     "deactivateAdminConfirm": "Möchten Sie diesen Admin-Benutzer wirklich deaktivieren?",
     "deleteAdminUser": "Konto löschen (nur ohne bisherige Anmeldung)",
@@ -870,6 +873,8 @@
       "countryInvalid": "Land muss ein zweistelliger ISO-Code sein (z. B. DE, AT, CH)",
       "paymentReferencePrefixTooLong": "Verwendungszweck-Präfix darf höchstens 100 Zeichen lang sein",
       "mandateTemplateUrlTooLong": "URL des Mandatsformulars darf höchstens 255 Zeichen lang sein",
+      "mandateReferencePrefixTooLong": "Präfix der Mandatsreferenz darf höchstens 10 Zeichen lang sein",
+      "mandateReferencePrefixInvalid": "Präfix der Mandatsreferenz darf nur die SEPA-Zeichen 0-9 a-z A-Z + ? / - : ( ) . , ' enthalten",
       "creditorIdRequired": "Gläubiger-ID ist erforderlich",
       "creditorIdTooLong": "Gläubiger-ID darf höchstens 35 Zeichen lang sein",
       "stepUpRequired": "Zum Ausstellen des Terminal-Tokens Ihr eigenes Passwort (und ggf. 2FA-Code) eingeben",

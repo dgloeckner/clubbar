@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Members\Services;
 
+use Tests\Support\MandateReferences;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
@@ -58,6 +59,7 @@ class MemberErasureMailTest extends DatabaseTestCase
             $this->logger,
             new IbanSealedBox(str_repeat('0', 63) . '2', 'test'),
             new EncryptionKeysRepository($this->db, $this->logger),
+            MandateReferences::real($this->db, $this->logger),
         );
         $auditService = new AuditService(new AuditLogRepository($this->db, $this->logger));
         $this->outbox = new MailOutboxRepository($this->db, $this->logger);

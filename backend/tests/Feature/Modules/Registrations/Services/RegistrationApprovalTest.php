@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Registrations\Services;
 
+use Tests\Support\MandateReferences;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
 use App\Modules\BankCodes\Repositories\BankCodesRepository;
 use App\Modules\BankCodes\Services\BankCodeService;
@@ -72,6 +73,7 @@ final class RegistrationApprovalTest extends DatabaseTestCase
             $this->logger,
             $sealedBox,
             new EncryptionKeysRepository($this->db, $this->logger),
+            MandateReferences::real($this->db, $this->logger),
         );
 
         $this->service = new RegistrationReviewService(

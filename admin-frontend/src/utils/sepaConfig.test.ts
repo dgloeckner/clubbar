@@ -15,6 +15,7 @@ const form: SepaConfigFormData = {
   creditor_address_country: 'DE',
   payment_reference_prefix: 'Club Bar Settlement',
   mandate_template_url: 'https://club.example/anmeldung',
+  mandate_reference_prefix: 'RVM',
 }
 
 describe('isCreditorIdSet', () => {
@@ -45,6 +46,7 @@ describe('buildCreateSepaConfigRequest', () => {
       creditor_address_country: 'DE',
       payment_reference_prefix: 'Club Bar Settlement',
       mandate_template_url: 'https://club.example/anmeldung',
+      mandate_reference_prefix: 'RVM',
     })
   })
 
@@ -58,6 +60,7 @@ describe('buildCreateSepaConfigRequest', () => {
       creditor_address_country: '',
       payment_reference_prefix: '',
       mandate_template_url: '',
+      mandate_reference_prefix: '',
     })
   })
 })
@@ -91,6 +94,7 @@ describe('buildUpdateSepaConfigRequest', () => {
       creditor_address_country: 'DE',
       payment_reference_prefix: 'Club Bar Settlement',
       mandate_template_url: 'https://club.example/anmeldung',
+      mandate_reference_prefix: 'RVM',
     })
   })
 
@@ -131,6 +135,23 @@ describe('buildUpdateSepaConfigRequest', () => {
       creditor_address_country: 'DE',
       payment_reference_prefix: 'Club Bar Settlement',
       mandate_template_url: 'https://club.example/anmeldung',
+      mandate_reference_prefix: 'RVM',
     })
+  })
+
+  /**
+   * Unlike the IBAN, a blank prefix is sent rather than omitted: it means "go
+   * back to the default `CB`", which is a change an admin can make and the
+   * backend stores as NULL (#936).
+   */
+  it('sends a cleared mandate reference prefix so it can be reset to the default', () => {
+    expect(buildUpdateSepaConfigRequest({ ...form, mandate_reference_prefix: '' })).toHaveProperty(
+      'mandate_reference_prefix',
+      '',
+    )
+    expect(buildUpdateSepaConfigRequest({ ...form, mandate_reference_prefix: undefined })).toHaveProperty(
+      'mandate_reference_prefix',
+      '',
+    )
   })
 })

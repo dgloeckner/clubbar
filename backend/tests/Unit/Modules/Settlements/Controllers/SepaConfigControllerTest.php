@@ -69,6 +69,7 @@ class SepaConfigControllerTest extends TestCase
             creditorAddressCountry: 'DE',
             paymentReferencePrefix: $paymentReferencePrefix,
             mandateTemplateUrl: 'https://club.example/anmeldung',
+            mandateReferencePrefix: null,
             isConfigured: true,
         );
     }
@@ -115,6 +116,80 @@ class SepaConfigControllerTest extends TestCase
         );
 
         $this->assertSame(200, $response->getStatusCode());
+    }
+
+    // --- the mandate reference prefix (#936) ---------------------------------
+
+    public function test_update_passes_the_mandate_reference_prefix_to_the_service(): void
+    {
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->with(
+                $this->callback(fn (array $attributes) => ($attributes['mandate_reference_prefix'] ?? null) === 'RVM'),
+                'admin-1',
+            )
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['mandate_reference_prefix' => 'RVM'])),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * Clearing the field asks for the default back. It reaches the service as
+     * NULL rather than as an empty string, which would mint `-000042`.
+     */
+    public function test_update_clears_the_mandate_reference_prefix_to_null(): void
+    {
+        $this->service->expects($this->once())
+            ->method('updateConfig')
+            ->with(
+                $this->callback(fn (array $attributes) => array_key_exists('mandate_reference_prefix', $attributes)
+                    && $attributes['mandate_reference_prefix'] === null),
+                'admin-1',
+            )
+            ->willReturn($this->dto());
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['mandate_reference_prefix' => ''])),
+            new Response(),
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    /**
+     * A character a bank will not carry in <MndtId>. Refused here rather than
+     * discovered when a collection file is rejected.
+     */
+    public function test_update_rejects_a_mandate_reference_prefix_outside_the_sepa_charset(): void
+    {
+        $this->service->expects($this->never())->method('updateConfig');
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['mandate_reference_prefix' => 'RÜV'])),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('mandate_reference_prefix', $this->decode($response)['messages']);
+    }
+
+    /** Long enough and the whole reference could pass SEPA's 35 characters. */
+    public function test_update_rejects_a_mandate_reference_prefix_that_is_too_long(): void
+    {
+        $this->service->expects($this->never())->method('updateConfig');
+
+        $response = $this->controller->update(
+            $this->write('PATCH', $this->validBody(['mandate_reference_prefix' => str_repeat('X', 11)])),
+            new Response(),
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('mandate_reference_prefix', $this->decode($response)['messages']);
     }
 
     public function test_update_rejects_a_prefix_longer_than_the_column(): void
@@ -243,6 +318,7 @@ class SepaConfigControllerTest extends TestCase
                 creditorAddressCountry: 'DE',
                 paymentReferencePrefix: 'Club Bar',
                 mandateTemplateUrl: 'https://club.example/anmeldung',
+                mandateReferencePrefix: null,
                 isConfigured: true,
             ));
 

@@ -443,6 +443,34 @@ class SepaExportServiceTest extends TestCase
     }
 
     /**
+     * The reference reaches the bank exactly as stored, whatever shape it has.
+     *
+     * Both shapes exist on a real install and always will: references minted
+     * before #936 are 32 hex characters from a UUID and are never re-minted —
+     * they are on signed paper and in collections already sent — while anything
+     * opened since carries the club's prefix and a number. A return arriving
+     * months later is matched by this `MREF+`, so the exporter must not
+     * normalize, pad, case-fold or truncate either one.
+     */
+    public function test_the_stored_mandate_reference_reaches_MndtId_unchanged(): void
+    {
+        $this->givenSepaConfig();
+        $this->givenSettlement(self::SETTLEMENT_ID, totalAmountCents: 3500);
+        $this->givenItems([[self::MEMBER_ID, 1500], [self::OTHER_MEMBER_ID, 2000]]);
+        $this->givenMembers([
+            self::MEMBER_ID => ['mandate_reference' => 'CB-000042'] + self::member('Ada', 'Lovelace'),
+            self::OTHER_MEMBER_ID => ['mandate_reference' => '550e8400e29b41d4a716446655440000'] + self::member('Grace', 'Hopper'),
+        ]);
+
+        $result = $this->service->export(self::SETTLEMENT_ID, self::opener());
+
+        $this->assertSame(
+            ['CB-000042', '550e8400e29b41d4a716446655440000'],
+            $this->mandateIds($result->xml),
+        );
+    }
+
+    /**
      * The export must never invent a `DtOfSgntr`.
      *
      * `debtorMandateSignDate` used to fall back to the settlement's own date
@@ -802,6 +830,22 @@ class SepaExportServiceTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    /** @return list<string> every MndtId in the file, in document order. */
+    private function mandateIds(string $xml): array
+    {
+        $dom = new \DOMDocument();
+        $dom->loadXML($xml);
+        $xpath = new \DOMXPath($dom);
+        $xpath->registerNamespace('pain', 'urn:iso:std:iso:20022:tech:xsd:pain.008.001.08');
+
+        $ids = [];
+        foreach ($xpath->query('//pain:MndtRltdInf/pain:MndtId') as $node) {
+            $ids[] = $node->textContent;
+        }
+
+        return $ids;
+    }
+
     /** @return list<string> every DtOfSgntr in the file, in document order. */
     private function signatureDates(string $xml): array
     {

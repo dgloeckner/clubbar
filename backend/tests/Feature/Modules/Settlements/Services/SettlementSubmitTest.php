@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Settlements\Services;
 
+use Tests\Support\MandateReferences;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
@@ -65,6 +66,7 @@ class SettlementSubmitTest extends DatabaseTestCase
                     'test',
                 ),
                 new EncryptionKeysRepository($this->db, $this->logger),
+                MandateReferences::real($this->db, $this->logger),
             ),
             new TransactionsRepository($this->db, $this->logger),
             new AuditService(new AuditLogRepository($this->db, $this->logger)),
@@ -80,6 +82,7 @@ class SettlementSubmitTest extends DatabaseTestCase
                         'test',
                     ),
                     new EncryptionKeysRepository($this->db, $this->logger),
+                    MandateReferences::real($this->db, $this->logger),
                 ),
                 new AuditService(new AuditLogRepository($this->db, $this->logger)),
                 new AdminUsersRepository($this->db, $this->logger),

@@ -1,11 +1,17 @@
 /**
  * MemberMandateReferenceField — the mandate reference row of the member form.
  *
- * The reference is minted by the server when a mandate is opened: a UUID
- * without hyphens, unless one was supplied (ADR-0006,
+ * The reference is minted by the server when a mandate is opened: the club's
+ * prefix and the next number from the install's counter, `CB-000042`, unless
+ * one was supplied (ADR-0006 as amended by #936,
  * `MembersRepository::openMandate`). Supplying one is the exception — it
  * exists so a mandate that already has a reference on paper or in a previous
- * system keeps it.
+ * system keeps it, and the prefix is what keeps those clear of the club's own
+ * sequence.
+ *
+ * Both shapes appear on an upgraded install: a reference already minted is
+ * never re-minted, because it is on signed paper and in collections already
+ * sent to the bank.
  *
  * The old rendering made the exception the default: a free-text input with a
  * grey example reference in it and two sentences underneath explaining that

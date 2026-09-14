@@ -150,9 +150,15 @@ class MandateDocumentFiller
                 $fieldWidth = $x2 - $x1;
 
                 // Shrink to fit rather than overflow. Not a nicety: on the
-                // reference club's own published Anmeldung the 32-character
+                // reference club's own published Anmeldung a 32-character
                 // mandate reference is 166pt wide at 10pt in a 108pt field, so
                 // a fixed size runs it 58pt into whatever sits beside it.
+                //
+                // Newly minted references are short since #936 (`CB-000042`),
+                // and this still has to hold: references minted before that are
+                // never re-minted, an account holder's name is longer still,
+                // and a club may set a longer prefix. A value is fitted to its
+                // field, never drawn at a fixed size (ADR-0052).
                 $fontSize = $this->sizeThatFits($pdf, $text, $fieldWidth);
                 $pdf->SetFontSize($fontSize);
 

@@ -465,7 +465,7 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 | id | BINARY(16) | PK | UUID |
 | member_id | BINARY(16) | FK → members.id, NOT NULL | Owning member (stable across the mandate's history) |
 | active_member_id | BINARY(16) | **UNIQUE**, NULL | Holds `member_id` while this mandate is **in force**; NULL once ended. MariaDB has no partial indexes but permits many NULLs in a unique column, so this expresses *"at most one active mandate per member"* the same way `settlement_items` expresses its live claim |
-| reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR); auto-generated at mandate creation |
+| reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR); auto-generated at mandate creation as `<PREFIX>-<number>` from `mandate_reference_counter` (`CB-000042`, migration `069`, [#936](https://github.com/dgloeckner/clubbar/issues/936)), or supplied by the admin for a mandate carried over from another system. References minted before `069` are 32 hex characters from a UUID and are **never re-minted** — they are on signed paper and in collections already sent, so both shapes exist on an upgraded install |
 | iban_ciphertext | VARBINARY(512) | NULL | The IBAN, sealed under the club's public key (`v1:` + base64). The server holds no private key and cannot open it ([ADR-0036](../adr/0036-iban-encryption-sealed-box.md)); only the SEPA export can, with the key supplied for that one request |
 | iban_last4 | CHAR(4) | NULL | Last four characters, stored in the clear. Everything routine — `****3000` in a list, the missing-IBAN badge, the settlement CSV — reads this and never needs a key |
 | iban_fingerprint | CHAR(64) | NULL | Keyed BLAKE2b of the normalized IBAN, hex. Sealed boxes are randomized, so this is how a bank change is told from a correction without decrypting. The key lives in `config.php`, never in the DB |
@@ -510,7 +510,7 @@ owner's confirmation of this schema first.
 | date_of_birth | DATE | NOT NULL | Date of birth. Drives the Jugendschutz check once the member exists ([ADR-0045](../adr/0045-age-restricted-products.md)), and the legal-representative signature line the printed mandate carries when the applicant is a minor (ADR-0052 decision 7) |
 | preferred_language | VARCHAR(10) | NOT NULL | ISO 639-1 language code; carried into `members.preferred_language` unchanged at approval |
 | account_holder_name | VARCHAR(70) | NULL | The Kontoinhaber case — set when whoever signs the mandate is not the applicant, e.g. a parent paying for a child. When set, the printed mandate's signature block names the account holder, not the member (ADR-0052 decision 7). No separate Kontoinhaber entity is modelled; a name is all the payment needs |
-| mandate_reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR), minted at submission from this row's own UUID in [ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md)'s format — before approval, because the reference has to be printed on the paper the member signs (ADR-0052 decision 4). Carried into `mandates.reference` unchanged at approval; a rejected or purged registration takes its reference with it |
+| mandate_reference | VARCHAR(35) | UNIQUE, NOT NULL | SEPA mandate ID (UMR), minted at submission in [ADR-0006](../adr/0006-sepa-mandate-reference-strategy.md)'s format — before approval, because the reference has to be printed on the paper the member signs (ADR-0052 decision 4). Drawn from `mandate_reference_counter`, the same counter the admin panel uses ([#936](https://github.com/dgloeckner/clubbar/issues/936)), so the two paths are safe to interleave. Carried into `mandates.reference` unchanged at approval; a rejected or purged registration takes its reference with it, leaving a harmless gap |
 | iban_ciphertext | VARBINARY(512) | NOT NULL | The IBAN, sealed under the club's active public key — **exactly the `mandates` column shape**: same sealed box, same key generation, same fingerprint. [ADR-0036](../adr/0036-iban-encryption-sealed-box.md) gets no exception for the pending state. Moved verbatim into `mandates.iban_ciphertext` at approval; the server never opens it, at submission or at approval, because it cannot |
 | iban_last4 | CHAR(4) | NOT NULL | Last four characters, in the clear — the duplicate flag at review and the printed `****3000` hint on the admin-print mandate variant |
 | iban_fingerprint | CHAR(64) | NOT NULL | Keyed BLAKE2b of the normalized IBAN, hex — how the review list flags a match against an existing member's `mandates` row, answerable without a key (ADR-0052 decision 9) |
@@ -936,12 +936,50 @@ Organization-level SEPA Direct Debit configuration. Single-row table.
 | creditor_address_city | VARCHAR(70) | NOT NULL | City and postal code |
 | creditor_address_country | VARCHAR(2) | NOT NULL, DEFAULT 'DE' | ISO 3166-1 alpha-2 country code |
 | payment_reference_prefix | VARCHAR(100) | NULL | Prefix on the remittance line of a collection |
+| mandate_reference_prefix | VARCHAR(10) | NULL | Prefix on newly minted mandate references; NULL means the default `CB` (migration `069`). SEPA character set, and short enough that prefix + separator + number stays inside SEPA's 35 characters for every number the counter can reach. Changing it affects only references minted afterwards |
 | mandate_template_url | VARCHAR(255) | NULL | Where the club publishes its onboarding document (migration `028`, [#360](https://github.com/dgloeckner/clubbar/issues/360)) — *"a link, not a secret"*, nullable and historically unvalidated. The name predates the job: for FRGS this is the **combined four-page Anmeldung** (form page with the SEPA mandate and the Kenntnisnahme, then Datenschutzhinweise, then Nutzungsordnung). **Since [ADR-0052](../adr/0052-member-self-registration-via-qr-code.md) it has three consumers**: the admin panel links it, the public onboarding page links it to discharge Art. 13 before any data entry, and self-registration fetches it to fill page 1. One published file, one pointer, no copy stored. Saving it is therefore validated now (reachable, `https://`, required AcroForm fields present), which the earlier column was not |
 | updated_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who last modified |
 | created_at | DATETIME | NOT NULL | Initial configuration timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
 **Constraint:** `CHECK (id = 1)` ensures single-row enforcement.
+
+---
+
+### mandate_reference_counter
+
+The install's supply of mandate reference numbers. Single-row table, added by
+migration `069` for [#936](https://github.com/dgloeckner/clubbar/issues/936).
+
+SEPA requires a UMR to be unique **per creditor**, and one install is one
+Gläubiger-ID — so a single counter is all the uniqueness that is owed, and
+`CB-000042` replaces a 32-character UUID a member could not read off their own
+Kontoauszug.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TINYINT UNSIGNED | PK | Always 1 (single row) |
+| value | BIGINT UNSIGNED | NOT NULL, DEFAULT 0 | Highest number handed out so far |
+
+**Drawn from, never read-then-written:**
+
+```sql
+UPDATE mandate_reference_counter SET value = LAST_INSERT_ID(value + 1) WHERE id = 1;
+SELECT LAST_INSERT_ID();
+```
+
+Not `CREATE SEQUENCE` — that exists only on MariaDB >= 10.3, while
+`docs/deployment.md` promises MySQL 5.7 and [ADR-0038](../adr/0038-shared-hosting-deployment-constraints.md)
+leaves the version to the host; and a sequence is non-transactional, whereas
+this row rolls back with the transaction that drew from it, so the paper printed
+from a pending registration and the stored row can never name different numbers.
+`LAST_INSERT_ID()` is connection-scoped, which is what makes the read-back safe
+under two overlapping requests.
+
+**Gaps are expected.** A rejected or purged registration takes its number with
+it, and the self-registration honeypot deliberately returns a
+reference-*shaped* value that draws no number at all — a consumed one would let
+a bot read the club's mandate count off a fake receipt.
 
 ---
 
