@@ -10,6 +10,18 @@
 
 import type { SepaConfig, SepaConfigRequest, SepaConfigUpdateRequest } from '../api/generated/model'
 
+/**
+ * The bounds on the mandate reference prefix (#936), mirroring
+ * `MandateReferenceMinter` on the backend.
+ *
+ * The charset is SEPA's — `0-9 a-z A-Z + ? / - : ( ) . , '` — because it is what
+ * a bank will carry in `<MndtId>`. The length is what keeps prefix + separator +
+ * number inside SEPA's 35 characters for every number the counter can reach, so
+ * a valid prefix can never produce an invalid reference.
+ */
+export const MANDATE_REFERENCE_PREFIX_MAX_LENGTH = 10
+export const MANDATE_REFERENCE_PREFIX_PATTERN = /^[0-9A-Za-z+?/\-:().,']+$/
+
 /** The editable shape of the SEPA settings form. */
 export interface SepaConfigFormData {
   creditor_id?: string
@@ -20,6 +32,7 @@ export interface SepaConfigFormData {
   creditor_address_country?: string
   payment_reference_prefix?: string
   mandate_template_url?: string
+  mandate_reference_prefix?: string
 }
 
 /**
@@ -45,6 +58,7 @@ export function buildCreateSepaConfigRequest(form: SepaConfigFormData): SepaConf
     creditor_address_country: form.creditor_address_country ?? '',
     payment_reference_prefix: form.payment_reference_prefix ?? '',
     mandate_template_url: form.mandate_template_url ?? '',
+    mandate_reference_prefix: form.mandate_reference_prefix ?? '',
   }
 }
 
@@ -65,6 +79,10 @@ export function buildUpdateSepaConfigRequest(form: SepaConfigFormData): SepaConf
     creditor_address_country: form.creditor_address_country,
     payment_reference_prefix: form.payment_reference_prefix ?? '',
     mandate_template_url: form.mandate_template_url ?? '',
+    // Sent even when blank, unlike the IBAN: blank here means "go back to the
+    // default prefix", which is a change the admin can make and the backend
+    // stores as NULL (#936).
+    mandate_reference_prefix: form.mandate_reference_prefix ?? '',
   }
 
   if (form.creditor_iban?.trim()) {

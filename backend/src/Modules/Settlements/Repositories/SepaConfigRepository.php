@@ -42,7 +42,7 @@ class SepaConfigRepository
 
     public function updateConfig(array $data): ?array
     {
-        $allowed = ['creditor_id', 'creditor_name', 'creditor_iban', 'creditor_address_street', 'creditor_address_city', 'creditor_address_country', 'payment_reference_prefix', 'mandate_template_url'];
+        $allowed = ['creditor_id', 'creditor_name', 'creditor_iban', 'creditor_address_street', 'creditor_address_city', 'creditor_address_country', 'payment_reference_prefix', 'mandate_template_url', 'mandate_reference_prefix'];
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
 

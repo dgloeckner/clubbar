@@ -13,6 +13,7 @@ use App\Modules\Members\Domain\MandateCompleteness;
 use App\Shared\Logging\Logger;
 use App\Shared\Repository\SafeQuery;
 use App\Shared\Repository\UnsettledTransactions;
+use App\Shared\Sepa\MandateReferenceMinter;
 use App\Shared\Sync\SyncCursor;
 
 class MembersRepository
@@ -62,6 +63,7 @@ class MembersRepository
         private Logger $logger,
         private IbanSealedBox $sealedBox,
         private EncryptionKeysRepository $encryptionKeys,
+        private MandateReferenceMinter $mandateReferences,
     ) {}
 
     public function findById(string $id): ?array
@@ -181,19 +183,21 @@ class MembersRepository
                 $now,
             ]);
 
-            // Per ADR-0006 a reference is minted from the member id when none is
-            // given. A caller who explicitly passes an empty one is saying there is
-            // no mandate, and gets none — auto-minting over that is exactly what
-            // makes a missing signature invisible (#164).
-            $reference = array_key_exists('mandate_reference', $data)
-                ? ($data['mandate_reference'] ?: null)
-                : str_replace('-', '', $id);
+            // A caller who explicitly passes an empty reference is saying there
+            // is no mandate, and gets none — auto-minting over that is exactly
+            // what makes a missing signature invisible (#164). An omitted key
+            // means "mint one", which openMandate does: since #936 the
+            // reference is drawn from the install's counter rather than from
+            // this member's id, so there is one mint site and not two.
+            $namesReference = array_key_exists('mandate_reference', $data);
+            $reference = $namesReference ? ($data['mandate_reference'] ?: null) : null;
+            $wantsMandate = !$namesReference || $reference !== null;
 
             // `??` as well as `?:`: a caller creating a member with no banking
             // data at all omits the key rather than sending an empty one, and
             // every such call raised an "Undefined array key" warning on its way
             // to the correct answer.
-            if ((($data['iban'] ?? null) ?: null) !== null && $reference !== null) {
+            if ((($data['iban'] ?? null) ?: null) !== null && $wantsMandate) {
                 $this->openMandate($id, ['mandate_reference' => $reference] + $data);
             }
 
@@ -531,10 +535,14 @@ class MembersRepository
     {
         $mandateId = Uuid::v4();
 
-        // Per ADR-0006 the reference is a UUID without hyphens; it is now minted
-        // when the mandate is opened rather than when the member is created, so
-        // a member without banking data has no reference at all.
-        $reference = ($data['mandate_reference'] ?? null) ?: str_replace('-', '', $mandateId);
+        // The one place a reference is minted. It is drawn when the mandate is
+        // opened rather than when the member is created, so a member without
+        // banking data has no reference at all; and it comes from the install's
+        // counter rather than from a UUID, because this is the string a member
+        // reads off their own Kontoauszug (#936, ADR-0006 as amended). The draw
+        // runs on this connection, so it rolls back with the caller's
+        // transaction.
+        $reference = ($data['mandate_reference'] ?? null) ?: $this->mandateReferences->mint();
 
         // ADR-0036: the plaintext IBAN is sealed under the ACTIVE public key
         // and never stored. Writing plaintext "just this once" is exactly the
@@ -566,8 +574,13 @@ class MembersRepository
             // holds is their mistake to correct, and the only way out is to
             // name a different one — so it belongs in the response as a 422
             // naming the collision, not as the unactionable "internal server
-            // error" the bare PDOException produced. The minted
-            // reference cannot land here: it is a fresh UUID.
+            // error" the bare PDOException produced. A minted reference
+            // practically cannot land here — the counter never hands out a
+            // number twice — but it is not impossible: an admin who typed
+            // `CB-000042` by hand for a mandate carried over from another
+            // system has taken a number out of the club's own sequence. That is
+            // the collision the prefix exists to make unlikely, and a 422
+            // naming it is still the right answer when it happens.
             if ($this->isDuplicateReference($e)) {
                 throw new DuplicateResourceException("Mandate reference '{$reference}' is already in use");
             }

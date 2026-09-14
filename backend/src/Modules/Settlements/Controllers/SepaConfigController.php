@@ -7,6 +7,7 @@ namespace App\Modules\Settlements\Controllers;
 use App\Modules\Settlements\Services\SepaConfigService;
 use App\Shared\Validation\Validator;
 use App\Shared\Http\JsonResponder;
+use App\Shared\Sepa\MandateReferenceMinter;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -61,6 +62,14 @@ class SepaConfigController
             return $this->validationFailed($response, ['creditor_iban' => ['Leave the field empty to keep the stored IBAN, or enter the full IBAN to replace it.']]);
         }
 
+        // A cleared prefix means "go back to the default", not "mint
+        // `-000042`". Normalized to NULL before validation because the charset
+        // rule cannot tell an empty string from a bad one, and would report
+        // clearing the field as a malformed prefix.
+        if (array_key_exists('mandate_reference_prefix', $body) && $body['mandate_reference_prefix'] === '') {
+            $body['mandate_reference_prefix'] = null;
+        }
+
         $rules = [
             'creditor_name' => ['required', 'string', 'max:70'],
             'payment_reference_prefix' => ['string', 'max:100'],
@@ -68,6 +77,17 @@ class SepaConfigController
             // logo_url, Pattern 001) — this is a link the admin controls, not
             // a value the system parses.
             'mandate_template_url' => ['nullable', 'string', 'max:255'],
+            // The prefix of every reference this install mints from here on
+            // (#936). Both bounds are the SEPA standard's, not a preference:
+            // the charset is what a bank will carry in <MndtId>, and the length
+            // is what keeps prefix + separator + number inside SEPA's 35
+            // characters for every number the counter can reach.
+            'mandate_reference_prefix' => [
+                'nullable',
+                'string',
+                'max:' . MandateReferenceMinter::MAX_PREFIX_LENGTH,
+                'regex:' . MandateReferenceMinter::PREFIX_PATTERN,
+            ],
         ];
         if (!$keepsStoredIban) {
             $rules['creditor_iban'] = ['required', 'string', 'iban'];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Settlements\Services;
 
+use Tests\Support\MandateReferences;
 use App\Modules\AdminUsers\Repositories\AdminInvitationsRepository;
 use App\Modules\AdminUsers\Repositories\AdminUsersRepository;
 use App\Modules\AuditLog\Repositories\AuditLogRepository;
@@ -67,7 +68,7 @@ class SettlementReversalTest extends DatabaseTestCase
         $this->settlementsRepository = new SettlementsRepository($this->db, $this->logger);
         $this->reversalsRepository = new SettlementReversalsRepository($this->db, $this->logger);
         $this->collectionHoldRepository = new CollectionHoldRepository($this->db, $this->logger);
-        $this->membersRepository = new MembersRepository($this->db, $this->logger, new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'), new EncryptionKeysRepository($this->db, $this->logger));
+        $this->membersRepository = new MembersRepository($this->db, $this->logger, new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'), new EncryptionKeysRepository($this->db, $this->logger), MandateReferences::real($this->db, $this->logger));
 
         $auditService = new AuditService(new AuditLogRepository($this->db, $this->logger));
 

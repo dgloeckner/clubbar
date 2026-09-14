@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Modules\Registrations\Services;
 
+use App\Shared\Sepa\MandateReferenceMinter;
+use Tests\Support\CountingMandateReferenceCounter;
 use App\Modules\Registrations\Domain\PosterSecret;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
 use App\Modules\Registrations\Repositories\RegistrationsRepository;
@@ -40,6 +42,7 @@ final class RegistrationsServiceTest extends TestCase
     private PDO $db;
     private string $publicKey;
     private RegistrationsService $service;
+    private CountingMandateReferenceCounter $counter;
 
     protected function setUp(): void
     {
@@ -113,12 +116,17 @@ final class RegistrationsServiceTest extends TestCase
         );
         $this->db->exec("INSERT INTO bank_codes (bank_code, bank_name) VALUES ('37040044', 'Sparkasse Musterstadt')");
 
-        $this->db->exec('CREATE TABLE sepa_config (id INTEGER PRIMARY KEY, mandate_template_url VARCHAR(255) NULL)');
+        $this->db->exec('CREATE TABLE sepa_config (id INTEGER PRIMARY KEY, mandate_template_url VARCHAR(255) NULL, mandate_reference_prefix VARCHAR(10) NULL)');
         $this->db->exec(
             "INSERT INTO sepa_config (id, mandate_template_url) VALUES (1, 'https://club.example/Anmeldung_Ruderbar.pdf')"
         );
 
         $logger = new Logger(sys_get_temp_dir() . '/registrations-tests', 'CRITICAL');
+
+        // Held on the test so the honeypot case can ask whether a number was
+        // drawn at all — `LAST_INSERT_ID()` does not exist in SQLite, and the
+        // question here is about consumption rather than about the SQL.
+        $this->counter = new CountingMandateReferenceCounter();
 
         $this->service = new RegistrationsService(
             new RegistrationsRepository($this->db),
@@ -128,6 +136,7 @@ final class RegistrationsServiceTest extends TestCase
             new BankCodeService(new BankCodesRepository($this->db, $logger), $logger),
             new SepaConfigRepository($this->db, $logger),
             new IbanSealedBox(str_repeat('ab', 32), 'testing'),
+            new MandateReferenceMinter($this->counter, new SepaConfigRepository($this->db, $logger)),
             $logger,
         );
     }
@@ -260,14 +269,36 @@ final class RegistrationsServiceTest extends TestCase
 
     /**
      * Minted at submission because it is printed on the paper before the
-     * mandate exists, in ADR-0006's format.
+     * mandate exists, in ADR-0006's amended format — the install's counter with
+     * the club's prefix, not a UUID (#936). This is the string the member later
+     * reads off their own Kontoauszug.
      */
-    public function test_a_mandate_reference_is_minted_in_the_adr_0006_format(): void
+    public function test_a_mandate_reference_is_minted_from_the_counter(): void
     {
         $receipt = $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
 
-        self::assertMatchesRegularExpression('/^[0-9a-f]{32}$/', $receipt->mandateReference);
+        self::assertSame('CB-000001', $receipt->mandateReference);
         self::assertLessThanOrEqual(35, strlen($receipt->mandateReference));
+        self::assertSame(1, $this->counter->drawn());
+    }
+
+    /** The reference stored on the row is the one the receipt named. */
+    public function test_the_stored_reference_is_the_one_the_receipt_named(): void
+    {
+        $receipt = $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
+
+        $stored = $this->db->query('SELECT mandate_reference FROM pending_registrations')->fetchColumn();
+        self::assertSame($receipt->mandateReference, $stored);
+    }
+
+    /** The club's own prefix, when it has chosen one. */
+    public function test_the_configured_prefix_is_used(): void
+    {
+        $this->db->exec("UPDATE sepa_config SET mandate_reference_prefix = 'RVM' WHERE id = 1");
+
+        $receipt = $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
+
+        self::assertSame('RVM-000001', $receipt->mandateReference);
     }
 
     public function test_the_expiry_is_the_configured_retention_from_submission(): void
@@ -324,6 +355,42 @@ final class RegistrationsServiceTest extends TestCase
 
         self::assertNotSame('', $receipt->id);
         self::assertSame(0, (int) $this->db->query('SELECT COUNT(*) FROM pending_registrations')->fetchColumn());
+    }
+
+    /**
+     * The decoy has to be shaped like a real reference, or the trap announces
+     * itself in the one field a bot can read.
+     */
+    public function test_the_honeypot_receipt_is_shaped_like_a_real_one(): void
+    {
+        $receipt = $this->service->submit(
+            self::SECRET,
+            $this->payload(['website' => 'http://spam.example']),
+            '10.0.0.1',
+        );
+
+        self::assertMatchesRegularExpression('/^CB-[0-9]{6}$/', $receipt->mandateReference);
+    }
+
+    /**
+     * ...and it must not consume a number. Since #936 a reference carries the
+     * install's mandate count, so a honeypot that drew from the counter would
+     * let a bot read that count off the fake receipt, and watch it move by
+     * probing — which is the single thing the trap exists to hide.
+     */
+    public function test_the_honeypot_does_not_advance_the_counter(): void
+    {
+        $this->service->submit(
+            self::SECRET,
+            $this->payload(['website' => 'http://spam.example']),
+            '10.0.0.1',
+        );
+
+        self::assertSame(0, $this->counter->drawn());
+
+        // And the next real submission still gets the first number.
+        $receipt = $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
+        self::assertSame('CB-000001', $receipt->mandateReference);
     }
 
     // --- the meters ----------------------------------------------------------
@@ -541,6 +608,7 @@ final class RegistrationsServiceTest extends TestCase
             new BankCodeService(new BankCodesRepository($this->db, $logger), $logger),
             new SepaConfigRepository($this->db, $logger),
             new IbanSealedBox(str_repeat('ab', 32), 'testing'),
+            new MandateReferenceMinter(new CountingMandateReferenceCounter(), new SepaConfigRepository($this->db, $logger)),
             $logger,
             null,
             new PublicBrandingProvider($instance, $mailConfig),

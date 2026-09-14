@@ -126,11 +126,15 @@ exist *before* the mandate does, because it is printed on the paper the member
 signs, and the paper and the stored mandate have to name the same UMR — that is
 what makes a returned collection matchable months later.
 
-So `pending_registrations.mandate_reference` is minted at submission from the
-row's own UUID, in ADR-0006's format, and **approval carries it into the
-`mandates` row unchanged**. A rejected or purged registration takes its
-reference with it; references are 32 hex characters from a UUID and are not a
-scarce resource.
+So `pending_registrations.mandate_reference` is minted at submission in
+ADR-0006's format, and **approval carries it into the `mandates` row
+unchanged**. A rejected or purged registration takes its reference with it.
+Since [#936](https://github.com/dgloeckner/clubbar/issues/936) that format is
+`<PREFIX>-<number>` drawn from the same per-install counter the admin panel uses
+(it was a UUID with its hyphens removed until then), so the number a
+registration burns is a gap in a sequence and nothing more — but the honeypot
+must therefore answer with a reference-*shaped* value that draws **no** number,
+or a bot could read the club's mandate count off a fake receipt.
 
 ### 5. The club's whole Anmeldung is what gets filled, and every page survives
 
@@ -224,9 +228,12 @@ Latin-1 transliteration.
 
 A third belongs beside them, found against the club's own published document:
 **a value is fitted to its field, never drawn at a fixed size.** The reference
-club's `mandatsreferenz` field is 108pt wide and holds 32 hex characters, which at
+club's `mandatsreferenz` field is 108pt wide and held 32 hex characters, which at
 10pt is 166pt of text — 58pt of a member's mandate reference running into whatever
-sits beside it, on a document that looks fine everywhere except on paper. The size
+sits beside it, on a document that looks fine everywhere except on paper. A newly
+minted reference is short since #936, and the rule still holds: references minted
+before it are never re-minted, an account holder's name is longer than either, and
+a club may set a longer prefix. The size
 steps down until the value fits, with a floor below which it is drawn cramped
 rather than clipped: a document that is visibly tight gets looked at, and one that
 is silently overlapping does not.

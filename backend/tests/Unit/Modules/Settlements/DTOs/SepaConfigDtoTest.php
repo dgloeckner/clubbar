@@ -21,6 +21,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCountry: 'DE',
             paymentReferencePrefix: 'CLUB',
             mandateTemplateUrl: 'https://club.example/anmeldung',
+            mandateReferencePrefix: null,
             isConfigured: true,
         );
 
@@ -48,6 +49,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCountry: null,
             paymentReferencePrefix: null,
             mandateTemplateUrl: null,
+            mandateReferencePrefix: null,
             isConfigured: false,
         );
 
@@ -292,6 +294,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCountry: 'DE',
             paymentReferencePrefix: 'CLUB',
             mandateTemplateUrl: 'https://club.example/anmeldung',
+            mandateReferencePrefix: null,
             isConfigured: true,
         );
 
@@ -332,6 +335,7 @@ class SepaConfigDtoTest extends TestCase
             creditorAddressCountry: null,
             paymentReferencePrefix: null,
             mandateTemplateUrl: null,
+            mandateReferencePrefix: null,
             isConfigured: false,
         );
 

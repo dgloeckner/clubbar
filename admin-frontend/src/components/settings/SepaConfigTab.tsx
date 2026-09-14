@@ -9,7 +9,7 @@ import { CharacterCounter } from '../forms/CharacterCounter'
 import { ValidationIndicator } from '../forms/ValidationIndicator'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import { useTranslation } from 'react-i18next'
-import type { SepaConfigFormData } from '../../utils/sepaConfig'
+import { MANDATE_REFERENCE_PREFIX_MAX_LENGTH, type SepaConfigFormData } from '../../utils/sepaConfig'
 
 function FormField({
   label,
@@ -347,6 +347,28 @@ export function SepaConfigTab({
               placeholder={t('settings.sepaPlaceholders.paymentPrefix')}
               helperText={t('settings.sepaHelpers.paymentPrefix')}
               maxLength={100}
+              showCharCounter={true}
+              fieldErrors={fieldErrors}
+              onFieldChange={onFieldChange}
+              validateIban={validateIban}
+            />
+          </div>
+
+          {/* Mandate Reference Prefix Field - spans both columns. The prefix
+              on every reference this install mints from here on (#936). Blank
+              means the default, `CB`. It exists mainly so references an admin
+              types in for mandates carried over from a previous system cannot
+              collide with the club's own sequence — references already minted
+              are never re-minted, so changing this leaves them alone. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FormField
+              label={t('settings.mandateReferencePrefix')}
+              fieldKey="mandate_reference_prefix"
+              value={formData.mandate_reference_prefix}
+              placeholder={t('settings.sepaPlaceholders.mandateReferencePrefix')}
+              monospace={true}
+              helperText={t('settings.sepaHelpers.mandateReferencePrefix')}
+              maxLength={MANDATE_REFERENCE_PREFIX_MAX_LENGTH}
               showCharCounter={true}
               fieldErrors={fieldErrors}
               onFieldChange={onFieldChange}

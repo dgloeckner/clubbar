@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Notifications;
 
+use Tests\Support\MandateReferences;
 use App\Modules\CreditLimits\Domain\CreditLimitPolicy;
 use App\Modules\CreditLimits\Domain\CreditLimitStatus;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
@@ -81,6 +82,7 @@ class DeckelStatementDataTest extends DatabaseTestCase
                 $this->logger,
                 new IbanSealedBox(str_repeat('0', 63) . '2', 'test'),
                 new EncryptionKeysRepository($this->db, $this->logger),
+                MandateReferences::real($this->db, $this->logger),
             ),
             $mailConfig,
             $creditLimits,

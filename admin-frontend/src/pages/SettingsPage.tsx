@@ -55,6 +55,8 @@ import {
   buildCreateSepaConfigRequest,
   buildUpdateSepaConfigRequest,
   isCreditorIdSet,
+  MANDATE_REFERENCE_PREFIX_MAX_LENGTH,
+  MANDATE_REFERENCE_PREFIX_PATTERN,
   type SepaConfigFormData,
 } from '../utils/sepaConfig'
 
@@ -114,6 +116,7 @@ export function SettingsPage() {
     creditor_address_country: '',
     payment_reference_prefix: '',
     mandate_template_url: '',
+    mandate_reference_prefix: '',
   })
   const [formData, setFormData] = useState<SepaConfigFormData>({
     creditor_id: '',
@@ -124,6 +127,7 @@ export function SettingsPage() {
     creditor_address_country: '',
     payment_reference_prefix: '',
     mandate_template_url: '',
+    mandate_reference_prefix: '',
   })
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   // Tracks the pending "clear the success message" timer so a later save
@@ -265,6 +269,7 @@ export function SettingsPage() {
             creditor_address_country: config.creditor_address_country,
             payment_reference_prefix: config.payment_reference_prefix,
             mandate_template_url: config.mandate_template_url ?? undefined,
+            mandate_reference_prefix: config.mandate_reference_prefix ?? '',
           }
           setFormData(formValues)
           setOriginalFormData(formValues)
@@ -784,6 +789,18 @@ export function SettingsPage() {
 
     if (formData.payment_reference_prefix && formData.payment_reference_prefix.length > 100) {
       newErrors.payment_reference_prefix = t('settings.validation.paymentReferencePrefixTooLong')
+    }
+
+    // Blank is allowed and means the default (#936). Both bounds mirror the
+    // backend's, which are SEPA's: the charset is what a bank will carry in
+    // <MndtId>, and the length is what keeps prefix + separator + number inside
+    // SEPA's 35 characters for every number the counter can reach.
+    if (formData.mandate_reference_prefix) {
+      if (formData.mandate_reference_prefix.length > MANDATE_REFERENCE_PREFIX_MAX_LENGTH) {
+        newErrors.mandate_reference_prefix = t('settings.validation.mandateReferencePrefixTooLong')
+      } else if (!MANDATE_REFERENCE_PREFIX_PATTERN.test(formData.mandate_reference_prefix)) {
+        newErrors.mandate_reference_prefix = t('settings.validation.mandateReferencePrefixInvalid')
+      }
     }
 
     // Not required at save time (#456): a club can save creditor details

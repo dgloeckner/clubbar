@@ -312,7 +312,10 @@ paths:
                     description: >
                       The UMR minted at submission, because it is printed on the
                       paper before the mandate exists. Approval carries it into
-                      the mandate unchanged.
+                      the mandate unchanged. Drawn from the same counter the
+                      admin panel uses, so it is short enough to read aloud
+                      (#936).
+                    example: CB-000042
                   document:
                     type: string
                     format: byte
@@ -979,7 +982,8 @@ paths:
 
         **Auto-generated**:
         - `id`: UUID
-        - `mandate_reference`: UUID without hyphens (can be overridden)
+        - `mandate_reference`: minted from the install's counter with the club's
+          prefix, e.g. `CB-000042` (can be overridden)
         - `is_active`: true
         - `created_at`, `updated_at`: current timestamp
       operationId: createMember
@@ -7036,6 +7040,12 @@ components:
           type: string
           nullable: true
           maxLength: 35
+          example: CB-000042
+          description: >-
+            The UMR the member reads off their own bank statement. Minted from
+            the install's counter with the club's prefix (#936); references
+            minted before that are 32 hex characters from a UUID and are never
+            re-minted, so both shapes exist on an upgraded install.
         mandate_signed_at:
           type: string
           format: date
@@ -7073,7 +7083,7 @@ components:
         no value for `card_uid`, `iban`, `account_holder_name` and
         `mandate_signed_at`. `mandate_reference` is the exception — a blank one
         says the member has no mandate, while an omitted one is minted from the
-        member id (ADR-0006).
+        install's counter (ADR-0006 as amended, #936).
       # SEPA details are not required to register a member: the list has a
       # "SEPA: Missing" filter and badge precisely because a member without
       # bank details is a supported state, and the backend has always accepted
@@ -7137,7 +7147,12 @@ components:
         mandate_reference:
           type: string
           maxLength: 35
-          description: Optional; defaults to UUID without hyphens
+          example: CB-000042
+          description: >-
+            Optional. Omitted, a reference is minted from the install's counter
+            with the club's prefix (#936). Send `""` to say the member has no
+            mandate at all; send a value to record one carried over from another
+            system.
         card_uid:
           type: string
           pattern: '^[0-9A-Fa-f](?:[0-9A-Fa-fXx:. _-])*$'
@@ -8600,6 +8615,21 @@ components:
             bargeldlosen Vereinsbar") a new member signs (#360). The blank
             mandate PDF used to be generated in-app; the club now maintains
             this form elsewhere and links to it instead.
+        mandate_reference_prefix:
+          type: string
+          maxLength: 10
+          nullable: true
+          description: |
+            Prefix of newly minted mandate references, e.g. `CB` for
+            `CB-000042` (#936). Null or empty means the default `CB`.
+
+            SEPA character set only (`0-9 a-z A-Z + ? / - : ( ) . , '`), and
+            short enough that prefix + separator + number stays inside SEPA's
+            35 characters for every number the install's counter can reach.
+
+            Changing it affects only references minted from then on — a
+            mandate already opened keeps the reference it was signed and
+            collected under.
         is_configured:
           type: boolean
           description: True once creditor_id, creditor_name, creditor_iban and mandate_template_url are all set
@@ -8642,6 +8672,21 @@ components:
           maxLength: 255
           nullable: true
           description: The externally hosted registration form a new member signs (#360)
+        mandate_reference_prefix:
+          type: string
+          maxLength: 10
+          nullable: true
+          description: |
+            Prefix of newly minted mandate references, e.g. `CB` for
+            `CB-000042` (#936). Null or empty means the default `CB`.
+
+            SEPA character set only (`0-9 a-z A-Z + ? / - : ( ) . , '`), and
+            short enough that prefix + separator + number stays inside SEPA's
+            35 characters for every number the install's counter can reach.
+
+            Changing it affects only references minted from then on — a
+            mandate already opened keeps the reference it was signed and
+            collected under.
 
     InstanceConfig:
       type: object
@@ -9501,6 +9546,21 @@ components:
           maxLength: 255
           nullable: true
           description: The externally hosted registration form a new member signs (#360)
+        mandate_reference_prefix:
+          type: string
+          maxLength: 10
+          nullable: true
+          description: |
+            Prefix of newly minted mandate references, e.g. `CB` for
+            `CB-000042` (#936). Null or empty means the default `CB`.
+
+            SEPA character set only (`0-9 a-z A-Z + ? / - : ( ) . , '`), and
+            short enough that prefix + separator + number stays inside SEPA's
+            35 characters for every number the install's counter can reach.
+
+            Changing it affects only references minted from then on — a
+            mandate already opened keeps the reference it was signed and
+            collected under.
 
     # --------------------------------------------------------------------------
     # Admin Users

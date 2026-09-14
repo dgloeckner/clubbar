@@ -35,6 +35,8 @@ use App\Modules\Registrations\Services\RegistrationReviewService;
 use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Products\Repositories\ProductsRepository;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
+use App\Shared\Sepa\MandateReferenceCounterRepository;
+use App\Shared\Sepa\MandateReferenceMinter;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Modules\Security\Repositories\SealedIbanRepository;
 use App\Modules\Security\Services\EncryptionKeyService;
@@ -326,12 +328,26 @@ class ServiceFactory implements ContainerInterface
 
     public function getMembersRepository(): MembersRepository
     {
-        return $this->resolve(MembersRepository::class, fn() => new MembersRepository($this->pdo, $this->logger, $this->getIbanSealedBox(), $this->getEncryptionKeysRepository()));
+        return $this->resolve(MembersRepository::class, fn() => new MembersRepository($this->pdo, $this->logger, $this->getIbanSealedBox(), $this->getEncryptionKeysRepository(), $this->getMandateReferenceMinter()));
     }
 
     public function getProductsRepository(): ProductsRepository
     {
         return $this->resolve(ProductsRepository::class, fn() => new ProductsRepository($this->pdo, $this->logger));
+    }
+
+    /**
+     * The one place a mandate reference is minted (#936). Shared by the admin
+     * panel and self-registration on purpose: both draw from the same counter
+     * row, which is what makes an admin creating a member while a registration
+     * lands safe to interleave.
+     */
+    public function getMandateReferenceMinter(): MandateReferenceMinter
+    {
+        return $this->resolve(MandateReferenceMinter::class, fn() => new MandateReferenceMinter(
+            new MandateReferenceCounterRepository($this->pdo),
+            $this->getSepaConfigRepository(),
+        ));
     }
 
     public function getSepaConfigRepository(): SepaConfigRepository
@@ -387,6 +403,7 @@ class ServiceFactory implements ContainerInterface
             $this->getBankCodeService(),
             $this->getSepaConfigRepository(),
             $this->getIbanSealedBox(),
+            $this->getMandateReferenceMinter(),
             $this->logger,
             $this->getMandateDocumentService(),
             $this->getPublicBrandingProvider(),

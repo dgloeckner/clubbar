@@ -749,9 +749,11 @@ test.describe('Admin Members Page', () => {
     await authenticatedMembersPage.reopenMemberForm(firstName)
     await authenticatedMembersPage.expectMandateReferenceInputHidden()
     const assigned = await authenticatedMembersPage.getFormMandateReferenceValue()
-    // A UUID without hyphens, per ADR-0006 — and emphatically not the
-    // abandoned TEMP value.
-    expect(assigned).toMatch(/^[0-9a-f]{32}$/i)
+    // The club's prefix and a number from the install's counter, per ADR-0006
+    // as amended by #936 — this is the string the member reads off their own
+    // Kontoauszug. And emphatically not the abandoned TEMP value.
+    expect(assigned).toMatch(/^CB-\d{6,}$/)
+    expect(assigned!.length).toBeLessThanOrEqual(35)
     await authenticatedMembersPage.cancelForm()
   })
 })

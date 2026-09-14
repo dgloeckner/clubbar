@@ -1,6 +1,6 @@
 # ADR-0006: SEPA Mandate Reference Strategy
 
-**Status**: Accepted (amended 2026-08-07 — see the note below; corrected 2026-08-23: the XML sample names pain.008.001.08, the format exported since [ADR-0008](./0008-sepa-xml-export-format-selection.md)'s 2026-08-04 amendment)
+**Status**: Accepted (amended 2026-08-07 and 2026-09-14 — see the notes below; corrected 2026-08-23: the XML sample names pain.008.001.08, the format exported since [ADR-0008](./0008-sepa-xml-export-format-selection.md)'s 2026-08-04 amendment)
 
 **Date**: 2025-01-23
 
@@ -46,10 +46,68 @@ The system stores a single editable mandate_reference field per member. All mand
 >
 > **What is overturned.** Principle 3's placement (`members` table), and the claim that signature dates are tracked outside the system. See the revised Alternative 3 below.
 
+> ### ⚠️ Amended 2026-09-14 — the reference is minted from a counter
+>
+> **What changed:** a newly opened mandate's reference is
+> `<PREFIX>-<zero-padded number>` — `CB-000042` — drawn from a per-install
+> counter, instead of a UUID with its hyphens removed. See
+> [#936](https://github.com/dgloeckner/clubbar/issues/936).
+>
+> **Why the UUID could not stay.** The reference is the one identifier a member
+> *reads*: it is the **Mandatsreferenz** on their own Kontoauszug, the string
+> they read aloud to the Kassenwart when a collection is queried, and it is
+> printed on the paper a self-registering member signs ([ADR-0052](./0052-member-self-registration-via-qr-code.md)
+> decision 4). Thirty-two hex characters are unreadable in all three places, and
+> nothing in SEPA ever asked for them: the UMR must be unique **per creditor**,
+> at most 35 characters, in the SEPA character set. Principle 2's "UUID ensures
+> uniqueness by design" answered a coordination problem this system does not
+> have — one install is one Gläubiger-ID, every reference is minted on the
+> backend, the terminal never mints one, and self-registration is a synchronous
+> call.
+>
+> **Why a counter row and not a sequence.** `CREATE SEQUENCE` exists only on
+> MariaDB >= 10.3, while `docs/deployment.md` promises MySQL 5.7 / MariaDB 10.5
+> and [ADR-0038](./0038-shared-hosting-deployment-constraints.md) leaves the
+> database version to the host. A sequence is also non-transactional, whereas a
+> counter row rolls back with the transaction that drew from it — so the paper
+> printed from a pending registration and the stored row can never name
+> different numbers. The draw is the portable idiom, run inside the minting
+> transaction:
+>
+> ```
+> UPDATE mandate_reference_counter SET value = LAST_INSERT_ID(value + 1) WHERE id = 1;
+> SELECT LAST_INSERT_ID();
+> ```
+>
+> Gaps are harmless — a rejected or purged registration takes its number with
+> it, and nothing reads a reference as a position.
+>
+> **What survives.** Principles 3, 4, 5, 6 and 7 are untouched. The reference is
+> still minted at mandate creation, still admin-editable, still just a field,
+> still SEPA-compliant. **Existing references are never re-minted**: they are on
+> signed paper and in every collection already sent to the bank, and a return is
+> matched by `MREF+` months later ([#165](https://github.com/dgloeckner/clubbar/issues/165)).
+> A mixed population of 32-hex and short references is correct, expected, and
+> fine for the bank.
+>
+> **What is overturned.** Principle 1's *"UUID minus hyphens"* and Principle 2's
+> reasoning, for newly opened mandates only.
+>
+> **The prefix.** `sepa_config.mandate_reference_prefix`, default `CB`,
+> validated against the SEPA character set and short enough that prefix +
+> separator + number stays inside 35 characters for every number the counter can
+> reach. It exists mainly so that references an admin types in for mandates
+> carried over from a previous system cannot collide with the club's own
+> sequence.
+
 ### Core Principles
 
-1. **Direct initialization**: Initialize with UUID minus hyphens on member creation
-2. **Automatic uniqueness**: UUID ensures uniqueness by design
+1. **Direct initialization**: ~~Initialize with UUID minus hyphens on member
+   creation~~ — since 2026-09-14, minted at mandate creation as
+   `<PREFIX>-<number>` from a per-install counter (see the amendment above)
+2. **Automatic uniqueness**: ~~UUID ensures uniqueness by design~~ — the counter
+   ensures it, which is all SEPA asks: the UMR is unique per creditor, and one
+   install is one Gläubiger-ID
 3. **Admin editable**: Can override if needed for existing mandates
 4. **Simple field**: Just store the reference; no lifecycle tracking
 5. **Lightweight**: No mandate date, active flag, or expiry logic in system
@@ -62,12 +120,16 @@ The system stores a single editable mandate_reference field per member. All mand
 
 | Column | Type | Description |
 |--------|------|-------------|
-| mandate_reference | VARCHAR(35) | SEPA mandate identifier; default = member UUID without hyphens; editable; used in SEPA XML exports |
+| mandate_reference | VARCHAR(35) | SEPA mandate identifier; default = `<PREFIX>-<number>` from the per-install counter (`CB-000042`); editable; used in SEPA XML exports |
 | id | BINARY(16) | Member UUID (example: `550e8400-e29b-41d4-a716-446655440000`) |
 
 **Field Details:**
-- **Default value**: Member UUID with hyphens removed (32 characters)
-  - Example: `550e8400e29b41d4a716446655440000`
+- **Default value**: the club's prefix and the next number from
+  `mandate_reference_counter`, zero-padded to six digits
+  - Example: `CB-000042`
+  - Before 2026-09-14 this was the member UUID with hyphens removed
+    (`550e8400e29b41d4a716446655440000`). Those are **never re-minted**, so both
+    shapes exist on an upgraded install
 - **Editable**: Admin can change if member has existing mandate with different reference
 - **Allowed characters**: `0-9 a-z A-Z + ? / - : ( ) . , '` (SEPA standard)
 - **Nullable**: Optional; set to NULL if member not enrolled in SEPA
@@ -79,9 +141,14 @@ Mandate reference appears in SEPA Direct Debit XML (pain.008.001.08) as:
 
 ```xml
 <MndtRltdInf>
-  <MndtId>550e8400e29b41d4a716446655440000</MndtId>
+  <MndtId>CB-000042</MndtId>
 </MndtRltdInf>
 ```
+
+A mandate opened before 2026-09-14 still exports the reference it was signed
+under — `<MndtId>550e8400e29b41d4a716446655440000</MndtId>` — unchanged. The
+exporter never normalizes, pads or truncates a stored reference: it is the key a
+return quotes back as `MREF+`.
 
 #### Pre-Settlement Validation Requirements
 
@@ -101,7 +168,9 @@ Members missing either field are excluded from settlement with reason logged.
 ✅ **Direct initialization**: mandate_reference set directly on member creation
 ✅ **Flexible**: Admin can override reference for existing external mandates
 ✅ **Lightweight**: No mandate date, active flag, or expiry logic in system
-✅ **SEPA compliant**: Reference format (UUID without hyphens) valid for SEPA XML export
+✅ **SEPA compliant**: Reference format valid for SEPA XML export
+✅ **Readable**: a member can read `CB-000042` off their bank statement and back
+   to the Kassenwart over the phone
 ✅ **Audit trail**: Changes to mandate_reference logged via standard audit system
 ✅ **Low maintenance**: Mandate management handled outside system (on paper)
 ✅ **Separation of concerns**: System focus is transactions/settlements, not mandate admin

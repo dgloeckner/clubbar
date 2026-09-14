@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Members\Repositories;
 
+use Tests\Support\MandateReferences;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Shared\Exceptions\DuplicateResourceException;
@@ -29,6 +30,7 @@ class MembersRepositoryTest extends DatabaseTestCase
             $this->logger,
             new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'),
             new EncryptionKeysRepository($this->db, $this->logger),
+            MandateReferences::real($this->db, $this->logger),
         );
     }
 
@@ -599,6 +601,86 @@ class MembersRepositoryTest extends DatabaseTestCase
         $this->assertNotContains('iban', $columns, 'no column may hold a plaintext IBAN');
     }
 
+    /**
+     * The shape a member reads off their own Kontoauszug, and reads aloud to
+     * the Kassenwart when a collection is queried (#936). Not a UUID: 32 hex
+     * characters are unreadable in both places, and SEPA never asked for them.
+     */
+    public function test_a_minted_reference_carries_the_prefix_and_a_number(): void
+    {
+        $member = $this->createMemberWithMintedReference();
+
+        $this->assertMatchesRegularExpression('/^CB-[0-9]{6,}$/', $member['mandate_reference']);
+        $this->assertLessThanOrEqual(35, strlen($member['mandate_reference']));
+    }
+
+    /** One counter, so the numbers come out in order. */
+    public function test_two_consecutive_creates_get_consecutive_numbers(): void
+    {
+        $first = $this->createMemberWithMintedReference();
+        $second = $this->createMemberWithMintedReference([
+            'iban' => 'DE02120300000000202051',
+        ]);
+
+        $this->assertSame(
+            $this->referenceNumber($first['mandate_reference']) + 1,
+            $this->referenceNumber($second['mandate_reference']),
+        );
+    }
+
+    /**
+     * The ended mandate keeps the reference it was signed and collected under —
+     * a return arriving months later is matched by that `MREF+`, so re-minting
+     * over it would destroy the only key that resolves it (#165).
+     */
+    public function test_a_bank_change_takes_the_next_number_and_leaves_the_old_reference_alone(): void
+    {
+        $member = $this->createMemberWithMintedReference();
+        $originalReference = $member['mandate_reference'];
+
+        $updated = $this->membersRepository->updateById($member['id'], [
+            'iban' => 'DE02120300000000202051',
+        ]);
+
+        $this->assertSame(
+            $this->referenceNumber($originalReference) + 1,
+            $this->referenceNumber($updated['mandate_reference']),
+        );
+
+        $ended = $this->db->prepare('SELECT reference FROM mandates WHERE member_id = ? AND active_member_id IS NULL');
+        $ended->execute([$member['id']]);
+        $this->assertSame([$originalReference], $ended->fetchAll(\PDO::FETCH_COLUMN));
+    }
+
+    /**
+     * The prefix exists mainly so a reference an admin types in for a mandate
+     * carried over from a previous system cannot collide with the club's own
+     * sequence — so an admin-named one is still stored verbatim.
+     */
+    public function test_a_named_reference_is_honoured_and_draws_no_number(): void
+    {
+        $before = $this->counterValue();
+        $named = 'OLD-SYS-' . substr(str_replace('-', '', $this->generateUuid()), 0, 8);
+
+        $member = $this->createMemberWithBankingData(['mandate_reference' => $named]);
+
+        $this->assertSame($named, $member['mandate_reference']);
+        $this->assertSame($before, $this->counterValue());
+    }
+
+    private function counterValue(): int
+    {
+        return (int) $this->db->query('SELECT value FROM mandate_reference_counter WHERE id = 1')->fetchColumn();
+    }
+
+    /** The number out of a `CB-000042`, so a test can assert "the next one". */
+    private function referenceNumber(string $reference): int
+    {
+        $this->assertMatchesRegularExpression('/^[^-]+-[0-9]+$/', $reference);
+
+        return (int) substr($reference, strrpos($reference, '-') + 1);
+    }
+
     public function test_a_member_without_an_iban_has_no_mandate_reference(): void
     {
         $id = $this->generateUuid();
@@ -1000,6 +1082,26 @@ class MembersRepositoryTest extends DatabaseTestCase
             'email' => "banking-{$id}@example.com",
             'iban' => 'DE89370400440532013000',
             'mandate_reference' => 'MANDATE' . substr($id, 0, 8),
+            'mandate_signed_at' => '2025-01-01',
+        ], $overrides));
+    }
+
+    /**
+     * Banking data with no reference *named at all*, so the minter supplies
+     * one. Distinct from passing an empty string, which deliberately means "no
+     * mandate" and opens none (#164).
+     */
+    private function createMemberWithMintedReference(array $overrides = []): array
+    {
+        $id = $this->generateUuid();
+        $this->testMemberIds[] = $id;
+
+        return $this->membersRepository->create(array_merge([
+            'id' => $id,
+            'first_name' => 'Minting',
+            'last_name' => 'Member',
+            'email' => "minting-{$id}@example.com",
+            'iban' => 'DE89370400440532013000',
             'mandate_signed_at' => '2025-01-01',
         ], $overrides));
     }

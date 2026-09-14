@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Modules\Settlements\Services;
 
+use Tests\Support\MandateReferences;
 use App\Modules\Members\Repositories\MembersRepository;
 use App\Modules\Security\Repositories\EncryptionKeysRepository;
 use App\Shared\Security\IbanSealedBox;
@@ -58,7 +59,7 @@ class SepaExportPersistenceTest extends DatabaseTestCase
 
         $this->service = new SepaExportService(
             $sepaConfig,
-            new MembersRepository($this->db, $this->logger, new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'), new EncryptionKeysRepository($this->db, $this->logger)),
+            new MembersRepository($this->db, $this->logger, new IbanSealedBox('0000000000000000000000000000000000000000000000000000000000000002', 'test'), new EncryptionKeysRepository($this->db, $this->logger), MandateReferences::real($this->db, $this->logger)),
             $this->settlementsRepository,
             new SettlementReversalsRepository($this->db, $this->logger),
             $this->logger,

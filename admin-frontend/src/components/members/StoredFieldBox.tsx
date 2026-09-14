@@ -67,8 +67,10 @@ export function StoredFieldBox({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: theme.spacing.md,
-          // Long values (a 32-character mandate reference) must wrap rather
-          // than widen the modal's grid column.
+          // Long values must wrap rather than widen the modal's grid column.
+          // Mandate references minted since #936 are short (`CB-000042`), but
+          // the ones minted before it are 32 characters and are never
+          // re-minted, and an account holder's name is longer than either.
           overflowWrap: 'anywhere',
           minHeight: '3rem',
         }}

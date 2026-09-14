@@ -196,9 +196,11 @@ test.describe('Public self-registration', () => {
     expect(response.status()).toBe(201)
     const body = await response.json()
     expect(body.id).toMatch(/^[0-9a-f-]{36}$/)
-    // Minted at submission, in ADR-0006's format, because it is printed on the
-    // paper before the mandate exists.
-    expect(body.mandate_reference).toMatch(/^[0-9a-f]{32}$/)
+    // Minted at submission, in ADR-0006's amended format, because it is
+    // printed on the paper before the mandate exists — and short enough to
+    // read aloud once it reaches a bank statement (#936).
+    expect(body.mandate_reference).toMatch(/^CB-\d{6,}$/)
+    expect(body.mandate_reference.length).toBeLessThanOrEqual(35)
 
     expect(countPendingRegistrations()).toBe(before + 1)
 

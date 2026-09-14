@@ -15,6 +15,7 @@ final readonly class SepaConfigDto
         public ?string $creditorAddressCountry,
         public ?string $paymentReferencePrefix,
         public ?string $mandateTemplateUrl,
+        public ?string $mandateReferencePrefix,
         public bool $isConfigured,
     ) {}
 
@@ -45,6 +46,10 @@ final readonly class SepaConfigDto
             creditorAddressCountry: $row['creditor_address_country'] ?? null,
             paymentReferencePrefix: $row['payment_reference_prefix'] ?? null,
             mandateTemplateUrl: $row['mandate_template_url'] ?? null,
+            // Not masked and not part of `isConfigured`: it is a label a club
+            // chooses, and an install that never touches it mints `CB-…`
+            // perfectly well (#936).
+            mandateReferencePrefix: $row['mandate_reference_prefix'] ?? null,
             isConfigured: $isConfigured,
         );
     }
@@ -68,6 +73,7 @@ final readonly class SepaConfigDto
             'creditor_address_country' => $this->creditorAddressCountry,
             'payment_reference_prefix' => $this->paymentReferencePrefix,
             'mandate_template_url' => $this->mandateTemplateUrl,
+            'mandate_reference_prefix' => $this->mandateReferencePrefix,
             'is_configured' => $this->isConfigured,
         ];
     }
