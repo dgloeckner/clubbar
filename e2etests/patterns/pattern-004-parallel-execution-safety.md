@@ -202,6 +202,43 @@ Fresh database before each test run ensures clean state:
 
 ---
 
+### Rule 5: A Singleton Row Is Locked, Not Isolated
+
+Rule 1 cannot apply to a row the schema allows exactly one of. The club's
+configuration is two such rows — `self_registration_config` and `sepa_config` —
+and `mode: 'serial'` does not help: it orders the tests *within* a file and says
+nothing about the file running beside it on another worker.
+
+Every spec that writes either row takes the cross-file mutex in
+[`utils/clubConfigLock.ts`](../utils/clubConfigLock.ts):
+
+```typescript
+import { lockClubConfig, unlockClubConfig, withClubConfigLock } from '../../utils/clubConfigLock'
+
+// A test that writes the row and then reads its own value back holds the lock
+// for the whole test — the window spans the write *and* the round trip that
+// presents it.
+test.beforeEach(() => { lockClubConfig() })
+test.afterEach(() => { unlockClubConfig() })
+
+// A test that only needs its write to stay out of somebody else's window takes
+// it for the write alone.
+await withClubConfigLock(() => request.put('/api/admin/sepa-config', { data }))
+```
+
+One lock covers both rows because one helper writes both:
+`configureSelfRegistration()` sets the poster secret *and*
+`sepa_config.mandate_template_url`, which is the club's registration document.
+That is how a spec asserting nothing but SEPA settings came to read back a URL a
+registration spec had restored on another worker — a correct value, reported as
+a failure, in the file that did not cause it.
+
+Any cleanup that writes the row (`restoreClubDocumentUrl()`) belongs *inside*
+the lock: declare the `unlock` hook **before** the restoring hook, since
+Playwright runs `afterEach` hooks in reverse declaration order.
+
+---
+
 ## Parallel Execution Configuration
 
 ### Playwright Config

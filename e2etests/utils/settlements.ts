@@ -2,6 +2,7 @@ import type { APIRequestContext } from '@playwright/test'
 import { minimumExecutionDate, serverToday } from './dates'
 import { ADULT_DATE_OF_BIRTH } from './transactions'
 import type { ApiRequestLike } from './request-context'
+import { withClubConfigLock } from './clubConfigLock'
 
 /**
  * Per-test settlement factory (issue #98, ruling #146).
@@ -95,27 +96,34 @@ function uniqueSuffix(): string {
  * worker, and rewriting it needlessly would fight the tests that assert on it.
  */
 export async function ensureSepaConfigured(request: ApiRequestLike): Promise<void> {
-  const current = await request.get('/api/admin/sepa-config')
-  if (current.status() === 200 && (await current.json()).is_configured === true) {
-    return
-  }
+  // Under the club configuration lock, because the check and the write have to
+  // be one step: the spec that nulls `mandate_template_url` deliberately turns
+  // `is_configured` false, and without the lock this would read that, write a
+  // whole creditor over the config the SEPA settings spec is at that moment
+  // reading back (utils/clubConfigLock.ts).
+  await withClubConfigLock(async () => {
+    const current = await request.get('/api/admin/sepa-config')
+    if (current.status() === 200 && (await current.json()).is_configured === true) {
+      return
+    }
 
-  const response = await request.put('/api/admin/sepa-config', {
-    data: {
-      creditor_id: 'DE98ZZZ09999999999',
-      creditor_name: 'Settlement Factory Club',
-      creditor_iban: FACTORY_IBAN,
-      creditor_address_street: 'Musterstrasse 1',
-      creditor_address_city: 'Berlin',
-      creditor_address_country: 'DE',
-      // #360/#456: is_configured (and SepaExportService) also require this now.
-      mandate_template_url: 'https://club.example/anmeldung',
-    },
+    const response = await request.put('/api/admin/sepa-config', {
+      data: {
+        creditor_id: 'DE98ZZZ09999999999',
+        creditor_name: 'Settlement Factory Club',
+        creditor_iban: FACTORY_IBAN,
+        creditor_address_street: 'Musterstrasse 1',
+        creditor_address_city: 'Berlin',
+        creditor_address_country: 'DE',
+        // #360/#456: is_configured (and SepaExportService) also require this now.
+        mandate_template_url: 'https://club.example/anmeldung',
+      },
+    })
+
+    if (response.status() !== 200) {
+      throw new Error(`Could not configure SEPA creditor (${response.status()}): ${await response.text()}`)
+    }
   })
-
-  if (response.status() !== 200) {
-    throw new Error(`Could not configure SEPA creditor (${response.status()}): ${await response.text()}`)
-  }
 }
 
 /**

@@ -22,6 +22,7 @@
 import { test, expect } from '../../fixtures/pageObjects'
 import { generateTotp } from '../../utils/totp'
 import { loginAs } from '../../utils/csrf'
+import { waitPastCredentialEpoch } from '../../utils/credentialEpoch'
 import { createIsolatedAdmin as createAdmin, signInAndEnroll, uniqueTestEmail as uniqueEmail } from '../../utils/isolatedAdmin'
 import { ProfilePage } from '../../pages/ProfilePage'
 
@@ -56,7 +57,11 @@ test.describe('Profile credential changes (UI)', () => {
     expect(await profilePage.submitPasswordChange(generateTotp(secret))).toBe(200)
     await profilePage.expectPasswordSuccess()
 
-    // The change is only proven by the credential it produced.
+    // The change is only proven by the credential it produced. Log in past the
+    // second the change was stamped in: a session authenticated *in* that
+    // second is refused by design, so re-authenticating straight away turns
+    // this into a coin flip (see waitPastCredentialEpoch).
+    await waitPastCredentialEpoch()
     const reauthed = await loginAs(playwright, email, newPassword, secret)
     expect((await reauthed.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
     await reauthed.dispose()
@@ -102,7 +107,10 @@ test.describe('Profile credential changes (UI)', () => {
     expect(await profilePage.confirmEmailStepUp(password, generateTotp(secret))).toBe(200)
     await profilePage.expectSuccessVisible()
 
-    // The identifier actually moved: the new address authenticates.
+    // The identifier actually moved: the new address authenticates. Past the
+    // second the change was stamped in — an email change advances the same
+    // credentials epoch a password change does (see waitPastCredentialEpoch).
+    await waitPastCredentialEpoch()
     const reauthed = await loginAs(playwright, newEmail, password, secret)
     expect((await reauthed.get(`${API_BASE}/auth/profile`)).status()).toBe(200)
     await reauthed.dispose()

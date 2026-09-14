@@ -1,13 +1,13 @@
 /**
- * A cross-file mutex over `self_registration_config` (#784).
+ * A cross-file mutex over the club's **singleton configuration rows** (#784).
  *
  * ### The problem `mode: 'serial'` does not solve
  *
- * That row is a **singleton** by design — one club, one poster secret, one
- * switch — and four spec files write it: the public API suite, the public page,
- * the admin inbox and the settings controls. Each of them declares
- * `mode: 'serial'`, which orders the tests *within* a file and says nothing
- * about the file running beside it on another worker.
+ * `self_registration_config` and `sepa_config` are **singletons** by design —
+ * one club, one poster secret, one switch, one creditor — and a dozen spec
+ * files write them. Each declares `mode: 'serial'`, which orders the tests
+ * *within* a file and says nothing about the file running beside it on another
+ * worker.
  *
  * So the failure this prevents is not hypothetical and not a flake to retry:
  * worker A writes the secret it is about to present, worker B overwrites it
@@ -19,6 +19,20 @@
  *
  * Pattern 001's answer, unique data per test, cannot apply to a row the schema
  * allows exactly one of. Pattern 004's is this: serialise the resource.
+ *
+ * ### Why one lock covers both rows
+ *
+ * `sepa_config.mandate_template_url` is the club's registration document, so
+ * `configureSelfRegistration()` and `restoreClubDocumentUrl()` (`utils/sql.ts`)
+ * write **both** rows — which put `settings-sepa-config.spec.ts` in this race
+ * without it ever touching self-registration: it saves a unique
+ * `mandate_template_url`, reloads, and reads back whichever value a
+ * registration spec on another worker restored in between. Two locks, one per
+ * row, would have to be taken in a fixed order by everything that writes the
+ * pair; one lock over the club's configuration cannot deadlock and is the
+ * truthful scope. Every writer of either row takes it — the registration
+ * specs, the SEPA settings spec, and the settlement suites that PUT
+ * `/api/admin/sepa-config` on their way to an export.
  *
  * ### Why the lock lives in the repo and not in the OS temp directory
  *
@@ -34,7 +48,7 @@
  * mistake that once removed `/lib64` from a container here.
  *
  * Under the checkout the path is not world-writable, and it is also the more
- * honest scope: the workers that contend for that row are the workers of one
+ * honest scope: the workers that contend for those rows are the workers of one
  * Playwright run, which share one checkout.
  *
  * ### Why a lock directory and not something cleverer
@@ -44,9 +58,11 @@
  * obvious answer and is not usable here: `execSql` spawns a client per
  * statement, so the session holding the lock exits with it.
  *
- * The lock is taken for the whole test rather than around the write, because
- * the window that matters spans the write *and* the request that presents what
- * was written — a browser round trip, in the page specs.
+ * The lock is taken for the whole test rather than around the write **wherever
+ * the test reads back what it wrote** — the window that matters spans the write
+ * *and* the request that presents it, a browser round trip in the page specs.
+ * A writer that only has to avoid landing inside somebody else's window takes
+ * it for the write alone, via `withClubConfigLock()`.
  *
  * ### Staleness
  *
@@ -64,7 +80,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..')
 
 /** Git-ignored, and inside the checkout rather than in a shared temp directory. */
 const LOCK_ROOT = path.join(REPO_ROOT, 'e2etests', '.locks')
-const LOCK_DIR = path.join(LOCK_ROOT, 'self-registration')
+const LOCK_DIR = path.join(LOCK_ROOT, 'club-config')
 const OWNER_FILE = path.join(LOCK_DIR, 'owner')
 
 /** Longer than any test that holds it; shorter than a job that would hang on it. */
@@ -116,13 +132,13 @@ function breakIfStale(): void {
 }
 
 /**
- * Take exclusive ownership of the club's configuration row.
+ * Take exclusive ownership of the club's configuration rows.
  *
  * Re-entrant within a process to the extent that matters: a file's tests are
  * serial, so a second call from the same worker means a previous `afterEach`
  * did not run, and holding on is safer than double-releasing.
  */
-export function lockSelfRegistration(): void {
+export function lockClubConfig(): void {
   if (held) return
 
   // The parent may be created freely; the lock itself never is, because its
@@ -150,7 +166,7 @@ export function lockSelfRegistration(): void {
           }
         })()
         console.warn(
-          `[registrationLock] gave up after ${ACQUIRE_TIMEOUT_MS}ms; owner pid ${owner}. Proceeding.`,
+          `[clubConfigLock] gave up after ${ACQUIRE_TIMEOUT_MS}ms; owner pid ${owner}. Proceeding.`,
         )
         return
       }
@@ -160,8 +176,30 @@ export function lockSelfRegistration(): void {
 }
 
 /** Release it. Safe to call when this process never held it. */
-export function unlockSelfRegistration(): void {
+export function unlockClubConfig(): void {
   if (!held) return
   held = false
   removeLock()
+}
+
+/**
+ * Hold the lock for one write and give it straight back.
+ *
+ * For the writers that never read the row afterwards — the settlement suites,
+ * which PUT a SEPA creditor and then care only that *some* valid configuration
+ * is in place. They do not need the value to stay theirs; they only need their
+ * write not to land inside the window of a spec that does.
+ *
+ * Re-entrant: called from a test that already holds the lock it runs the body
+ * as is, so the hook that took the lock is still the one that releases it.
+ */
+export async function withClubConfigLock<T>(fn: () => Promise<T> | T): Promise<T> {
+  if (held) return await fn()
+
+  lockClubConfig()
+  try {
+    return await fn()
+  } finally {
+    unlockClubConfig()
+  }
 }

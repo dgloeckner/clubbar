@@ -9,6 +9,7 @@
 
 import { test, expect } from '../../fixtures/pageObjects'
 import { MembersPage } from '../../pages'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 
 /**
  * Helper: Generate unique string for test data isolation
@@ -44,6 +45,30 @@ test.describe('SEPA Configuration Settings', () => {
   // the other's value. The config cannot be made per-test (E2E Pattern 001),
   // so the writers are serialised instead, as in tests/api/settlements.spec.ts.
   test.describe.configure({ mode: 'serial' })
+
+  /**
+   * `mode: 'serial'` only orders *this* file, and that row is not this file's
+   * alone: `sepa_config.mandate_template_url` is also the club's registration
+   * document, so every spec that calls `configureSelfRegistration()` or
+   * `restoreClubDocumentUrl()` writes it from another worker — without ever
+   * touching SEPA settings.
+   *
+   * That is what "should persist the mandate template URL" lost to: it saved a
+   * unique URL, reloaded, and read back the constant a registration spec had
+   * just restored. A true sentence about a system that works, reported against
+   * the file that did not cause it.
+   *
+   * Held for the whole test, not just around the save, because the window that
+   * matters spans the save *and* the reload that reads it back
+   * (utils/clubConfigLock.ts).
+   */
+  test.beforeEach(() => {
+    lockClubConfig()
+  })
+
+  test.afterEach(() => {
+    unlockClubConfig()
+  })
 
   /**
    * Test: Settings page displays SEPA configuration tab

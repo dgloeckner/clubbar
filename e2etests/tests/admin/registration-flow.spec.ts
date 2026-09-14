@@ -23,7 +23,7 @@
  *
  * Lane: `ui` (`admin-chromium`). It shares the singleton
  * `self_registration_config` row with three other spec files, so it takes the
- * cross-file lock (`utils/registrationLock.ts`) for the length of each test.
+ * cross-file lock (`utils/clubConfigLock.ts`) for the length of each test.
  */
 
 import { expect, devices } from '@playwright/test'
@@ -37,7 +37,7 @@ import {
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
-import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 
 const API = 'http://localhost:8080/api'
 const PUBLIC_PAGE = 'http://localhost:8080/register/'
@@ -47,11 +47,11 @@ test.describe('Self-registration — the whole flow', () => {
   test.describe.configure({ mode: 'serial' })
 
   test.beforeEach(() => {
-    lockSelfRegistration()
+    lockClubConfig()
   })
 
   test.afterEach(() => {
-    unlockSelfRegistration()
+    unlockClubConfig()
   })
 
   test.beforeAll(() => {

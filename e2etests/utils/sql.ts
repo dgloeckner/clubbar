@@ -301,6 +301,13 @@ export function configureSelfRegistration(
  * one as incomplete SEPA configuration, and the settlement specs run beside
  * these on other workers. Anything here that clears it — the fail-closed test —
  * has to put it back, or it breaks a spec that never touched registrations.
+ *
+ * Restoring it is database-wide, so this call belongs *inside* the club
+ * configuration lock (`utils/clubConfigLock.ts`), as every caller's
+ * `afterEach` ordering arranges: `settings-sepa-config.spec.ts` saves its own
+ * URL here and reads it back after a reload, and a restore landing in that
+ * window fails it with the constant below, in a file that never touched
+ * registrations.
  */
 export function restoreClubDocumentUrl(url = CLUB_DOCUMENT_URL): void {
   execSql(`UPDATE sepa_config SET mandate_template_url = '${url.replace(/'/g, "''")}' WHERE id = 1`)

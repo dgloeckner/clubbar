@@ -18,7 +18,7 @@ import {
   stopServingPrefilledClubDocument,
   PREFILLED_DOCUMENT_URL,
 } from '../../utils/sql'
-import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 import { drainMailQueue } from '../../utils/drain'
 
 /**
@@ -121,11 +121,11 @@ test.describe('Public self-registration', () => {
    * the round trip that presents what was written.
    */
   test.beforeEach(() => {
-    lockSelfRegistration()
+    lockClubConfig()
   })
 
   test.afterEach(() => {
-    unlockSelfRegistration()
+    unlockClubConfig()
   })
 
   // The rate-limit meter is per source address, and every spec here arrives

@@ -31,7 +31,7 @@ import {
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
-import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 
 /**
  * Server-side truth is read through `page.request`, not a separate fixture:
@@ -66,11 +66,11 @@ test.describe('Settings — self-registration controls', () => {
    * reverse declaration order.
    */
   test.beforeEach(() => {
-    lockSelfRegistration()
+    lockClubConfig()
   })
 
   test.afterEach(() => {
-    unlockSelfRegistration()
+    unlockClubConfig()
   })
 
   /**

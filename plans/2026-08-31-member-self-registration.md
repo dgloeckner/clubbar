@@ -233,7 +233,7 @@ the final PR.
       one); four spec files each deleted the shared club-document fixture in
       their own `afterAll`, out from under the others; and four spec files write
       one singleton config row, which `mode: 'serial'` orders within a file and
-      not across them — now serialised by `utils/registrationLock.ts`.
+      not across them — now serialised by `utils/registrationLock.ts` (since renamed to `utils/clubConfigLock.ts`, which covers `sepa_config` too).
 
       Backend Unit **2883** green; `admin-chromium` + `register` **400/400** and
       `api-tests` **804/804**, both at 4 workers, in the shapes CI's `ui` and
