@@ -13,6 +13,7 @@ import 'package:clubbar_terminal/utils/age.dart';
 import 'package:clubbar_terminal/models/terminal_error.dart';
 import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
+import 'package:clubbar_terminal/repository/sync_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 
 void main() {
@@ -546,6 +547,156 @@ void main() {
       final grid = await ProductsRepository(db).getActiveCategoriesWithProducts();
 
       expect(grid.single.$2.single.id, equals('prod-1'));
+      await db.close();
+    });
+  });
+
+  /// Issue #940: every migration from 10 to 13 added a column it could only
+  /// fill from a sync, and none of them got one. The sync asks for what changed
+  /// `since` the stored cursor, and a product nobody has edited since the
+  /// terminal last synced is in no delta — so `volume_ml` stayed NULL, and
+  /// `min_age` with it, which reads as *unrestricted* (ADR-0045).
+  ///
+  /// Dropping the cursors is what asks for the full set: the sync sends no
+  /// `since` at all when there is none stored.
+  group('schema 14: the delta cursors are dropped so the columns backfill', () {
+    /// Seed a cache and a full set of sync cursors at schema 13, so the next
+    /// open runs the upgrade.
+    Future<void> seedSyncedTerminalAtSchema13() async {
+      final db = openDatabase();
+      await db.into(db.categoriesCache).insert(
+            CategoriesCacheCompanion(
+              id: const Value('cat-1'),
+              names: const Value('{"de":"Alkoholfreie Getränke"}'),
+              isActive: const Value(1),
+              updatedAt: const Value('2026-09-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.productsCache).insert(
+            ProductsCacheCompanion(
+              id: const Value('product-wasser'),
+              categoryId: const Value('cat-1'),
+              names: const Value('{"de":"Wasser","en":"Water"}'),
+              priceCents: const Value(100),
+              isActive: const Value(1),
+              updatedAt: const Value('2026-09-01T10:00:00Z'),
+            ),
+          );
+      final syncRepo = SyncRepository(db);
+      await syncRepo.setLastProductsSyncCursor('1757000000000');
+      await syncRepo.setLastProductsSyncTime('2026-09-04T18:00:00Z');
+      await syncRepo.setLastMembersSyncCursor('1757000000000');
+      await syncRepo.setLastMembersSyncTime('2026-09-04T18:00:00Z');
+      await syncRepo.setLastCategoriesSyncCursor('1757000000000');
+      await syncRepo.setLastCategoriesSyncTime('2026-09-04T18:00:00Z');
+      await db.customStatement('PRAGMA user_version = 13');
+      await db.close();
+    }
+
+    test('the next sync of every stream is a full one', () async {
+      await seedSyncedTerminalAtSchema13();
+
+      final db = openDatabase();
+      final syncRepo = SyncRepository(db);
+
+      // Null is what the sync services read as "no `since` — ask for
+      // everything"; any value here would leave the new columns NULL.
+      expect(await syncRepo.getLastProductsSyncCursor(), isNull);
+      expect(await syncRepo.getLastMembersSyncCursor(), isNull);
+      expect(await syncRepo.getLastCategoriesSyncCursor(), isNull);
+      expect(await syncRepo.getLastProductsSyncTime(), isNull);
+      expect(await syncRepo.getLastMembersSyncTime(), isNull);
+      expect(await syncRepo.getLastCategoriesSyncTime(), isNull);
+      await db.close();
+    });
+
+    test('the cached rows survive — the reset asks again, it does not wipe',
+        () async {
+      await seedSyncedTerminalAtSchema13();
+
+      final db = openDatabase();
+      final stored = await db.select(db.productsCache).getSingle();
+
+      expect(stored.id, equals('product-wasser'));
+      expect(stored.priceCents, equals(100));
+      await db.close();
+    });
+
+    test('a sync after the reset fills the size in', () async {
+      await seedSyncedTerminalAtSchema13();
+
+      final db = openDatabase();
+      // What the full sync delivers: the same product, now carrying its size.
+      await ProductsRepository(db).upsertProducts([
+        Product(
+          id: 'product-wasser',
+          categoryId: 'cat-1',
+          names: {'de': 'Wasser', 'en': 'Water'},
+          priceCents: 100,
+          isActive: true,
+          volumeMl: 330,
+          createdAt: DateTime.parse('2026-09-01T10:00:00Z'),
+          updatedAt: DateTime.parse('2026-09-01T10:00:00Z'),
+        ),
+      ]);
+
+      expect((await db.select(db.productsCache).getSingle()).volumeMl,
+          equals(330));
+      await db.close();
+    });
+
+    test('leaves the sync state that is not a cursor alone', () async {
+      await seedSyncedTerminalAtSchema13();
+      var db = openDatabase();
+      final syncRepo = SyncRepository(db);
+      // The pairing identity (ADR-0035) lives in the same table and has nothing
+      // to do with a delta; losing it would unpair the terminal on upgrade.
+      await syncRepo.setSyncState('paired_backend_instance_id', 'instance-1');
+      await db.customStatement('PRAGMA user_version = 13');
+      await db.close();
+
+      db = openDatabase();
+
+      expect(await SyncRepository(db).getSyncState('paired_backend_instance_id'),
+          equals('instance-1'));
+      await db.close();
+    });
+
+    test('an upgrade preserves transactions this terminal has not uploaded',
+        () async {
+      await seedSyncedTerminalAtSchema13();
+      var db = openDatabase();
+      await db.into(db.membersCache).insert(
+            MembersCacheCompanion(
+              id: const Value('member-1'),
+              preferredLanguage: const Value('de'),
+              isActive: const Value(1),
+              isSepaValid: const Value(1),
+              updatedAt: const Value('2026-09-01T10:00:00Z'),
+            ),
+          );
+      await db.into(db.transactionsLocal).insert(
+            TransactionsLocalCompanion(
+              id: const Value('txn-unsynced-cursor'),
+              memberId: const Value('member-1'),
+              productId: const Value('product-wasser'),
+              amountCents: const Value(100),
+              transactionType: const Value('purchase'),
+              createdAt: const Value('2026-09-14T19:00:00Z'),
+              synced: const Value(0),
+            ),
+          );
+      await db.customStatement('PRAGMA user_version = 13');
+      await db.close();
+
+      db = openDatabase();
+      final unsynced = await TransactionsRepository(db).getUnsyncedTransactions();
+
+      expect(
+        unsynced.map((t) => t.id),
+        contains('txn-unsynced-cursor'),
+        reason: 'a sale rung before the upgrade must still be uploadable after it',
+      );
       await db.close();
     });
   });
