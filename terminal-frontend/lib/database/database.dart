@@ -15,6 +15,25 @@ import 'schema/dispenser_operations.dart';
 part 'database.g.dart';
 
 /// Add a column only if it doesn't already exist in the table.
+/// Drop every delta-sync cursor, so the next sync of each stream asks the
+/// backend for the full set rather than for what changed since last time.
+///
+/// Used by a migration that adds a column only a sync can fill: without it the
+/// column stays NULL on every row already cached, because an unedited row is
+/// never part of a delta.
+///
+/// Both key shapes are removed — `last_*_sync_cursor` is what the sync reads,
+/// and `last_*_sync_time` is the ISO timestamp kept beside it for display. A
+/// cursor left behind for one stream would leave exactly that stream unfilled.
+Future<void> _resetDeltaSyncCursors(Migrator m) async {
+  await m.database.customStatement(
+    'DELETE FROM "sync_state" WHERE "key" IN ('
+    "'last_members_sync_cursor', 'last_members_sync_time', "
+    "'last_products_sync_cursor', 'last_products_sync_time', "
+    "'last_categories_sync_cursor', 'last_categories_sync_time')",
+  );
+}
+
 Future<void> _addColumnIfNotExists(
     Migrator m, String table, String column, String type) async {
   final db = m.database;
@@ -44,7 +63,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 13;
+  int get schemaVersion => 14;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -218,6 +237,38 @@ class ClubBarDatabase extends _$ClubBarDatabase {
             // there to be uploaded after it.
             await _addColumnIfNotExists(
                 m, 'products_cache', 'volume_ml', 'INTEGER');
+          }
+          if (from < 14) {
+            // Backfill for every column migrations 10-13 added: the delta
+            // cursors are dropped, so the next sync asks for everything.
+            //
+            // A column added by an upgrade lands NULL on the rows already in
+            // the cache, and the comments above each of those migrations say
+            // the next delta sync fills it in. It does not. The sync asks for
+            // rows changed `since` the stored cursor, and a product nobody has
+            // edited since the terminal last synced is not in that answer — so
+            // its `volume_ml` stays NULL for as long as the product is left
+            // alone. The club sees a size in the admin panel and no badge on
+            // the terminal, with a sync that reports itself healthy (#940).
+            //
+            // Three columns were silently empty this way, and one of them
+            // matters beyond cosmetics: `products_cache.min_age` NULL reads as
+            // *unrestricted* (ADR-0045), so a product cached before schema 11
+            // would be sold to anyone until somebody happened to edit it.
+            // `members_cache.date_of_birth` and `credit_limit_cents` fail in
+            // the safe direction, and `volume_ml` and `deleted_at` are why this
+            // is a full reset rather than a products-only one.
+            //
+            // Deleting the key is what asks for a full sync: `_syncProducts()`
+            // and its siblings read the cursor and send no `since` at all when
+            // there is none. The cached rows are kept and overwritten in place
+            // by the upsert, so nothing a terminal is holding — least of all an
+            // unuploaded sale in `transactions_local` — depends on this.
+            //
+            // The rule this encodes, for the next migration that adds a synced
+            // column: **adding one is not done until the cursor for that
+            // stream is dropped in the same migration.**
+            await _resetDeltaSyncCursors(m);
           }
         },
       );

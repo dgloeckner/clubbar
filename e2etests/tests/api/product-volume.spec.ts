@@ -245,6 +245,53 @@ test.describe('Product volume', () => {
   })
 
   /**
+   * The other half of the delta contract, and the one the terminal got wrong
+   * (#940): a product that has **not** changed since the cursor is not in the
+   * answer at all. That is the whole point of a delta — and it is why a
+   * terminal schema migration that adds a synced column has to drop its stream
+   * cursor in the same migration. Without that, the column it just added stays
+   * NULL on every cached product nobody happens to edit, and the club sees a
+   * size in the admin panel with no badge on the terminal.
+   */
+  test('a product nobody edited is absent from the next delta', async ({
+    authenticatedRequest,
+    authenticatedTerminalRequest,
+  }) => {
+    const categoryId = await createCategory(authenticatedRequest)
+    const created = await authenticatedRequest.post(`${API_BASE}/admin/products`, {
+      data: productBody(categoryId, { volume_ml: 500 }),
+    })
+    const product = await created.json()
+
+    // The cursor the terminal would store after syncing this product, taken
+    // from the server's own answer rather than from the client's clock.
+    const first = await authenticatedTerminalRequest.get(`${API_BASE}/sync/products`, {
+      params: { since: Date.now() - 5000 },
+    })
+    expect(first.status(), await first.text()).toBe(200)
+    const firstBody = await first.json()
+    expect(
+      firstBody.products.some((p: { id: string }) => p.id === product.id),
+      'the freshly created product must be in the first delta',
+    ).toBe(true)
+
+    // A second sync from a cursor past it, with nothing edited in between. The
+    // product is complete, current and cached — and deliberately not sent. The
+    // two seconds are what puts the cursor past the row's whole-second
+    // `updated_at`: the boundary itself is re-sent on purpose (#84), so asking
+    // from exactly the cursor would prove nothing.
+    const second = await authenticatedTerminalRequest.get(`${API_BASE}/sync/products`, {
+      params: { since: firstBody.cursor + 2000 },
+    })
+    expect(second.status(), await second.text()).toBe(200)
+
+    expect(
+      (await second.json()).products.some((p: { id: string }) => p.id === product.id),
+      'an unchanged product is not re-sent — a terminal that needs the row again must ask for a full sync',
+    ).toBe(false)
+  })
+
+  /**
    * Every surface that prints a product name prints the volume after it
    * (ADR-0056). On the API the volume travels as a **number** rather than a
    * finished string, because the API is language-agnostic (ADR-0002) and the
