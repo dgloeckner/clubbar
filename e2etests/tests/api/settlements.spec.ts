@@ -8,6 +8,7 @@ import {
   tuesdayAfterNextEaster,
 } from '../../utils/dates';
 import { exportSepaXml } from '../../fixtures/encryption'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 
 test.describe('Settlements API', () => {
   /**
@@ -21,6 +22,19 @@ test.describe('Settlements API', () => {
     // the config cannot be made per-test, so the writers are serialised
     // instead).
     test.describe.configure({ mode: 'serial' });
+
+    // …and serial only orders this file. The same row is the club's
+    // registration document (`sepa_config.mandate_template_url`), written from
+    // every spec that configures self-registration, and the SEPA settings page
+    // reads its own save back out of it — so the cross-file lock is what keeps
+    // these writes out of somebody else's window (utils/clubConfigLock.ts).
+    test.beforeEach(() => {
+      lockClubConfig();
+    });
+
+    test.afterEach(() => {
+      unlockClubConfig();
+    });
 
     test('A1: GET /sepa-config returns full unmasked config (admin-only)', async ({ authenticatedRequest }) => {
       const response = await authenticatedRequest.get('/api/admin/sepa-config');

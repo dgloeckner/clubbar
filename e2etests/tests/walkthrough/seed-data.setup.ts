@@ -1,4 +1,5 @@
 import { test as setup } from '../../fixtures/auth.fixture';
+import { withClubConfigLock } from '../../utils/clubConfigLock';
 
 const API_BASE = 'http://localhost:8080/api';
 
@@ -121,16 +122,20 @@ setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTermi
   }
 
   // --- 3. Ensure SEPA config is set (required for SEPA export) ---
-  const sepaResp = await authenticatedRequest.put(`${API_BASE}/admin/sepa-config`, {
-    data: {
-      creditor_name: 'Sportverein Demo e.V.',
-      creditor_iban: 'DE89370400440532013000',
-      creditor_bic: 'COBADEFFXXX',
-      creditor_id: 'DE98ZZZ09999999999',
-      // #360/#456: SepaExportService also requires this now.
-      mandate_template_url: 'https://club.example/anmeldung',
-    },
-  });
+  // `sepa_config` is a singleton other suites read their own writes back out
+  // of, so this one waits its turn (utils/clubConfigLock.ts).
+  const sepaResp = await withClubConfigLock(() =>
+    authenticatedRequest.put(`${API_BASE}/admin/sepa-config`, {
+      data: {
+        creditor_name: 'Sportverein Demo e.V.',
+        creditor_iban: 'DE89370400440532013000',
+        creditor_bic: 'COBADEFFXXX',
+        creditor_id: 'DE98ZZZ09999999999',
+        // #360/#456: SepaExportService also requires this now.
+        mandate_template_url: 'https://club.example/anmeldung',
+      },
+    }),
+  );
   console.log(`SEPA config: ${sepaResp.status()}`);
 
   // --- 4. Create ~80 transactions over the last 3 months (realistic bar usage) ---

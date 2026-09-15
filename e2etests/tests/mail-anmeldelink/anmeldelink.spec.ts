@@ -56,7 +56,7 @@ import {
   MailpitClient,
   MailpitMessage,
 } from '../../utils/mailpit'
-import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 import {
   clearRegistrationAttempts,
   configureSelfRegistration,
@@ -145,14 +145,14 @@ test.describe('Anmeldelink — send, cron, delivered mail, and back through the 
    * the submission that presents what was written.
    */
   test.beforeEach(() => {
-    lockSelfRegistration()
+    lockClubConfig()
     // The public endpoint's rate-limit meter is per source address, and every
     // spec in the run arrives from the same one.
     clearRegistrationAttempts()
   })
 
   test.afterEach(() => {
-    unlockSelfRegistration()
+    unlockClubConfig()
   })
 
   /**

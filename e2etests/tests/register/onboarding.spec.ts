@@ -11,7 +11,7 @@ import {
   serveClubDocument,
   stopServingClubDocument,
 } from '../../utils/sql'
-import { lockSelfRegistration, unlockSelfRegistration } from '../../utils/registrationLock'
+import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 import { test } from '../../fixtures/roleRequests'
 
 /**
@@ -49,11 +49,11 @@ test.describe('Public onboarding page', () => {
    * the round trip that presents what was written.
    */
   test.beforeEach(() => {
-    lockSelfRegistration()
+    lockClubConfig()
   })
 
   test.afterEach(() => {
-    unlockSelfRegistration()
+    unlockClubConfig()
   })
 
   test.beforeAll(() => {

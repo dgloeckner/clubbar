@@ -4,6 +4,7 @@ import { NewSettlementPage } from '../../pages/NewSettlementPage'
 import { SettlementsPage } from '../../pages/SettlementsPage'
 import { generateUUID, createTestMember, createSepaInvalidMember } from '../../utils/transactions'
 import { minimumExecutionDate } from '../../utils/dates'
+import { withClubConfigLock } from '../../utils/clubConfigLock'
 
 /**
  * Journal & Settlements E2E Tests (Consolidated)
@@ -235,15 +236,19 @@ test.describe('Journal & Settlements', () => {
     const creditorName = 'E2E SEPA Test Club'
     const creditorId = 'DE98ZZZ09999999999'
     const creditorIban = 'DE89370400440532013000'
-    const configResp = await authenticatedRequest.put('/api/admin/sepa-config', {
-      data: {
-        creditor_id: creditorId,
-        creditor_name: creditorName,
-        creditor_iban: creditorIban,
-        // #360/#456: SepaExportService also requires this now.
-        mandate_template_url: 'https://club.example/anmeldung',
-      },
-    })
+    // `sepa_config` is a singleton, so this write has to wait for whoever is
+    // currently reading their own value back out of it (utils/clubConfigLock.ts).
+    const configResp = await withClubConfigLock(() =>
+      authenticatedRequest.put('/api/admin/sepa-config', {
+        data: {
+          creditor_id: creditorId,
+          creditor_name: creditorName,
+          creditor_iban: creditorIban,
+          // #360/#456: SepaExportService also requires this now.
+          mandate_template_url: 'https://club.example/anmeldung',
+        },
+      }),
+    )
     expect(configResp.status()).toBe(200)
 
     // ── Create SEPA-eligible members and transactions ─────────────────
@@ -351,23 +356,27 @@ test.describe('Journal & Settlements', () => {
     expect(detailText).toContain(`${prefix}Bier`)
 
     // ── Export SEPA XML (via UI button) ──────────────────────────────
-    // Re-apply SEPA config right before export to guard against parallel test contamination
-    // (sepa_config is a singleton row shared across all tests)
-    const reConfigResp = await authenticatedRequest.put('/api/admin/sepa-config', {
-      data: {
-        creditor_id: creditorId,
-        creditor_name: creditorName,
-        creditor_iban: creditorIban,
-        // #360/#456: SepaExportService also requires this now.
-        mandate_template_url: 'https://club.example/anmeldung',
-      },
+    // Re-apply the SEPA config right before the export, and hold the club
+    // configuration lock across both: the assertions below are on the creditor
+    // this test wrote, so the singleton row has to stay this test's until the
+    // file has been produced (utils/clubConfigLock.ts).
+    const xml = await withClubConfigLock(async () => {
+      const reConfigResp = await authenticatedRequest.put('/api/admin/sepa-config', {
+        data: {
+          creditor_id: creditorId,
+          creditor_name: creditorName,
+          creditor_iban: creditorIban,
+          // #360/#456: SepaExportService also requires this now.
+          mandate_template_url: 'https://club.example/anmeldung',
+        },
+      })
+      expect(reConfigResp.status()).toBe(200)
+
+      const sepaResp = await settlementsPage.clickExportSepa(settlementId)
+      expect(sepaResp.headers()['content-type']).toContain('xml')
+
+      return await sepaResp.text()
     })
-    expect(reConfigResp.status()).toBe(200)
-
-    const sepaResp = await settlementsPage.clickExportSepa(settlementId)
-    expect(sepaResp.headers()['content-type']).toContain('xml')
-
-    const xml = await sepaResp.text()
     expect(xml).toContain('urn:iso:std:iso:20022:tech:xsd:pain.008.001.08')
     expect(xml).toContain('GrpHdr')
     expect(xml).toContain('DrctDbtTxInf')
