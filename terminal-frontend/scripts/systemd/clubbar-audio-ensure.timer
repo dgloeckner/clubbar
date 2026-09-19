@@ -1,0 +1,15 @@
+[Unit]
+Description=Check that the terminal's HDMI sink exists
+
+[Timer]
+# Shortly after boot is when it matters: the race is the Pi finishing its boot
+# before the display finishes waking.
+OnBootSec=45s
+
+# And then for as long as the terminal is up, because a display switched on
+# the next morning is the same fault hours later. The check is two pactl calls
+# when all is well, and the script stops restarting after three tries per boot.
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

@@ -228,7 +228,16 @@ else
     fail "default sink is $default_sink, expected one matching '$EXPECT_SINK'"
     note "the terminal is playing into an output nobody is listening to;"
     note "on this hardware the 3.5 mm jack has nothing plugged into it"
-    note "fix: sudo ./kiosk-session-setup.sh"
+    if pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -q -- "$EXPECT_SINK"; then
+      note "fix: sudo ./kiosk-session-setup.sh"
+    else
+      # A different fault with the same symptom: there is no such sink to pick.
+      # WirePlumber probed the card before the display was awake and never
+      # looked again, so no default and no priority can help.
+      note "no '$EXPECT_SINK' sink exists at all — WirePlumber probed the card too early"
+      note "fix now:  systemctl --user restart wireplumber"
+      note "fix kept: sudo ./kiosk-session-setup.sh   (installs clubbar-audio-ensure.timer)"
+    fi
   fi
 
   # Volume and mute on the sink that is actually in use. A muted or near-zero
@@ -259,8 +268,20 @@ fi
 # so it is worth reporting even when today's default happens to be right.
 wp_state="$HOME/.local/state/wireplumber/default-nodes"
 wp_rule="$HOME/.config/wireplumber/wireplumber.conf.d/50-clubbar-hdmi-priority.conf"
-if [ -r "$wp_rule" ]; then
-  ok "WirePlumber priority rule present — HDMI wins even with no saved default"
+# Present is not loaded. WirePlumber refuses a section it cannot parse and says
+# so once, at start, in a journal nobody reads — the rule sat on ruderbar for
+# three weeks doing nothing while this check reported it as fine.
+wp_refused=""
+if [ -r "$wp_rule" ] && command -v journalctl >/dev/null 2>&1; then
+  wp_refused=$(journalctl --user -u wireplumber -b --no-pager 2>/dev/null \
+    | grep -F "failed to open" | grep -F "$(basename "$wp_rule")" | tail -1)
+fi
+if [ -n "$wp_refused" ]; then
+  fail "WirePlumber refused the priority rule — it is installed and does nothing"
+  note "${wp_refused#*wp-conf: }"
+  note "fix: sudo ./kiosk-session-setup.sh   (rewrites it and restarts wireplumber)"
+elif [ -r "$wp_rule" ]; then
+  ok "WirePlumber priority rule present and loaded — HDMI wins even with no saved default"
 elif [ -s "$wp_state" ]; then
   warn "no WirePlumber priority rule; the default rests on $wp_state alone"
   note "lose that file and the next boot may pick the empty jack again"

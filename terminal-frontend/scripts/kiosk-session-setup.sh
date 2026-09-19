@@ -189,9 +189,15 @@ read -r -d '' WP_CONTENT <<'WPEOF' || true
 #
 # Sink the analog device below HDMI so the display speakers win even when no
 # default has been persisted.
+#
+# A literal dot is [.] and never backslash-dot — WirePlumber parses a quoted
+# string as JSON, that is not a JSON escape, and the whole section is refused with
+# "section 'monitor.alsa.rules' has no value". The file sits there looking
+# installed while doing nothing, which is how this rule spent its first three
+# weeks (2026-08-30 to 2026-09-19).
 monitor.alsa.rules = [
   {
-    matches = [ { node.name = "~alsa_output.platform-.*\.mailbox.*" } ]
+    matches = [ { node.name = "~alsa_output.platform-.*[.]mailbox.*" } ]
     actions = {
       update-props = {
         priority.session = 100
@@ -200,7 +206,7 @@ monitor.alsa.rules = [
     }
   }
   {
-    matches = [ { node.name = "~alsa_output.platform-.*\.hdmi.*" } ]
+    matches = [ { node.name = "~alsa_output.platform-.*[.]hdmi.*" } ]
     actions = {
       update-props = {
         priority.session = 2000
@@ -243,6 +249,34 @@ if [ "$CHECK_ONLY" = 0 ]; then
     say "default sink set to $hdmi_sink (unmuted)"
   else
     say "NOTE: no HDMI sink visible — is the display connected and awake?"
+  fi
+fi
+
+# The rule can only choose between sinks that exist. WirePlumber probes the
+# HDMI card once, at start; a Pi that boots before its display is awake gets no
+# hdmi-stereo profile, and nothing looks again. The timer does.
+UNIT_SRC="$(cd "$(dirname "$0")" && pwd)/systemd"
+UNIT_DIR="$KIOSK_HOME/.config/systemd/user"
+
+if [ ! -r "$UNIT_SRC/clubbar-audio-ensure.timer" ]; then
+  say "NOTE: $UNIT_SRC/clubbar-audio-ensure.timer not found — sink recovery not installed"
+elif [ "$CHECK_ONLY" = 1 ]; then
+  if cmp -s "$UNIT_SRC/clubbar-audio-ensure.timer" "$UNIT_DIR/clubbar-audio-ensure.timer" \
+    && cmp -s "$UNIT_SRC/clubbar-audio-ensure.service" "$UNIT_DIR/clubbar-audio-ensure.service"; then
+    say "HDMI sink recovery timer already installed"
+  else
+    say "WOULD install clubbar-audio-ensure.timer (re-probes HDMI after a too-early boot)"
+  fi
+else
+  install -d -o "$KIOSK_USER" -g "$KIOSK_USER" -m 0755 "$UNIT_DIR"
+  install -o "$KIOSK_USER" -g "$KIOSK_USER" -m 0644 \
+    "$UNIT_SRC/clubbar-audio-ensure.service" "$UNIT_SRC/clubbar-audio-ensure.timer" "$UNIT_DIR/"
+  if run_as_kiosk systemctl --user daemon-reload 2>/dev/null \
+    && run_as_kiosk systemctl --user enable --now clubbar-audio-ensure.timer 2>/dev/null; then
+    say "HDMI sink recovery timer enabled"
+  else
+    say "NOTE: installed the recovery timer but could not enable it;"
+    say "      run: systemctl --user enable --now clubbar-audio-ensure.timer"
   fi
 fi
 

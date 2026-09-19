@@ -1,0 +1,11 @@
+[Unit]
+# Re-probe the HDMI card when WirePlumber's one look at it came before the
+# display was awake (docs/audio-dropout-debugging.md §H). A *user* unit for the
+# reason clubbar-update.service gives: the sound server it restarts belongs to
+# the kiosk user's session, and root has no bus to reach it on.
+Description=Club Bar Terminal — make sure the HDMI speakers exist as a sink
+After=wireplumber.service pipewire-pulse.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/clubbar-terminal/current/scripts/audio-ensure-hdmi.sh
