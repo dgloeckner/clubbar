@@ -130,6 +130,23 @@ make reset-and-run
 - **macOS**: `~/Library/Containers/de.clubbar.clubbarTerminal/Data/clubbar_terminal.db`
 - **Linux**: `~/.local/share/clubbar_terminal/clubbar_terminal.db`
 
+### `flow-test.sh`
+
+Runs the dispenser flow suite (`flow_test/`) against the Go mock from
+`dgloeckner/remote-token-dispenser`: builds the mock from a checkout, hands the
+binary to the suite, and runs it. A member buys tokens over real HTTP and the
+suite asserts on the rows the terminal writes.
+
+```bash
+./flow-test.sh                                          # sibling checkout of the mock repo
+DISPENSER_REPO=~/src/remote-token-dispenser ./flow-test.sh
+CLUBBAR_DISPENSER_MOCK=/tmp/dispenser-mock ./flow-test.sh
+./flow-test.sh --plain-name 'a clean dispense'          # one scenario
+```
+
+Arguments are passed on to `flutter test`. See
+[`../flow_test/README.md`](../flow_test/README.md).
+
 ### `audio-diagnose.sh`
 
 Captures the state of terminal audio **while it is broken**, on the Pi. For the

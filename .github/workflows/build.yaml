@@ -1214,6 +1214,40 @@ jobs:
         run: flutter test
         working-directory: terminal-frontend
 
+      # L3 of the dispenser test plan (#944, #950): the money paths of a token
+      # purchase, driven over real HTTP against the Go mock that lives beside
+      # the firmware. It is a separate repository, so it is checked out at a
+      # **pinned commit** and built here — the pin is bumped deliberately, like
+      # any other dependency, and a bump is what un-skips the scenarios that
+      # need a newer mock (see terminal-frontend/flow_test/README.md).
+      #
+      # A separate step from `flutter test` on purpose: that command runs
+      # `test/` only, and a flow suite that skipped itself when the binary was
+      # missing would be a green run that proved nothing. Here the binary is
+      # always there, and the suite fails loudly if it is not.
+      - name: Check out the dispenser mock (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dgloeckner/remote-token-dispenser
+          ref: 1d25c20974e226b670d6b856779974cae8968796
+          path: dispenser-mock-repo
+
+      # No setup-go step: the runner image ships Go, and `go build` fetches the
+      # exact toolchain the mock's go.mod asks for (GOTOOLCHAIN=auto, the
+      # default since Go 1.21). One less pinned action to keep current.
+      - name: Build the dispenser mock
+        run: |
+          go version
+          go build -o "$GITHUB_WORKSPACE/dispenser-mock-bin" .
+        working-directory: dispenser-mock-repo/dispenser-mock
+
+      - name: Run the dispenser flow suite
+        run: flutter test flow_test/
+        timeout-minutes: 3
+        env:
+          CLUBBAR_DISPENSER_MOCK: ${{ github.workspace }}/dispenser-mock-bin
+        working-directory: terminal-frontend
+
       - name: Run integration tests
         run: xvfb-run flutter test integration_test/ --exclude-tags=walkthrough
         timeout-minutes: 5
