@@ -1184,6 +1184,12 @@ abstract class AppLocalizations {
   /// **'Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.'**
   String get errorDispenserNoTokensDispensed;
 
+  /// TerminalErrorKey.dispenserMixedProducts — the cart holds two different products that both need the dispenser (#949). The dispenser is told a count, never a product, so the member is asked to split the purchase instead of being billed at one of the two prices.
+  ///
+  /// In de, this message translates to:
+  /// **'Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.'**
+  String get errorDispenserMixedProducts;
+
   /// TerminalErrorKey.backendUnreachable — backend health check failed
   ///
   /// In de, this message translates to:

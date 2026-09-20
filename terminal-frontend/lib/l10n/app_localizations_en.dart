@@ -667,6 +667,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'No tokens came out — you have not been charged. Your cart is still there; please see the bar staff.';
 
   @override
+  String get errorDispenserMixedProducts =>
+      'Only one kind of token can be dispensed per purchase — please take one of them out of your cart and buy it separately.';
+
+  @override
   String get errorBackendUnreachable =>
       'No connection to the server — your purchases are saved here and sent later.';
 

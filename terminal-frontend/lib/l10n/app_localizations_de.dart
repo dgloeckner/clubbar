@@ -668,6 +668,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.';
 
   @override
+  String get errorDispenserMixedProducts =>
+      'Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.';
+
+  @override
   String get errorBackendUnreachable =>
       'Keine Verbindung zum Server – deine Einkäufe werden hier gespeichert und später übertragen.';
 

@@ -686,6 +686,78 @@ void main() {
     });
   });
 
+  /// One dispenser, one dispensable product (#949). The guard lives in
+  /// [CartService.validateCartBeforeCheckout]; what is pinned here is that
+  /// checkout *honours* it before anything irreversible happens — no tracking
+  /// row, no dialog, no request to the device — and that the member is told.
+  group('CartProvider refuses a mixed dispenser cart (#949)', () {
+    late MockCartService mockService;
+    late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
+
+    final member = MembersCacheData(
+      id: 'member-1',
+      cardUid: 'card-123',
+      firstName: 'John',
+      lastName: 'Doe',
+      preferredLanguage: 'de',
+      isActive: 1,
+      isSepaValid: 1,
+      balanceCents: 0,
+      updatedAt: '2025-02-01T10:00:00Z',
+    );
+
+    setUp(() {
+      mockService = MockCartService();
+      mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
+
+      when(() => mockConfig.dispenserEnabled).thenReturn(true);
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, TerminalErrorKey.dispenserMixedProducts));
+    });
+
+    test('nothing is dispensed, tracked or charged, and the cart survives',
+        () async {
+      // An empty outcome list: reaching the dialog at all throws rather than
+      // quietly returning null, so "it never dispensed" is asserted by the
+      // test blowing up if it did.
+      final provider = ScriptedDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
+        outcomes: const [],
+      );
+
+      provider.addItem('sauna-token', 'Sauna-Token', 200, 1, 'de',
+          requiresDispenser: true);
+      provider.addItem('wasch-token', 'Wasch-Token', 500, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      expect(provider.calls, isZero, reason: 'the device was never asked');
+      expect(provider.lastErrorKey,
+          equals(TerminalErrorKey.dispenserMixedProducts));
+      expect(provider.items, hasLength(2),
+          reason: 'a refused cart is left for the member to fix');
+      verifyNever(() => mockService.createDispenserOperation(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            memberId: any(named: 'memberId'),
+            productId: any(named: 'productId'),
+            priceCents: any(named: 'priceCents'),
+            requestedQty: any(named: 'requestedQty'),
+            sessionId: any(named: 'sessionId'),
+          ));
+      verifyNever(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId')));
+      verify(() => mockSoundService.play(SoundEvent.checkoutError)).called(1);
+      expect(provider.isLoading, isFalse);
+    });
+  });
+
   group('CartProvider checkout re-entrancy', () {
     late MockCartService mockService;
     late MockConfigService mockConfig;
