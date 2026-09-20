@@ -310,9 +310,59 @@ flowchart TD
 
 ## Edge Cases
 
-### 1. ESP8266 Returns 404 (Lost State)
+### 1. ESP8266 Returns 404 — two meanings, told apart by `acknowledged`
 
-**Scenario:** ESP8266 crashes and loses flash data (hardware failure)
+A `404` from `GET /dispense/{tx_id}` has always had two readings, and until
+[#947](https://github.com/dgloeckner/clubbar/issues/947) the terminal picked
+the frightening one every time — which is how a weekend with the dispenser
+switched off produced a list of "manual reconciliation required" records with
+nothing behind any of them.
+
+`dispenser_operations.acknowledged` is what separates them. It is a **latch**,
+set the first time the device answers *anything* for this `dispenser_tx_id`
+(the response to the POST, or to any poll, from the dialog or from a
+reconciliation tick) and never cleared. A request that went out unanswered
+acknowledges nothing.
+
+| Did the device ever answer for this `tx_id`? | What the 404 means | What the terminal does |
+|---|---|---|
+| Never | The request never arrived. Nothing was dispensed. | Delete the tracking row, bill nothing, log at info |
+| Yes | The device accepted the transaction and has since lost it | `last_known_state = 'not_found'`, keep the row, show it under *manual reconciliation required* |
+
+Two conditions make "never acknowledged → never happened" safe to conclude:
+
+* the abandoned POST is **dead, not merely timed out** — `DispenseSession`
+  stops at the next opportunity and sends nothing further (#946), so no request
+  can still be on its way to the device;
+* the verdict waits until the row is older than
+  `DispenserRecoveryService.unacknowledgedGrace` (2 minutes). A row inside that
+  window is left exactly as it is — nothing written, nothing deleted — and
+  asked again on the next tick.
+
+The local outcome of a checkout is **never** written to `last_known_state`.
+Checkout used to write `'cancelled'` there when the dialog gave up, which
+erased the device's last word and the acknowledgement along with it.
+
+With the firmware's persisted history
+([dgloeckner/remote-token-dispenser#3](https://github.com/dgloeckner/remote-token-dispenser/issues/3))
+a reset no longer produces a 404 for an accepted transaction at all, which
+makes the second row of that table genuinely rare rather than "every reset".
+
+### 1a. The device cannot vouch for its count
+
+A dispenser that lost its tally across a reset answers with
+`count_reliable: false`: the `dispensed` it reports is a **lower bound**, not a
+count. The terminal bills that lower bound — the member is never charged for a
+token nobody saw — and **keeps the tracking row**, whatever state it carries,
+so the difference is a question for a human instead of a silent discount. When
+the lower bound is zero there is nothing to bill and nothing to claim: the
+member is told the dispenser could not tell how many came out, is charged
+nothing, and the row stays.
+
+### 1b. ESP8266 Returns 404 (Lost State)
+
+**Scenario:** ESP8266 crashes and loses flash data (hardware failure), for a
+transaction it had acknowledged
 
 ```mermaid
 sequenceDiagram
@@ -489,7 +539,9 @@ class RecoveryConfig {
 | 4 | Crash | Crash | Stable | Recovery creates actual dispensed |
 | 5 | Running | Running | Flaky | Retries succeed, no recovery needed |
 | 6 | Running | Offline | Down | Recovery retries until ESP returns |
-| 7 | Running | 404 (lost state) | Stable | Manual reconciliation required |
+| 7 | Running | 404 (lost state), acknowledged | Stable | Manual reconciliation required |
+| 7a | Running | 404, never acknowledged | Down then up | Row deleted, nothing billed (#947) |
+| 7b | Running | Reset, `count_reliable: false` | Stable | Lower bound billed, row kept for a human |
 | 8 | Running | Running | Stable (user cancels) | Recovery creates all dispensed |
 
 ### Test Procedure

@@ -423,7 +423,7 @@ columns to `dispenser_operations`, both written locally and neither synced:
 | Column | Meaning |
 |---|---|
 | `session_id` | The terminal session the purchase belongs to, written when the tracking row is created. It is what lets a dispense billed days later carry the session the member actually bought in. |
-| `acknowledged` | Whether the dispenser has ever answered for this `dispenser_tx_id`. Added in the same migration by agreement; [#947](https://github.com/dgloeckner/clubbar/issues/947) is what gives it meaning — it separates "the request never arrived" from "the device lost a transaction it accepted" when a later `GET` answers 404. |
+| `acknowledged` | Whether the dispenser has ever answered for this `dispenser_tx_id` — a **latch**, set on the first device response (POST or poll, from the dialog or from a reconciliation tick) and never cleared. It separates "the request never arrived" from "the device lost a transaction it accepted" when a later `GET` answers 404: the first is deleted unbilled once the row is older than two minutes, the second is flagged `not_found` and kept for a human ([#947](https://github.com/dgloeckner/clubbar/issues/947)). |
 
 The invariant those columns serve, and which anything touching this table must
 keep: **transaction *i* of a dispense has the id

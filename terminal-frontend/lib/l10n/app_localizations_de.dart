@@ -672,6 +672,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.';
 
   @override
+  String get errorDispenserCountUnreliable =>
+      'Der Automat konnte nicht sicher zählen, wie viele Token herausgekommen sind. Dir wurde nichts berechnet – bitte beim Bar-Team melden.';
+
+  @override
   String get errorBackendUnreachable =>
       'Keine Verbindung zum Server – deine Einkäufe werden hier gespeichert und später übertragen.';
 

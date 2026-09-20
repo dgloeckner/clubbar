@@ -492,6 +492,35 @@ void main() {
           sessionId: any(named: 'sessionId')));
     });
 
+    /// #947: zero tokens is only a fact when the device says the count is one.
+    test('a zero the dispenser cannot vouch for keeps the tracking record',
+        () async {
+      final provider = StubDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
+        dispenseResult: DispenseResult(
+          txId: 'tx-1',
+          state: 'error',
+          quantity: 1,
+          dispensed: 0,
+          countReliable: false,
+        ),
+      );
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+      expect(provider.lastErrorKey,
+          equals(TerminalErrorKey.dispenserCountUnreliable));
+      expect(provider.items, hasLength(1), reason: 'nothing was charged');
+      verifyNever(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo')));
+    });
+
     test('releases the dispenser tracking record on zero tokens', () async {
       final provider = providerDispensing(0);
       provider.addItem('token-1', 'Token', 200, 1, 'de',
@@ -683,6 +712,35 @@ void main() {
       verifyNever(() => mockService.createTransaction(any(), any(),
           sessionId: any(named: 'sessionId')));
       verifyNever(() => mockSoundService.play(SoundEvent.checkoutSuccess));
+    });
+
+    /// #947: the terminal's own idea of how the checkout ended is not a device
+    /// state, and writing it over `last_known_state` erased the only thing
+    /// that tells the two meanings of a later 404 apart.
+    test('a cancelled checkout writes nothing over what the device said',
+        () async {
+      final provider = ScriptedDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
+        outcomes: [() async => null],
+      );
+
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.updateDispenserOperationState(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            state: any(named: 'state'),
+            transactionsCreated: any(named: 'transactionsCreated'),
+            lastKnownDispensed: any(named: 'lastKnownDispensed'),
+            pollingActive: any(named: 'pollingActive'),
+            lastPolledAt: any(named: 'lastPolledAt'),
+            acknowledged: any(named: 'acknowledged'),
+          ));
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
     });
   });
 

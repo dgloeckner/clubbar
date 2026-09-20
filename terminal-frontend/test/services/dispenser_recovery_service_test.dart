@@ -357,7 +357,8 @@ void main() {
       expect(trackingRecords.length, 1);
     });
 
-    test('handles ESP8266 not found error', () async {
+    test('handles ESP8266 not found error for a dispense it acknowledged',
+        () async {
       await db.into(db.dispenserOperations).insert(
         DispenserOperationsCompanion.insert(
           dispenserTxId: 'disp-yz1',
@@ -368,6 +369,9 @@ void main() {
           createdAt: DateTime.now().toUtc().toIso8601String(),
           transactionsCreated: const Value(0),
           pollingActive: const Value(0),
+          // The device answered for this tx_id once, so its 404 now means it
+          // lost a transaction it had accepted (#947).
+          acknowledged: const Value(1),
         ),
       );
 
@@ -381,6 +385,7 @@ void main() {
       // Verify: Tracking record NOT cleaned up (kept for manual reconciliation)
       final trackingRecords = await db.select(db.dispenserOperations).get();
       expect(trackingRecords.length, 1);
+      expect(trackingRecords.single.lastKnownState, 'not_found');
 
       // Verify: No transactions created
       final transactions = await db.select(db.transactionsLocal).get();
@@ -533,6 +538,203 @@ void main() {
       await service.recoverAtStartup();
 
       expect(await db.select(db.transactionsLocal).get(), hasLength(6));
+    });
+  });
+
+  /// #947: a 404 has two meanings, and `acknowledged` is what tells them apart.
+  group('what a 404 from the dispenser means', () {
+    /// A tracking row of the shape checkout leaves behind when the dialog gave
+    /// up: nothing billed, nobody polling, and last touched [polledAgo] ago so
+    /// the 30-second guard does not swallow the tick.
+    Future<void> abandonedRow(
+      String txId, {
+      required Duration age,
+      Duration polledAgo = const Duration(minutes: 1),
+      bool acknowledged = false,
+    }) async {
+      final now = DateTime.now().toUtc();
+      await db.into(db.dispenserOperations).insert(
+            DispenserOperationsCompanion.insert(
+              dispenserTxId: txId,
+              memberId: 'member-1',
+              productId: 'prod-token',
+              priceCents: 200,
+              requestedQty: 3,
+              createdAt: now.subtract(age).toIso8601String(),
+              pollingActive: const Value(0),
+              acknowledged: Value(acknowledged ? 1 : 0),
+              lastPolledAt:
+                  Value(now.subtract(polledAgo).toIso8601String()),
+            ),
+          );
+      when(() => mockClient.getStatus(txId))
+          .thenThrow(DispenserNotFoundException());
+    }
+
+    test('a dispense the device never acknowledged is deleted, unbilled',
+        () async {
+      // The dispenser was unplugged: the POST never arrived, no token fell,
+      // and the device is right not to know the tx_id. This used to leave a
+      // permanent "manual reconciliation required" record for every such
+      // checkout — a whole weekend of them after one dark machine.
+      await abandonedRow('disp-never', age: const Duration(minutes: 5));
+
+      await service.reconcile();
+
+      expect(await db.select(db.dispenserOperations).get(), isEmpty,
+          reason: 'a request that never arrived is nothing to reconcile');
+      expect(await db.select(db.transactionsLocal).get(), isEmpty,
+          reason: 'nothing came out, so nothing is owed');
+    });
+
+    test('one younger than the grace window is left exactly as it is',
+        () async {
+      // The POST may still be on its way. Concluding "never happened" here is
+      // the one way this rule could delete a dispense that is about to bill.
+      await abandonedRow('disp-young', age: const Duration(seconds: 30));
+
+      await service.reconcile();
+
+      final rows = await db.select(db.dispenserOperations).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.lastKnownState, isNull,
+          reason: 'nothing is concluded yet, so nothing is written down');
+      expect(rows.single.acknowledged, 0);
+    });
+
+    test('it is asked again once the grace window has passed', () async {
+      await abandonedRow('disp-grace', age: const Duration(seconds: 30));
+
+      await service.reconcile();
+      expect(await db.select(db.dispenserOperations).get(), hasLength(1));
+
+      // The same row, two minutes older — the tick after next.
+      await (db.update(db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals('disp-grace')))
+          .write(DispenserOperationsCompanion(
+        createdAt: Value(DateTime.now()
+            .toUtc()
+            .subtract(const Duration(minutes: 3))
+            .toIso8601String()),
+        lastPolledAt: Value(DateTime.now()
+            .toUtc()
+            .subtract(const Duration(minutes: 1))
+            .toIso8601String()),
+      ));
+
+      await service.reconcile();
+
+      expect(await db.select(db.dispenserOperations).get(), isEmpty);
+    });
+
+    test('one the device did acknowledge is flagged, kept and surfaced',
+        () async {
+      // The other reading of the same 404: the device took this transaction
+      // and has since lost it. Tokens may be on the floor and only a human can
+      // say how many — so the row stays and the status modal shows it.
+      await abandonedRow('disp-lost',
+          age: const Duration(minutes: 5), acknowledged: true);
+
+      await service.reconcile();
+
+      final rows = await db.select(db.dispenserOperations).get();
+      expect(rows, hasLength(1));
+      expect(rows.single.lastKnownState, 'not_found');
+      expect(await db.select(db.transactionsLocal).get(), isEmpty,
+          reason: 'recovery never guesses a count it was not told');
+    });
+
+    test('a network error is neither of the two — it keeps retrying',
+        () async {
+      await abandonedRow('disp-down', age: const Duration(minutes: 5));
+      when(() => mockClient.getStatus('disp-down'))
+          .thenThrow(DispenserException('Connection timeout'));
+
+      await service.reconcile();
+
+      final rows = await db.select(db.dispenserOperations).get();
+      expect(rows, hasLength(1),
+          reason: 'an unreachable dispenser has said nothing at all, and '
+              'silence is not a 404');
+      expect(rows.single.lastKnownState, isNull);
+    });
+  });
+
+  /// #947: `acknowledged` is a latch, set by a device *answer* and by nothing
+  /// else.
+  group('acknowledgement', () {
+    Future<void> openRow(String txId) async {
+      await db.into(db.dispenserOperations).insert(
+            DispenserOperationsCompanion.insert(
+              dispenserTxId: txId,
+              memberId: 'member-1',
+              productId: 'prod-token',
+              priceCents: 200,
+              requestedQty: 3,
+              createdAt: DateTime.now().toUtc().toIso8601String(),
+              pollingActive: const Value(0),
+              lastPolledAt: Value(DateTime.now()
+                  .toUtc()
+                  .subtract(const Duration(minutes: 1))
+                  .toIso8601String()),
+            ),
+          );
+    }
+
+    test('a tick that reaches the device latches it', () async {
+      await openRow('disp-ack');
+      when(() => mockClient.getStatus('disp-ack')).thenAnswer(
+        (_) async => DispenseResult(
+            txId: 'disp-ack', state: 'dispensing', quantity: 3, dispensed: 1),
+      );
+
+      await service.reconcile();
+
+      expect((await operation('disp-ack')).acknowledged, 1,
+          reason: 'the device answered for this tx_id, whatever it said');
+    });
+
+    test('a dispenser that cannot vouch for its count keeps the row open',
+        () async {
+      // The reset without the RTC domain: one token fell, the device lost the
+      // tally and reports a lower bound it marks as inexact. The lower bound
+      // is billed; the rest is a question for a human, so the row is not
+      // closed even though `error` is a final state.
+      await openRow('disp-unsure');
+      when(() => mockClient.getStatus('disp-unsure')).thenAnswer(
+        (_) async => DispenseResult(
+          txId: 'disp-unsure',
+          state: 'error',
+          quantity: 3,
+          dispensed: 1,
+          countReliable: false,
+        ),
+      );
+
+      await service.reconcile();
+
+      expect(await db.select(db.transactionsLocal).get(), hasLength(1),
+          reason: 'the member pays the lower bound, never more');
+      expect(await db.select(db.dispenserOperations).get(), hasLength(1),
+          reason: 'a count nobody vouches for settles nothing');
+    });
+
+    test('a count the device vouches for closes the row as before', () async {
+      await openRow('disp-sure');
+      when(() => mockClient.getStatus('disp-sure')).thenAnswer(
+        (_) async => DispenseResult(
+          txId: 'disp-sure',
+          state: 'error',
+          quantity: 3,
+          dispensed: 1,
+          countReliable: true,
+        ),
+      );
+
+      await service.reconcile();
+
+      expect(await db.select(db.transactionsLocal).get(), hasLength(1));
+      expect(await db.select(db.dispenserOperations).get(), isEmpty);
     });
   });
 

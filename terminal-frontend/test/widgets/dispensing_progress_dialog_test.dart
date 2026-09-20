@@ -39,6 +39,7 @@ void main() {
           lastKnownDispensed: any(named: 'lastKnownDispensed'),
           pollingActive: any(named: 'pollingActive'),
           lastPolledAt: any(named: 'lastPolledAt'),
+          acknowledged: any(named: 'acknowledged'),
         )).thenAnswer((_) async => (true, null));
   });
 
@@ -99,6 +100,7 @@ void main() {
     verify(() => cartService.updateDispenserOperationState(
           dispenserTxId: 'disp-heartbeat',
           lastPolledAt: any(named: 'lastPolledAt'),
+          acknowledged: any(named: 'acknowledged'),
         )).called(greaterThanOrEqualTo(1));
 
     // Leave no timer running into the next test.

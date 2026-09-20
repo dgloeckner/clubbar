@@ -671,6 +671,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only one kind of token can be dispensed per purchase — please take one of them out of your cart and buy it separately.';
 
   @override
+  String get errorDispenserCountUnreliable =>
+      'The dispenser could not tell for sure how many tokens came out. You have not been charged — please see the bar staff.';
+
+  @override
   String get errorBackendUnreachable =>
       'No connection to the server — your purchases are saved here and sent later.';
 
