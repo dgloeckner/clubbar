@@ -138,5 +138,55 @@ else
   pass "no backslash escapes in the installed rule"
 fi
 
+echo "== the doctor asks the WirePlumber that is running =="
+
+# kiosk-doctor.sh first searched the whole boot's journal, so on ruderbar it
+# went on reporting the 2026-09-09 refusal after the rule had been fixed and
+# WirePlumber restarted — a FAIL whose own advice ("re-run the setup script")
+# could never clear it short of a reboot. The refusal that counts is the
+# running process's.
+DOCTOR="$HERE/../kiosk-doctor.sh"
+eval "$(sed -n '/^wp_rule_refusal()/,/^}/p' "$DOCTOR")"
+
+OLD_LINE="Sep 09 18:00:08 ruderbar wireplumber[1069]: wp-conf: <WpConf:0x55bb2361f0> failed to open '/home/dg/.config/wireplumber/wireplumber.conf.d/50-clubbar-hdmi-priority.conf': section 'monitor.alsa.rules' has no value"
+
+# journalctl: the old process (1069) refused the rule; whether the running one
+# (115837) did is the fixture. Anything not scoped to a PID sees both.
+cat > "$WORK/bin/journalctl" <<'STUB'
+#!/usr/bin/env bash
+case " $* " in
+  *" _PID=115837 "*) cat "$STUB_DIR/journal.running" 2>/dev/null ;;
+  *" _PID="*) ;;
+  *) cat "$STUB_DIR/journal.old" "$STUB_DIR/journal.running" 2>/dev/null ;;
+esac
+STUB
+cat > "$WORK/bin/systemctl" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in *MainPID*) echo 115837 ;; esac
+STUB
+chmod +x "$WORK/bin/journalctl" "$WORK/bin/systemctl"
+
+if ! declare -F wp_rule_refusal >/dev/null; then
+  fail "kiosk-doctor.sh has no wp_rule_refusal() to test"
+else
+  rm -rf "$WORK/stub"; mkdir -p "$WORK/stub"
+  printf '%s\n' "$OLD_LINE" > "$WORK/stub/journal.old"
+  : > "$WORK/stub/journal.running"
+  got=$(PATH="$WORK/bin:$PATH" STUB_DIR="$WORK/stub" wp_rule_refusal 50-clubbar-hdmi-priority.conf)
+  if [ -z "$got" ]; then
+    pass "a refusal by a WirePlumber that has since been restarted is not reported"
+  else
+    fail "reported a stale refusal from a process that no longer runs: $got"
+  fi
+
+  printf '%s\n' "${OLD_LINE/1069/115837}" > "$WORK/stub/journal.running"
+  got=$(PATH="$WORK/bin:$PATH" STUB_DIR="$WORK/stub" wp_rule_refusal 50-clubbar-hdmi-priority.conf)
+  if printf '%s' "$got" | grep -q "has no value"; then
+    pass "a refusal by the running WirePlumber is reported"
+  else
+    fail "missed a refusal by the running WirePlumber"
+  fi
+fi
+
 echo
 if [ "$FAILURES" -eq 0 ]; then echo "all cases pass"; else echo "$FAILURES failure(s)"; exit 1; fi
