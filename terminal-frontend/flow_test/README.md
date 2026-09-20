@@ -75,13 +75,13 @@ Every skip names an issue. None of them is "this is flaky".
 
 | Scenario | Why it is skipped |
 |---|---|
-| dropout vs. recovery tick, billed once (#945) | **Red today**: checkout and reconciliation both bill — 20 tokens out, 40 rows. `recoverIncompleteDispenses()` clears `polling_active` on every row before it starts, so the flag meant to keep it off a live dialog protects nothing. |
 | polling timeout, rest billed by reconcile (#946) | **Red today**: the timeout is reported as `done`, so checkout deletes the tracking row while the dispenser is still running. Nothing is left to reconcile with. |
 | dispenser unreachable, nothing billed and nothing left over (#947) | **Red today**: the tracking row survives as `not_found` and becomes a permanent "manual reconciliation" entry for a dispense that never started. |
 | reset mid-dispense, tokens still billed | Needs a newer **mock**: at the pinned commit `crash_after_first` clears the transaction without keeping history, so no terminal behaviour can recover the count. Unblocked by the persisted ring in `dgloeckner/remote-token-dispenser#3` plus a pin bump. |
 | protocol 1 is unavailable, not degraded | Needs a newer **mock**: no `--protocol` flag and no `protocol` field in `/health` at the pinned commit. Lands with #948 once protocol 2 exists. |
 
-The first three are the red tests the epic asks for. They are committed skipped
+The first two are the red tests the epic still owes. They are committed skipped
 rather than failing, because this repository's Test Verification Policy is that
 `main` stays green; the issue that owns each one removes its `skip:` in the same
-pull request as its fix.
+pull request as its fix — as #945 did with the third, *dropout vs. recovery
+tick, billed once*, which now runs on every pass of this suite.

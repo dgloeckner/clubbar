@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:logger/logger.dart';
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
-import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart';
 
 /// Service for recovering incomplete dispenser operations after app crashes.
@@ -10,7 +10,7 @@ import 'package:drift/drift.dart';
 /// Crash Recovery Flow:
 /// 1. Query dispenser_operations table for incomplete operations
 /// 2. For each operation, query ESP8266 for final status using dispenserTxId
-/// 3. Create missing transactions (one per actually dispensed token)
+/// 3. Bill the tokens it reports, through [CartService.billDispensedTokens]
 /// 4. Clean up tracking table
 ///
 /// This ensures that if the app crashes between dispensing and transaction creation,
@@ -19,20 +19,29 @@ import 'package:drift/drift.dart';
 /// Periodic Reconciliation:
 /// Runs every 60 seconds to detect ESP8266 crashes mid-dispense.
 /// Example: User shown "2 tokens", ESP actually dispensed 3, crashes.
-/// Recovery detects 3 - 2 = 1 missing transaction, creates it.
+/// Recovery asks for 3 tokens to be billed; the two already there are left
+/// untouched and the third is written.
+///
+/// **This service never mints a transaction id of its own.** It bills through
+/// the same method checkout uses, on ids derived from the dispense, so running
+/// it twice — or running it while a dialog is finishing — cannot bill a token
+/// a second time (#945). [recoverAtStartup] and [reconcile] differ in exactly
+/// one thing: only the former clears `pollingActive`.
 class DispenserRecoveryService {
   final ClubBarDatabase _db;
   final DispenserClient _dispenserClient;
+  final CartService _cartService;
   final Logger _logger;
-  final Uuid _uuid = const Uuid();
   Timer? _periodicTimer;
 
   DispenserRecoveryService({
     required ClubBarDatabase database,
     required DispenserClient client,
+    required CartService cartService,
     Logger? logger,
   })  : _db = database,
         _dispenserClient = client,
+        _cartService = cartService,
         _logger = logger ?? Logger();
 
   /// Start periodic reconciliation (every 60 seconds).
@@ -42,7 +51,7 @@ class DispenserRecoveryService {
     _periodicTimer?.cancel();
     _periodicTimer = Timer.periodic(
       const Duration(seconds: 60),
-      (_) => recoverIncompleteDispenses(),
+      (_) => reconcile(),
     );
   }
 
@@ -57,17 +66,37 @@ class DispenserRecoveryService {
     stopPeriodicReconciliation();
   }
 
-  /// Recover all incomplete dispenser operations.
+  /// Recover incomplete operations **at app boot**.
   ///
-  /// This method is called on app boot to handle crash recovery.
-  /// Resets pollingActive=1 flags first — at startup there can be no legitimately
-  /// active dialog sessions, so any stuck pollingActive=1 records are orphaned.
-  Future<void> recoverIncompleteDispenses() async {
+  /// Clears `pollingActive` on every row first: at startup there can be no
+  /// legitimately active dialog session, so any row still flagged is orphaned
+  /// by whatever killed the app.
+  ///
+  /// This is deliberately **not** what the 60-second tick calls. It used to be
+  /// (#945): once a minute the flag a live dialog had set in `initState` was
+  /// wiped, so the `pollingActive == 1` guard below never fired for a dialog
+  /// older than a minute, and the tick billed tokens the dialog was about to
+  /// bill as well.
+  Future<void> recoverAtStartup() async {
     await (_db.update(_db.dispenserOperations))
         .write(const DispenserOperationsCompanion(
           pollingActive: Value(0),
         ));
 
+    await _runAndLog();
+  }
+
+  /// One pass of the periodic reconciliation (every 60 s while the app runs).
+  ///
+  /// Touches no flag it does not own — a dialog's `pollingActive` in
+  /// particular. Since [CartService.billDispensedTokens] is idempotent this is
+  /// no longer what stands between the member and a double bill; it is what
+  /// keeps two components off the dispenser's handful of TCP slots at the same
+  /// time, and a guard that silently does nothing is a trap for the next
+  /// reader.
+  Future<void> reconcile() => _runAndLog();
+
+  Future<void> _runAndLog() async {
     final (successCount, failureCount, errors) = await _recoverAll();
 
     if (successCount > 0 || failureCount > 0) {
@@ -179,42 +208,30 @@ class DispenserRecoveryService {
       final createdCount = op.transactionsCreated;
 
       if (esp8266Count > createdCount) {
-        // ESP8266 reports MORE tokens than we created transactions for!
-        final missing = esp8266Count - createdCount;
-
         _logger.i('RECONCILIATION: ESP8266 reports $esp8266Count dispensed, '
-            'but only $createdCount transactions exist. '
-            'Creating $missing additional transactions.');
-
-        // Create missing transactions (one per missing token)
-        for (int i = 0; i < missing; i++) {
-          final txnId = _uuid.v4();
-          final now = DateTime.now().toUtc().toIso8601String();
-
-          final transaction = TransactionsLocalCompanion(
-            id: Value(txnId),
-            memberId: Value(op.memberId),
-            productId: Value(op.productId),
-            amountCents: Value(op.priceCents), // One token's price
-            transactionType: Value('purchase'),
-            notes: Value('Auto-created by recovery service'),
-            createdAt: Value(now),
-            synced: Value(0),
-            dispenserTxId: Value(op.dispenserTxId),
-            dispenserRequested: Value(op.requestedQty),
-            dispenserActual: Value(esp8266Count),
-          );
-
-          await _db.into(_db.transactionsLocal).insert(transaction);
-        }
-
-        // Update tracking record with new count
-        await _updateOperationState(
-          op.dispenserTxId,
-          transactionsCreated: esp8266Count,
-          lastKnownState: status.state,
-        );
+            'but only $createdCount transactions are recorded for '
+            '${op.dispenserTxId}. Billing up to $esp8266Count.');
       }
+
+      if (esp8266Count > 0) {
+        // Always asked for, not only when the counter looks behind: the
+        // counter can lag the rows (a crash between the inserts and the
+        // update) as easily as the rows can lag the counter. Billing is
+        // idempotent, so asking for all `esp8266Count` rows is both the
+        // cheapest and the only correct question — it writes exactly the rows
+        // that are missing, and nothing when none are (#945).
+        final (_, billingError) =
+            await _cartService.billDispensedTokens(op, upTo: esp8266Count);
+        if (billingError != null) {
+          return (false, 'Billing failed: $billingError');
+        }
+      }
+
+      await _updateOperationState(
+        op.dispenserTxId,
+        lastKnownState: status.state,
+        lastKnownDispensed: esp8266Count,
+      );
 
       // Clean up tracking record if ESP8266 state is final
       if (status.state == 'done' || status.state == 'error') {
@@ -229,17 +246,21 @@ class DispenserRecoveryService {
     }
   }
 
-  /// Update operation state fields (transactions_created, last_known_state)
+  /// Update the state fields this service owns.
+  ///
+  /// `transactions_created` is deliberately **not** among them: it is raised
+  /// inside [CartService.billDispensedTokens]'s transaction, together with the
+  /// rows it counts. Writing it from here again is how the two could drift.
   Future<void> _updateOperationState(
     String dispenserTxId, {
-    required int transactionsCreated,
     required String lastKnownState,
+    required int lastKnownDispensed,
   }) async {
     await (_db.update(_db.dispenserOperations)
           ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
         .write(DispenserOperationsCompanion(
-          transactionsCreated: Value(transactionsCreated),
           lastKnownState: Value(lastKnownState),
+          lastKnownDispensed: Value(lastKnownDispensed),
         ));
   }
 

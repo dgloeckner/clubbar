@@ -63,7 +63,7 @@ class ClubBarDatabase extends _$ClubBarDatabase {
   ClubBarDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 14;
+  int get schemaVersion => 15;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -269,6 +269,33 @@ class ClubBarDatabase extends _$ClubBarDatabase {
             // column: **adding one is not done until the cursor for that
             // stream is dropped in the same migration.**
             await _resetDeltaSyncCursors(m);
+          }
+          if (from < 15) {
+            // The two columns a dispense needs to be billable long after the
+            // dialog that started it is gone (#945, #947).
+            //
+            // `session_id`: the recovery service bills tokens the member may
+            // have taken days ago, and until now it wrote rows with no session
+            // and the wrong `created_at` — second-class next to checkout's.
+            // The tracking row now carries the session it was created in, so
+            // whoever bills the tokens writes the same row.
+            //
+            // `acknowledged`: whether the dispenser ever answered for this
+            // `dispenser_tx_id`. #947 uses it to tell "the request never
+            // arrived" from "the device lost a transaction it accepted"; it is
+            // added in this migration rather than in its own because the owner
+            // agreed one migration for both (2026-09-20).
+            //
+            // Neither column is synced, so there is no delta cursor to drop
+            // here (unlike migration 14): both are written locally, by the
+            // terminal that owns the row. An operation already in flight
+            // across this upgrade keeps its row — `session_id` NULL, exactly
+            // as it was before — and is still billed, once, by the deterministic
+            // ids in `CartService.billDispensedTokens`.
+            await _addColumnIfNotExists(
+                m, 'dispenser_operations', 'session_id', 'TEXT');
+            await _addColumnIfNotExists(m, 'dispenser_operations',
+                'acknowledged', 'INTEGER NOT NULL DEFAULT 0');
           }
         },
       );

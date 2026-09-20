@@ -36,12 +36,20 @@ class DispensingProgressDialog extends StatefulWidget {
   final Function(DispenseResult) onComplete;
   final Function(DispenserException) onError;
 
+  /// The client to talk to the dispenser with. Null — the production case —
+  /// means "build one from `ConfigService`"; a test passes one in, because
+  /// what the dialog does when the device answers, and when it does not, is
+  /// otherwise only reachable over a real socket. (#946 lifts this state
+  /// machine out of the widget entirely, and the seam goes with it.)
+  final DispenserClient? client;
+
   const DispensingProgressDialog({
     required this.dispenserTxId,
     required this.tokenProducts,
     required this.cartService,
     required this.onComplete,
     required this.onError,
+    this.client,
     super.key,
   });
 
@@ -75,11 +83,12 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
 
     // Get ConfigService from context
     final config = context.read<ConfigService>();
-    _client = DispenserClient(
-      baseUrl: config.dispenserBaseUrl!,
-      apiKey: config.dispenserApiKey!,
-      timeoutMs: config.dispenserTimeoutMs,
-    );
+    _client = widget.client ??
+        DispenserClient(
+          baseUrl: config.dispenserBaseUrl!,
+          apiKey: config.dispenserApiKey!,
+          timeoutMs: config.dispenserTimeoutMs,
+        );
 
     // Calculate total tokens from all cart items
     _quantity = widget.tokenProducts.fold(0, (sum, item) => sum + item.quantity);
@@ -213,6 +222,18 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
       _pollingTimer?.cancel();
       return;
     }
+
+    // The heartbeat is written for the *attempt*, before the request, not for
+    // the answer. `lastPolledAt` is what tells the recovery service that this
+    // dispense has an owner; during a WiFi dropout every poll fails, and
+    // writing it only on success let the timestamp age past 30 s while the
+    // dialog was very much alive (#945). Billing is idempotent now, so this
+    // is no longer what stands between the member and a double bill — it is
+    // what keeps two components off the dispenser at the same time.
+    await widget.cartService.updateDispenserOperationState(
+      dispenserTxId: widget.dispenserTxId,
+      lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+    );
 
     try {
       final result = await _client.getStatus(widget.dispenserTxId);
