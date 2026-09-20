@@ -122,6 +122,13 @@ class FlowDispenseSession {
 
       await Future<void>.delayed(pollInterval);
 
+      // The widget writes the heartbeat for the attempt, before the request
+      // (#945) — a failing poll must not let the row look abandoned.
+      await cartService.updateDispenserOperationState(
+        dispenserTxId: txId,
+        lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+      );
+
       try {
         final result = await client.getStatus(txId);
         _dispensed = result.dispensed;

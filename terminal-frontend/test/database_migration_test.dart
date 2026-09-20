@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/generated/terminal.swagger.dart';
@@ -15,6 +16,10 @@ import 'package:clubbar_terminal/repository/members_repository.dart';
 import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/repository/sync_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
+import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/services/config_service.dart';
+
+class MockConfigService extends Mock implements ConfigService {}
 
 void main() {
   late Directory tempDir;
@@ -697,6 +702,76 @@ void main() {
         contains('txn-unsynced-cursor'),
         reason: 'a sale rung before the upgrade must still be uploadable after it',
       );
+      await db.close();
+    });
+  });
+
+  /// #945: the tracking row learns which session bought the tokens, so a
+  /// dispense billed by the recovery service carries the same session as one
+  /// billed by checkout. `acknowledged` rides along in the same migration
+  /// (#947 gives it meaning).
+  group('schema 15: session_id and acknowledged on dispenser_operations', () {
+    /// A dispense in flight — the row a terminal upgraded mid-operation has.
+    Future<void> seedOpenOperationAtSchema14() async {
+      final db = openDatabase();
+      await db.customStatement(
+        'INSERT INTO dispenser_operations (dispenser_tx_id, member_id, '
+        'product_id, price_cents, requested_qty, created_at, '
+        'transactions_created, last_known_dispensed, polling_active) '
+        "VALUES ('disp-inflight', 'member-1', 'prod-token', 200, 3, "
+        "'2026-09-14T19:00:00Z', 1, 1, 1)",
+      );
+      await db.customStatement('PRAGMA user_version = 14');
+      await db.close();
+    }
+
+    test('the columns are there afterwards, with the right defaults', () async {
+      await seedOpenOperationAtSchema14();
+
+      final db = openDatabase();
+      final row = await db.select(db.dispenserOperations).getSingle();
+
+      expect(row.sessionId, isNull,
+          reason: 'nothing written before the upgrade knows its session');
+      expect(row.acknowledged, 0);
+      await db.close();
+    });
+
+    test('a dispense in flight across the upgrade keeps everything it had',
+        () async {
+      await seedOpenOperationAtSchema14();
+
+      final db = openDatabase();
+      final row = await db.select(db.dispenserOperations).getSingle();
+
+      // The row is what the recovery service bills from, so losing any of it
+      // means billing the wrong member, the wrong price, or nothing at all.
+      expect(row.dispenserTxId, 'disp-inflight');
+      expect(row.memberId, 'member-1');
+      expect(row.productId, 'prod-token');
+      expect(row.priceCents, 200);
+      expect(row.requestedQty, 3);
+      expect(row.createdAt, '2026-09-14T19:00:00Z');
+      expect(row.transactionsCreated, 1);
+      expect(row.pollingActive, 1);
+      await db.close();
+    });
+
+    test('and is still billed exactly once after the upgrade', () async {
+      await seedOpenOperationAtSchema14();
+
+      final db = openDatabase();
+      final op = await db.select(db.dispenserOperations).getSingle();
+      final service = CartService(
+        database: db,
+        repository: TransactionsRepository(db),
+        configService: MockConfigService(),
+      );
+
+      await service.billDispensedTokens(op, upTo: 3);
+      await service.billDispensedTokens(op, upTo: 3);
+
+      expect(await db.select(db.transactionsLocal).get(), hasLength(3));
       await db.close();
     });
   });

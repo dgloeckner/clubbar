@@ -203,6 +203,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           productId: tokenProduct.productId,
           priceCents: tokenProduct.priceCents,
           requestedQty: requestedQty,
+          sessionId: sessionId,
         );
 
         if (!trackingSuccess) {
@@ -222,10 +223,14 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         if (result == null) {
           // Dialog was cancelled or error occurred
           // Update tracking state but DON'T cleanup (recovery service will handle)
+          // `transactionsCreated` is deliberately not written back to 0 here:
+          // it is a high-water mark of what has been billed, raised only
+          // inside billDispensedTokens' transaction. A reconciliation tick may
+          // already have billed tokens for this dispense, and zeroing the
+          // counter behind it is how the two used to drift (#945).
           await _service.updateDispenserOperationState(
             dispenserTxId: dispenserTxId,
             state: 'cancelled',
-            transactionsCreated: 0,
           );
 
           // Check if error was handled (user made choice to skip tokens)
@@ -244,17 +249,32 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           final actualQuantity = result.dispensed;
 
           if (actualQuantity > 0) {
-            // Create transactions from dispense result (one per token)
+            // Bill the tokens that came out — through the same method the
+            // recovery service uses, on ids derived from the dispense, so a
+            // reconciliation tick that got there first has already written
+            // exactly these rows and this call writes none (#945).
+            //
+            // The tracking row is re-read rather than reconstructed from the
+            // cart: it carries the purchase's own `createdAt` and session, and
+            // it is the single description of this dispense that both billing
+            // paths agree on.
+            //
+            // It can be gone: a reconciliation tick that met this dialog bills
+            // the tokens and closes the row. That is not a failed checkout —
+            // the same rows are written either way — so the dispense is
+            // described from what checkout knows and billed anyway.
+            final op = await _service.dispenserOperation(dispenserTxId) ??
+                CartService.describeDispense(
+                  dispenserTxId: dispenserTxId,
+                  memberId: member.id,
+                  productId: tokenProduct.productId,
+                  priceCents: tokenProduct.priceCents,
+                  requestedQty: requestedQty,
+                  createdAt: DateTime.now().toUtc().toIso8601String(),
+                  sessionId: sessionId,
+                );
             final (tokenTxnId, tokenError) =
-                await _service.createTransactionsFromDispenseResult(
-              dispenserTxId: dispenserTxId,
-              memberId: member.id,
-              productId: tokenProduct.productId,
-              priceCents: tokenProduct.priceCents,
-              requestedQty: requestedQty,
-              actualDispensed: actualQuantity,
-              sessionId: sessionId,
-            );
+                await _service.billDispensedTokens(op, upTo: actualQuantity);
 
             if (tokenTxnId == null) {
               emitError(
@@ -268,11 +288,11 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
             // Only the tokens that came out are charged for.
             billedCents += actualQuantity * tokenProduct.priceCents;
 
-            // Update tracking state with created count
+            // `transactionsCreated` is not written here: billDispensedTokens
+            // raised it inside the same transaction as the rows it counts.
             await _service.updateDispenserOperationState(
               dispenserTxId: dispenserTxId,
               state: result.state,
-              transactionsCreated: actualQuantity,
               lastKnownDispensed: actualQuantity,
             );
 

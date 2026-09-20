@@ -86,6 +86,14 @@ void main() {
       updatedAt: DateTime.now().toIso8601String(),
     ));
     registerFallbackValue(SoundEvent.productAdd);
+    registerFallbackValue(CartService.describeDispense(
+      dispenserTxId: 'fallback',
+      memberId: 'member',
+      productId: 'product',
+      priceCents: 0,
+      requestedQty: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    ));
   });
 
   group('CartProvider', () {
@@ -407,7 +415,10 @@ void main() {
             productId: any(named: 'productId'),
             priceCents: any(named: 'priceCents'),
             requestedQty: any(named: 'requestedQty'),
+            sessionId: any(named: 'sessionId'),
           )).thenAnswer((_) async => (true, null));
+      when(() => mockService.dispenserOperation(any()))
+          .thenAnswer((_) async => null);
       when(() => mockService.cleanupDispenserOperation(any()))
           .thenAnswer((_) async => (true, null));
       when(() => mockService.createTransaction(any(), any(),
@@ -437,15 +448,8 @@ void main() {
 
       await provider.checkout(MockBuildContext(), member, 'session-1');
 
-      verifyNever(() => mockService.createTransactionsFromDispenseResult(
-            dispenserTxId: any(named: 'dispenserTxId'),
-            memberId: any(named: 'memberId'),
-            productId: any(named: 'productId'),
-            priceCents: any(named: 'priceCents'),
-            requestedQty: any(named: 'requestedQty'),
-            actualDispensed: any(named: 'actualDispensed'),
-            sessionId: any(named: 'sessionId'),
-          ));
+      verifyNever(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo')));
       verifyNever(() => mockService.createTransaction(any(), any(),
           sessionId: any(named: 'sessionId')));
       expect(provider.lastTransactionId, isNull);
@@ -493,19 +497,11 @@ void main() {
       provider.addItem('token-1', 'Token', 200, 2, 'de',
           requiresDispenser: true);
 
-      when(() => mockService.createTransactionsFromDispenseResult(
-            dispenserTxId: any(named: 'dispenserTxId'),
-            memberId: any(named: 'memberId'),
-            productId: any(named: 'productId'),
-            priceCents: any(named: 'priceCents'),
-            requestedQty: any(named: 'requestedQty'),
-            actualDispensed: any(named: 'actualDispensed'),
-            sessionId: any(named: 'sessionId'),
-          )).thenAnswer((_) async => ('txn-token', null));
+      when(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo'))).thenAnswer((_) async => ('txn-token', null));
       when(() => mockService.updateDispenserOperationState(
             dispenserTxId: any(named: 'dispenserTxId'),
             state: any(named: 'state'),
-            transactionsCreated: any(named: 'transactionsCreated'),
             lastKnownDispensed: any(named: 'lastKnownDispensed'),
           )).thenAnswer((_) async => (true, null));
 
@@ -557,11 +553,15 @@ void main() {
             productId: any(named: 'productId'),
             priceCents: any(named: 'priceCents'),
             requestedQty: any(named: 'requestedQty'),
+            sessionId: any(named: 'sessionId'),
           )).thenAnswer((_) async => (true, null));
+      when(() => mockService.dispenserOperation(any()))
+          .thenAnswer((_) async => null);
+      when(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo'))).thenAnswer((_) async => ('txn-token', null));
       when(() => mockService.updateDispenserOperationState(
             dispenserTxId: any(named: 'dispenserTxId'),
             state: any(named: 'state'),
-            transactionsCreated: any(named: 'transactionsCreated'),
             lastKnownDispensed: any(named: 'lastKnownDispensed'),
           )).thenAnswer((_) async => (true, null));
       when(() => mockService.cleanupDispenserOperation(any()))

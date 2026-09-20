@@ -293,36 +293,6 @@ void main() async {
     await _seedMockData(database);
   }
 
-  // Dispenser integration: recovery and health monitoring
-  DispenserHealthService? dispenserHealthService;
-  DispenserRecoveryService? dispenserRecoveryService;
-  if (configService.dispenserEnabled) {
-    try {
-      final dispenserClient = DispenserClient(
-        baseUrl: configService.dispenserBaseUrl!,
-        apiKey: configService.dispenserApiKey!,
-        timeoutMs: configService.dispenserTimeoutMs,
-      );
-
-      // Crash recovery: recover incomplete transactions and start periodic reconciliation
-      dispenserRecoveryService = DispenserRecoveryService(
-        database: database,
-        client: dispenserClient,
-        logger: logger,
-      );
-      await dispenserRecoveryService.recoverIncompleteDispenses();
-      dispenserRecoveryService.startPeriodicReconciliation();
-
-      // Start health monitoring (60-second interval)
-      dispenserHealthService = DispenserHealthService(client: dispenserClient);
-      dispenserHealthService.startMonitoring();
-    } catch (e) {
-      // Dispenser offline or error - log and continue
-      // App will function normally, recovery will retry on next boot
-      logger.w('Dispenser setup failed: $e');
-    }
-  }
-
   // RFID reader presence monitoring (issue #35). Only for a terminal that was
   // told what its reader looks like — see INSTALL.md; elsewhere the reader
   // status simply stays unknown and no UI mentions it.
@@ -376,6 +346,43 @@ void main() async {
     repository: transactionsRepo,
     configService: configService,
   );
+
+  // Dispenser integration is wired after [cartService]: recovery bills through
+  // it, so that a token recovered days later becomes the same row checkout
+  // would have written (#945).
+  // Dispenser integration: recovery and health monitoring
+  DispenserHealthService? dispenserHealthService;
+  DispenserRecoveryService? dispenserRecoveryService;
+  if (configService.dispenserEnabled) {
+    try {
+      final dispenserClient = DispenserClient(
+        baseUrl: configService.dispenserBaseUrl!,
+        apiKey: configService.dispenserApiKey!,
+        timeoutMs: configService.dispenserTimeoutMs,
+      );
+
+      // Crash recovery: bill whatever a killed app left unbilled, then keep
+      // reconciling every 60 s. Only the first pass clears `pollingActive` —
+      // the tick must not disarm a live dialog's flag (#945).
+      dispenserRecoveryService = DispenserRecoveryService(
+        database: database,
+        client: dispenserClient,
+        cartService: cartService,
+        logger: logger,
+      );
+      await dispenserRecoveryService.recoverAtStartup();
+      dispenserRecoveryService.startPeriodicReconciliation();
+
+      // Start health monitoring (60-second interval)
+      dispenserHealthService = DispenserHealthService(client: dispenserClient);
+      dispenserHealthService.startMonitoring();
+    } catch (e) {
+      // Dispenser offline or error - log and continue
+      // App will function normally, recovery will retry on next boot
+      logger.w('Dispenser setup failed: $e');
+    }
+  }
+
   final syncService = SyncService(
     networkService: networkService,
     membersRepo: membersRepo,

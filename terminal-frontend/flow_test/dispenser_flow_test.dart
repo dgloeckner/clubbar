@@ -136,6 +136,9 @@ void main() {
   });
 
   group('known defects — red until the issue that owns them lands', () {
+    // Green since #945: both paths bill through
+    // `CartService.billDispensedTokens`, on ids derived from the dispense, so
+    // whoever runs second writes the rows that are already there.
     test('a stalled dialog and a recovery tick bill each token once (#945)',
         () async {
       await boot(timeoutPerToken: const Duration(seconds: 5));
@@ -150,9 +153,10 @@ void main() {
       // tokens the dispenser reports and closes the row; the dialog then
       // finishes and bills the very same tokens again.
       //
-      // `recoverIncompleteDispenses` clears `polling_active` on *every* row
-      // before it starts, so the flag that is supposed to keep it off a live
-      // dialog protects nothing.
+      // The tick used to clear `polling_active` on *every* row before it
+      // started, so the flag that is supposed to keep it off a live dialog
+      // protected nothing. It no longer does — and billing no longer depends
+      // on that flag either.
       harness.provider.duringDispense = (session) async {
         await Future<void>.delayed(const Duration(seconds: 3));
         await harness.ageTracking(const Duration(seconds: 40));
@@ -164,7 +168,7 @@ void main() {
       expect(await harness.billedTokens(), MockDispenser.qtySuccessLong,
           reason: 'checkout and reconciliation billed the same tokens twice');
       expect(await harness.trackingRows(), isEmpty);
-    }, skip: 'Red: finding 4 of the epic. Un-skip in #945.');
+    });
 
     test('a polling timeout leaves the rest to be billed by reconcile (#946)',
         () async {

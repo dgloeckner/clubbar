@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:clubbar_terminal/database/database.dart';
@@ -17,6 +18,8 @@ class MockTransactionsRepository extends Mock
 class MockClubBarDatabase extends Mock implements ClubBarDatabase {}
 
 class FakeMembersCacheData extends Fake implements MembersCacheData {}
+
+class MockConfigService extends Mock implements ConfigService {}
 
 void main() {
   setUpAll(() {
@@ -722,6 +725,178 @@ void main() {
         expect(check.projectedBalanceCents, 4050);
         expect(check.blocksCheckout, isFalse);
       });
+    });
+  });
+
+  /// #945: one token, one row — whoever writes it and however often.
+  ///
+  /// A real in-memory database rather than the mock above: what is under test
+  /// here is the write itself — the deterministic id, the `insertOrIgnore` and
+  /// the transaction around them — and none of that is observable through a
+  /// mocked `into().insert()`.
+  group('billDispensedTokens', () {
+    late ClubBarDatabase db;
+    late CartService service;
+
+    setUp(() async {
+      db = ClubBarDatabase.forTesting(NativeDatabase.memory());
+      service = CartService(
+        database: db,
+        repository: TransactionsRepository(db),
+        configService: MockConfigService(),
+      );
+    });
+
+    tearDown(() => db.close());
+
+    const txId = 'disp-bill-1';
+
+    Future<DispenserOperation> seedOperation({
+      int requestedQty = 5,
+      int transactionsCreated = 0,
+      String createdAt = '2026-09-01T18:30:00.000Z',
+      String? sessionId = 'session-42',
+    }) async {
+      await db.into(db.dispenserOperations).insert(
+            DispenserOperationsCompanion.insert(
+              dispenserTxId: txId,
+              memberId: 'member-1',
+              productId: 'prod-token',
+              priceCents: 250,
+              requestedQty: requestedQty,
+              createdAt: createdAt,
+              sessionId: Value(sessionId),
+              transactionsCreated: Value(transactionsCreated),
+            ),
+          );
+      return (db.select(db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(txId)))
+          .getSingle();
+    }
+
+    Future<List<TransactionsLocalData>> rows() =>
+        db.select(db.transactionsLocal).get();
+
+    test('the id of token i is the same on every call and every terminal', () {
+      expect(CartService.dispenserTransactionId('abc', 0),
+          CartService.dispenserTransactionId('abc', 0));
+      expect(CartService.dispenserTransactionId('abc', 0),
+          isNot(CartService.dispenserTransactionId('abc', 1)));
+      expect(CartService.dispenserTransactionId('abc', 0),
+          isNot(CartService.dispenserTransactionId('abd', 0)));
+      // Pinned: a changed namespace or naming scheme re-bills every dispense
+      // in flight, and this is the line that says so out loud.
+      expect(CartService.dispenserTransactionId('abc', 0),
+          '37891290-1ee1-54c6-8847-f9d9b745a8cd');
+    });
+
+    test('bills one row per token, dated to the purchase', () async {
+      final op = await seedOperation();
+
+      final (firstId, error) = await service.billDispensedTokens(op, upTo: 3);
+
+      expect(error, isNull);
+      expect(firstId, CartService.dispenserTransactionId(txId, 0));
+      final billed = await rows();
+      expect(billed, hasLength(3));
+      expect(billed.every((t) => t.amountCents == 250), isTrue);
+      // The three things recovery rows used to lack (#945 finding 4): the
+      // purchase's own time, its unit price and its session.
+      expect(billed.every((t) => t.createdAt == '2026-09-01T18:30:00.000Z'),
+          isTrue);
+      expect(billed.every((t) => t.unitPriceCents == 250), isTrue);
+      expect(billed.every((t) => t.sessionId == 'session-42'), isTrue);
+    });
+
+    test('billing the same tokens twice writes nothing the second time',
+        () async {
+      final op = await seedOperation();
+
+      await service.billDispensedTokens(op, upTo: 4);
+      await service.billDispensedTokens(op, upTo: 4);
+
+      expect(await rows(), hasLength(4));
+    });
+
+    test('a crash between the rows and the counter does not re-bill',
+        () async {
+      // The counter says nothing was billed; the rows say three were. That is
+      // exactly what a power cut mid-write used to leave behind, and the old
+      // code billed the difference a second time.
+      final op = await seedOperation(transactionsCreated: 0);
+      await service.billDispensedTokens(op, upTo: 3);
+      await (db.update(db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(txId)))
+          .write(const DispenserOperationsCompanion(
+              transactionsCreated: Value(0)));
+
+      final stale = await (db.select(db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(txId)))
+          .getSingle();
+      await service.billDispensedTokens(stale, upTo: 3);
+
+      expect(await rows(), hasLength(3));
+    });
+
+    test('raises the counter to what was billed and never lowers it',
+        () async {
+      final op = await seedOperation();
+
+      await service.billDispensedTokens(op, upTo: 4);
+      var tracked = await (db.select(db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(txId)))
+          .getSingle();
+      expect(tracked.transactionsCreated, 4);
+
+      await service.billDispensedTokens(op, upTo: 2);
+      tracked = await (db.select(db.dispenserOperations)
+            ..where((t) => t.dispenserTxId.equals(txId)))
+          .getSingle();
+      expect(tracked.transactionsCreated, 4,
+          reason: 'the counter is a high-water mark of what is billed');
+      expect(await rows(), hasLength(4));
+    });
+
+    test('bills what the dispenser gave, not what was asked for', () async {
+      // An overrun: 6 tokens fell although 5 were requested
+      // (dgloeckner/remote-token-dispenser#5). The member pays for six.
+      final op = await seedOperation(requestedQty: 5);
+
+      await service.billDispensedTokens(op, upTo: 6);
+
+      final billed = await rows();
+      expect(billed, hasLength(6));
+      expect(billed.every((t) => t.dispenserRequested == 5), isTrue);
+    });
+
+    test('bills nothing when nothing came out', () async {
+      final op = await seedOperation();
+
+      final (firstId, error) = await service.billDispensedTokens(op, upTo: 0);
+
+      expect(firstId, isNull);
+      expect(error, isNull);
+      expect(await rows(), isEmpty);
+    });
+
+    test('bills a dispense whose tracking row is already gone', () async {
+      // Checkout's fallback: a reconciliation tick billed the tokens and
+      // closed the row while the dialog was still finishing.
+      final op = CartService.describeDispense(
+        dispenserTxId: 'disp-closed',
+        memberId: 'member-1',
+        productId: 'prod-token',
+        priceCents: 250,
+        requestedQty: 2,
+        createdAt: '2026-09-01T18:30:00.000Z',
+        sessionId: 'session-42',
+      );
+
+      final (firstId, error) = await service.billDispensedTokens(op, upTo: 2);
+
+      expect(error, isNull);
+      expect(firstId, CartService.dispenserTransactionId('disp-closed', 0));
+      expect(await rows(), hasLength(2));
     });
   });
 }

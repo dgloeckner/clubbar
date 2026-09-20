@@ -123,7 +123,11 @@ class DispenserFlowHarness {
       retryDelay: retryDelay,
     );
 
-    final recovery = DispenserRecoveryService(database: db, client: client);
+    final recovery = DispenserRecoveryService(
+      database: db,
+      client: client,
+      cartService: cartService,
+    );
 
     return DispenserFlowHarness._(
       mock: mock,
@@ -178,7 +182,10 @@ class DispenserFlowHarness {
       db.select(db.dispenserOperations).get();
 
   /// One pass of the reconciliation the app runs every 60 s.
-  Future<void> reconcile() => recovery.recoverIncompleteDispenses();
+  ///
+  /// Deliberately [DispenserRecoveryService.reconcile] and not the boot path:
+  /// the tick must leave `polling_active` alone (#945).
+  Future<void> reconcile() => recovery.reconcile();
 
   /// Makes the tracking rows look [age] older than they are.
   ///
