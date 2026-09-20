@@ -522,6 +522,76 @@ void main() {
       expect(provider.lastTransactionId, equals('txn-token'));
       verify(() => mockSoundService.play(SoundEvent.checkoutSuccess)).called(1);
     });
+
+    /// The dispense as the dialog reports it when its poll deadline passed:
+    /// two tokens seen, and `dispensing` — the last thing the *device* said
+    /// (#946). Before, the dialog turned this into a `done` of its own making.
+    CartProvider providerStillDispensing({bool? countReliable}) =>
+        StubDispenseCartProvider(
+          service: mockService,
+          config: mockConfig,
+          soundService: mockSoundService,
+          dispenserClient: _testDispenserClient(),
+          dispenseResult: DispenseResult(
+            txId: 'tx-1',
+            state: countReliable == null ? 'dispensing' : 'done',
+            quantity: 3,
+            dispensed: 2,
+            countReliable: countReliable,
+          ),
+        );
+
+    void billingSucceeds() {
+      when(() => mockService.billDispensedTokens(any(),
+              upTo: any(named: 'upTo')))
+          .thenAnswer((_) async => ('txn-token', null));
+      when(() => mockService.updateDispenserOperationState(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            state: any(named: 'state'),
+            lastKnownDispensed: any(named: 'lastKnownDispensed'),
+          )).thenAnswer((_) async => (true, null));
+    }
+
+    test('a dispense the dialog stopped watching keeps its tracking row',
+        () async {
+      // A polling timeout is the terminal losing sight of the dispenser, not
+      // the dispenser finishing: the tokens still falling need a row to be
+      // reconciled against (finding 5, #946).
+      billingSucceeds();
+      final provider = providerStillDispensing();
+      provider.addItem('token-1', 'Token', 200, 3, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verify(() => mockService.billDispensedTokens(any(), upTo: 2)).called(1);
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+    });
+
+    test('a device that cannot vouch for its count keeps its tracking row too',
+        () async {
+      // `done` with `count_reliable: false` is a dispenser that lost track
+      // across a reset (protocol 2, #948): final, and still not settled.
+      billingSucceeds();
+      final provider = providerStillDispensing(countReliable: false);
+      provider.addItem('token-1', 'Token', 200, 3, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+    });
+
+    test('a dispense the device called done closes its tracking row', () async {
+      billingSucceeds();
+      final provider = providerStillDispensing(countReliable: true);
+      provider.addItem('token-1', 'Token', 200, 3, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verify(() => mockService.cleanupDispenserOperation(any())).called(1);
+    });
   });
 
   // Acceptance criteria (#20): the dispenser error a checkout ended on is
