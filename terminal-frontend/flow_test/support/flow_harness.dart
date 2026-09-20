@@ -190,21 +190,32 @@ class DispenserFlowHarness {
   /// the tick must leave `polling_active` alone (#945).
   Future<void> reconcile() => recovery.reconcile();
 
-  /// Makes the tracking rows look [age] older than they are.
+  /// Makes the tracking rows look [age] older than they are — **both** the
+  /// moment they were last polled and the moment they were created.
   ///
-  /// The recovery service skips anything polled in the last 30 seconds — a
-  /// constant a test cannot compress by waiting. A scenario that needs "the
-  /// dialog has been silent for 40 seconds" moves the clock instead of
-  /// spending 40 seconds of the suite's 60-second budget on it.
+  /// The recovery service skips anything polled in the last 30 seconds, and
+  /// since #947 it waits out `unacknowledgedGrace` from `created_at` before
+  /// reading a 404 as "the request never arrived". Neither constant can be
+  /// compressed by waiting, and a scenario that needs "this has been sitting
+  /// here for three minutes" moves the clock instead of spending three minutes
+  /// of the suite's 60-second budget on it.
+  ///
+  /// `created_at` is moved with it rather than in a second helper, because the
+  /// two are one clock: a row polled forty seconds ago cannot have been
+  /// created five seconds ago, and a test that ages only one of them is
+  /// describing a row the app can never produce.
   Future<void> ageTracking(Duration age) async {
     final rows = await trackingRows();
     for (final row in rows) {
-      if (row.lastPolledAt == null) continue;
+      final polled = row.lastPolledAt;
       await (db.update(db.dispenserOperations)
             ..where((t) => t.dispenserTxId.equals(row.dispenserTxId)))
           .write(DispenserOperationsCompanion(
-        lastPolledAt: Value(
-            DateTime.parse(row.lastPolledAt!).subtract(age).toIso8601String()),
+        lastPolledAt: polled == null
+            ? const Value.absent()
+            : Value(DateTime.parse(polled).subtract(age).toIso8601String()),
+        createdAt: Value(
+            DateTime.parse(row.createdAt).subtract(age).toIso8601String()),
       ));
     }
   }

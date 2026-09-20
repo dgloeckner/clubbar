@@ -135,6 +135,40 @@ void main() {
     expect(await harness.trackingRows(), isEmpty);
   });
 
+  // Unblocked by the pin bump to F3: the mock now brings a crashed
+  // transaction back as `error` with its exact count and keeps it in the
+  // persisted history ring, so the GET that follows the reset is a 200.
+  // Before that it was a 404, and #947's rule would read it — correctly, on
+  // the evidence — as "acknowledged, then lost": a manual reconciliation
+  // row for every reset. The firmware half is what makes that case rare.
+  test('a reset mid-dispense still bills the tokens that fell', () async {
+    await boot(timeoutPerToken: const Duration(seconds: 2));
+
+    // Quantity 5 is the mock's `crash_after_first`: one token falls, the
+    // connection dies mid-response, and ~2 s later the device is back with
+    // the recovered transaction.
+    await harness.checkoutTokens(MockDispenser.qtyCrashAfterFirst);
+
+    final open = await harness.trackingRows();
+    expect(open, hasLength(1),
+        reason: 'an `error` settles nothing — the row stays to be checked');
+    expect(open.single.acknowledged, 1,
+        reason: 'the POST was retried on the same tx_id and the rebooted '
+            'device answered for it, which is an acknowledgement');
+
+    // Wait out the reboot, then let reconciliation ask.
+    await Future<void>.delayed(const Duration(seconds: 3));
+    await harness.ageTracking(const Duration(minutes: 3));
+    await harness.reconcile();
+
+    expect(await harness.billedTokens(), 1,
+        reason: 'one token fell, and the device came back knowing it');
+    expect(await harness.billedCents(),
+        DispenserFlowHarness.tokenPriceCents);
+    expect(await harness.trackingRows(), isEmpty,
+        reason: 'a count the device vouches for settles the dispense');
+  });
+
   group('known defects — red until the issue that owns them lands', () {
     // Green since #945: both paths bill through
     // `CartService.billDispensedTokens`, on ids derived from the dispense, so
@@ -194,6 +228,10 @@ void main() {
       expect(await harness.trackingRows(), isEmpty);
     });
 
+    // Green since #947: the terminal keeps the one fact that tells the two
+    // meanings of a 404 apart — whether the device ever answered for this
+    // tx_id — and reads the unacknowledged case as "the request never
+    // arrived".
     test('a dispenser that was never reachable bills nothing and leaves nothing '
         '(#947)', () async {
       await boot(timeoutPerToken: const Duration(milliseconds: 300));
@@ -204,24 +242,28 @@ void main() {
       expect(await harness.billedTokens(), 0,
           reason: 'nothing came out, so nothing is owed');
 
+      final abandoned = await harness.trackingRows();
+      expect(abandoned, hasLength(1));
+      expect(abandoned.single.acknowledged, 0,
+          reason: 'the dispenser was off — it acknowledged nothing');
+      expect(abandoned.single.lastKnownState, isNull,
+          reason: 'the checkout giving up is not a state the device reported');
+
       await harness.mock.launch();
-      await harness.ageTracking(const Duration(minutes: 1));
+      await harness.ageTracking(const Duration(minutes: 3));
       await harness.reconcile();
 
       expect(await harness.trackingRows(), isEmpty,
           reason: 'a dispense that never started is not a manual '
               'reconciliation case');
-    }, skip: 'Red: finding 10 of the epic. Un-skip in #947.');
+      expect(await harness.billedTokens(), 0);
+    });
   });
 
   group('pending a newer mock — the pin in build.yaml is what unblocks these',
       () {
-    test('a reset mid-dispense still bills the tokens that fell', () async {},
-        skip: 'The mock at the pinned commit forgets a crashed transaction '
-            '(scenarios.go: crash_after_first clears activeTx without history), '
-            'so no terminal behaviour can recover the count. Needs the '
-            'persisted ring from dgloeckner/remote-token-dispenser#3.');
-
+    // The pin moved to F3 with #947, which is what unblocked the reset
+    // scenario above. This one waits for protocol 2.
     test('a dispenser speaking protocol 1 is unavailable, not degraded',
         () async {},
         skip: 'The mock at the pinned commit has no --protocol flag and no '
