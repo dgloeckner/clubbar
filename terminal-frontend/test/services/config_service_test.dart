@@ -289,7 +289,7 @@ void main() {
         expect(configService.dispenserBaseUrl, isNull);
         expect(configService.dispenserApiKey, isNull);
         expect(configService.dispenserTimeoutMs, 3000);
-        expect(configService.dispenserPollIntervalMs, 250);
+        expect(configService.dispenserPollIntervalMs, 500);
       });
 
       test('clear resets dispenser config to defaults', () async {
@@ -314,7 +314,7 @@ void main() {
         expect(configService.dispenserBaseUrl, isNull);
         expect(configService.dispenserApiKey, isNull);
         expect(configService.dispenserTimeoutMs, 3000);
-        expect(configService.dispenserPollIntervalMs, 250);
+        expect(configService.dispenserPollIntervalMs, 500);
       });
     });
 

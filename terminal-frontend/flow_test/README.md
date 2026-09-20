@@ -48,7 +48,6 @@ deliberately, like any dependency.
 | `support/mock_dispenser.dart` | The mock as a real process: free port, `pause()` (SIGSTOP), `resume()`, `kill()`, `launch()` back on the same port. Scenario constants (`qtyPartialDispense` …) — the mock picks its scenario from the **quantity**. |
 | `support/dispenser_proxy.dart` | A reverse proxy in front of it: counts requests, reports `maxInFlight`, and can lose a POST response after the dispenser received it. |
 | `support/flow_harness.dart` | The terminal wired as the app wires it — in-memory drift, real `CartService`, real `CartProvider`, real `DispenserRecoveryService` — plus `billedTokens()`, `trackingRows()`, `reconcile()`, `ageTracking()`. |
-| `support/flow_dispense_session.dart` | The dialog's state machine without the widget. **A stand-in, meant to disappear** — see below. |
 
 ## Two things to know before adding a scenario
 
@@ -59,15 +58,15 @@ row instead of spending 40 seconds of a 60-second budget. Durations that belong
 to the terminal (poll interval, poll timeout, retry delay) are injected through
 `DispenserFlowHarness.start`.
 
-**The dialog is the one seam.** `DispensingProgressDialog` is a
-`StatefulWidget`, and `flutter_test` replaces `HttpClient` and runs timers in a
-fake zone — a widget cannot be driven against a real server from a plain
-`test()`. `FlowDispenseSession` is a headless replica of its state machine, with
-the widget's constants named in its doc comments. It is a copy, so it can
-drift: **[#946](https://github.com/dgloeckner/clubbar/issues/946) should lift
-that state machine out of the widget into a plain class, point this harness at
-it, and delete the replica.** Until then, a change to the dialog is a change
-here too.
+**The dialog widget is the one seam, and only the widget.** Since
+[#946](https://github.com/dgloeckner/clubbar/issues/946) the dispensing state
+machine is `DispenseSession` in `lib/services/` — a plain class with no widget
+and no `BuildContext` — and `FlowCartProvider` runs *that*, the same one
+`DispensingProgressDialog` runs. What the suite skips is `showDialog` and the
+pixels. This is what makes `maxInFlight <= 1` an assertion about production
+code: it used to be asserted against a headless replica
+(`support/flow_dispense_session.dart`, now deleted), which could only ever be
+as accurate as the day someone last kept it in step.
 
 ## Scenarios that are skipped, and what un-skips them
 
@@ -75,13 +74,13 @@ Every skip names an issue. None of them is "this is flaky".
 
 | Scenario | Why it is skipped |
 |---|---|
-| polling timeout, rest billed by reconcile (#946) | **Red today**: the timeout is reported as `done`, so checkout deletes the tracking row while the dispenser is still running. Nothing is left to reconcile with. |
 | dispenser unreachable, nothing billed and nothing left over (#947) | **Red today**: the tracking row survives as `not_found` and becomes a permanent "manual reconciliation" entry for a dispense that never started. |
 | reset mid-dispense, tokens still billed | Needs a newer **mock**: at the pinned commit `crash_after_first` clears the transaction without keeping history, so no terminal behaviour can recover the count. Unblocked by the persisted ring in `dgloeckner/remote-token-dispenser#3` plus a pin bump. |
 | protocol 1 is unavailable, not degraded | Needs a newer **mock**: no `--protocol` flag and no `protocol` field in `/health` at the pinned commit. Lands with #948 once protocol 2 exists. |
 
-The first two are the red tests the epic still owes. They are committed skipped
-rather than failing, because this repository's Test Verification Policy is that
-`main` stays green; the issue that owns each one removes its `skip:` in the same
-pull request as its fix — as #945 did with the third, *dropout vs. recovery
-tick, billed once*, which now runs on every pass of this suite.
+The first is the red test the epic still owes. It is committed skipped rather
+than failing, because this repository's Test Verification Policy is that `main`
+stays green; the issue that owns it removes its `skip:` in the same pull
+request as its fix — as #945 did with *dropout vs. recovery tick, billed once*
+and #946 with *polling timeout, rest billed by reconcile*, both of which now
+run on every pass of this suite.

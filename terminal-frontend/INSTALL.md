@@ -856,7 +856,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
     "baseUrl":        "http://dispenser.local",
     "apiKey":         "your-dispenser-api-key",
     "timeoutMs":      3000,
-    "pollIntervalMs": 250
+    "pollIntervalMs": 500
   },
 
   "rfidReader": {
@@ -898,7 +898,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `dispenser.baseUrl` | string | — | Base URL of the dispenser hardware API, e.g. `http://192.168.1.50`. |
 | `dispenser.apiKey` | string | — | API key for authenticating with the dispenser. |
 | `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout for dispenser calls in milliseconds. |
-| `dispenser.pollIntervalMs` | integer | `250` | Polling interval when waiting for a dispense result in milliseconds. |
+| `dispenser.pollIntervalMs` | integer | `500` | Gap between one status poll answering and the next going out. Polling is serial — one request at a time. |
 | `rfidReader.monitor` | bool | `true` | Watch whether the RFID reader is still plugged in. Has no effect until the reader is described by at least one of the three keys below. |
 | `rfidReader.vendorId` | string | — | USB vendor id of the reader, e.g. `ffff`. Case and a `0x` prefix are ignored. |
 | `rfidReader.productId` | string | — | USB product id of the reader, e.g. `0035`. |
@@ -1133,7 +1133,7 @@ Enable the dispenser in the terminal's `config.json`:
     "baseUrl": "http://dispenser.local",
     "apiKey": "your-dispenser-api-key",
     "timeoutMs": 3000,
-    "pollIntervalMs": 250
+    "pollIntervalMs": 500
   }
 }
 ```
@@ -1152,7 +1152,7 @@ DISPENSER_API_KEY=your-dispenser-api-key
 | `dispenser.baseUrl` | string | — | Base URL of the ESP8266 HTTP server, e.g. `http://192.168.1.50` or `http://dispenser.local`. |
 | `dispenser.apiKey` | string | — | Shared secret for `X-API-Key` authentication. Must match the key configured in the ESP8266 firmware. |
 | `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout in milliseconds. Increase if the ESP8266 is on a slow network. |
-| `dispenser.pollIntervalMs` | integer | `250` | How often (ms) to poll for dispense completion. Lower values give faster UI feedback but more network traffic. |
+| `dispenser.pollIntervalMs` | integer | `500` | Gap between one poll for dispense completion answering and the next going out (polling is serial). Lower values give faster UI feedback and take more of the ESP8266's few TCP slots. |
 
 ### Product setup
 

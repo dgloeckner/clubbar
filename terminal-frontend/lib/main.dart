@@ -353,9 +353,13 @@ void main() async {
   // Dispenser integration: recovery and health monitoring
   DispenserHealthService? dispenserHealthService;
   DispenserRecoveryService? dispenserRecoveryService;
+  // The app's one client to the device. Checkout's dialog talks through this
+  // same instance: an ESP8266 has a handful of TCP slots, and every extra
+  // client was another pool of connections to them (#946).
+  DispenserClient? dispenserClient;
   if (configService.dispenserEnabled) {
     try {
-      final dispenserClient = DispenserClient(
+      dispenserClient = DispenserClient(
         baseUrl: configService.dispenserBaseUrl!,
         apiKey: configService.dispenserApiKey!,
         timeoutMs: configService.dispenserTimeoutMs,
@@ -413,6 +417,7 @@ void main() async {
     service: cartService,
     config: configService,
     soundService: soundService,
+    dispenserClient: dispenserClient,
   );
   // Session lifecycle owner (ADR-0027): all session ends go through this.
   final sessionController = SessionController(

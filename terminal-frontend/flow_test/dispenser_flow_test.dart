@@ -61,10 +61,10 @@ void main() {
     expect(await harness.billedTokens(), 4,
         reason: 'the member pays for the tokens that came out, no more');
 
-    // Asserted on the end state, not on who got there: today the dialog turns
-    // the device's `error` into a `done` with four tokens and checkout closes
-    // the row itself (finding 5), while the epic has reconciliation close it.
-    // Either way the member owes four tokens and nothing stays open.
+    // Asserted on the end state, not on who got there: checkout bills the
+    // four tokens and — since #946 — leaves the row, because `error` is not a
+    // state that settles anything; reconciliation then closes it. Either way
+    // the member owes four tokens and nothing stays open.
     await harness.ageTracking(const Duration(minutes: 1));
     await harness.reconcile();
 
@@ -170,6 +170,10 @@ void main() {
       expect(await harness.trackingRows(), isEmpty);
     });
 
+    // Green since #946: the dialog's state machine is `DispenseSession` in
+    // `lib/`, and it reports the last state the *device* reported. A polling
+    // timeout therefore arrives at checkout as `dispensing`, which keeps the
+    // tracking row for the tokens that are still falling.
     test('a polling timeout leaves the rest to be billed by reconcile (#946)',
         () async {
       // Quantity 15 dispenses at 500 ms per token; the poll phase is cut short
@@ -188,7 +192,7 @@ void main() {
       expect(await harness.billedTokens(), MockDispenser.qtySlowDispense,
           reason: 'every token that fell must end up on the bill');
       expect(await harness.trackingRows(), isEmpty);
-    }, skip: 'Red: finding 5 of the epic. Un-skip in #946.');
+    });
 
     test('a dispenser that was never reachable bills nothing and leaves nothing '
         '(#947)', () async {

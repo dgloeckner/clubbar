@@ -7,6 +7,7 @@ import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/dispense_session.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
@@ -16,7 +17,6 @@ import 'package:flutter/widgets.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'dispenser_proxy.dart';
-import 'flow_dispense_session.dart';
 import 'mock_dispenser.dart';
 
 class _MockBuildContext extends Mock implements BuildContext {}
@@ -30,8 +30,11 @@ class _MockSoundService extends Mock implements SoundService {}
 /// [DispenserRecoveryService] and a real [DispenserClient] — talking HTTP to
 /// the Go mock through an observing proxy.
 ///
-/// The one seam is the dispensing dialog, which needs a widget tree. See
-/// [FlowDispenseSession] for what stands in for it and why.
+/// The one seam is the dialog *widget*, which needs a widget tree. Its state
+/// machine is not a seam any more: since #946 that is [DispenseSession], a
+/// plain class in `lib/`, and [FlowCartProvider] runs the very same one the
+/// dialog runs. The proxy's `maxInFlight` assertion therefore binds on
+/// production code.
 class DispenserFlowHarness {
   DispenserFlowHarness._({
     required this.mock,
@@ -116,7 +119,7 @@ class DispenserFlowHarness {
       cartService: cartService,
       config: config,
       soundService: sound,
-      client: client,
+      dispenserClient: client,
       pollInterval: pollInterval,
       timeoutPerToken: timeoutPerToken,
       requestTimeout: requestTimeout,
@@ -214,25 +217,28 @@ class DispenserFlowHarness {
   }
 }
 
-/// [CartProvider] with the dialog replaced by [FlowDispenseSession].
+/// [CartProvider] with the dialog *widget* replaced by a bare
+/// [DispenseSession] — the same class the widget drives.
 ///
-/// Everything else — the tracking row, the billing, the cleanup rules, the
-/// cart — is the production code under test.
+/// The only thing skipped is the `showDialog` call and the pixels: the state
+/// machine, the tracking row, the billing, the cleanup rules and the cart are
+/// all the production code under test. Durations are injected so a scenario
+/// the device takes five seconds over takes the suite well under that.
 class FlowCartProvider extends CartProvider {
   FlowCartProvider({
     required super.service,
     required super.config,
     required super.soundService,
+    required super.dispenserClient,
     required this.cartService,
-    required this.client,
     required this.pollInterval,
     required this.timeoutPerToken,
     required this.requestTimeout,
     required this.retryDelay,
-  });
+  }) : client = dispenserClient!;
 
   /// The same instance handed to `super.service`; `CartProvider` keeps that
-  /// one private, and the stand-in dialog needs it for the tracking writes.
+  /// one private, and the session needs it for the tracking writes.
   final CartService cartService;
 
   final DispenserClient client;
@@ -242,12 +248,12 @@ class FlowCartProvider extends CartProvider {
   final Duration retryDelay;
 
   /// The sessions this provider ran, newest last — a test asserts on what the
-  /// "dialog" saw as well as on what was billed.
-  final List<FlowDispenseSession> sessions = <FlowDispenseSession>[];
+  /// dialog would have seen as well as on what was billed.
+  final List<DispenseSession> sessions = <DispenseSession>[];
 
   /// Runs while the session is polling. Used by the dropout scenario to reach
   /// in mid-dispense (pause the mock, age the tracking row, reconcile).
-  Future<void> Function(FlowDispenseSession session)? duringDispense;
+  Future<void> Function(DispenseSession session)? duringDispense;
 
   @override
   Future<DispenseResult?> showDispensingDialog(
@@ -257,7 +263,7 @@ class FlowCartProvider extends CartProvider {
   ) async {
     final quantity =
         tokenProducts.fold(0, (sum, item) => sum + item.quantity);
-    final session = FlowDispenseSession(
+    final session = DispenseSession(
       client: client,
       cartService: cartService,
       txId: dispenserTxId,

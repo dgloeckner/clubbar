@@ -73,7 +73,14 @@ class ConfigService {
   String? _dispenserBaseUrl;
   String? _dispenserApiKey;
   int _dispenserTimeoutMs = 3000;
-  int _dispenserPollIntervalMs = 250;
+  /// The gap between the answer to one status poll and the next request.
+  ///
+  /// 500 ms since #946, where polling became serial: it used to be the period
+  /// of a `Timer.periodic` that fired whether or not the previous request had
+  /// come back, so it was a rate at which connections were opened rather than
+  /// a gap between them. As a gap, 250 ms bought two extra requests a second
+  /// out of an ESP8266's handful of TCP slots for no visible difference.
+  int _dispenserPollIntervalMs = 500;
   bool _fullscreen = false;
   bool _screenBlankingEnabled = false;
   int _screenBlankingTimeoutSeconds = 300;
@@ -399,7 +406,7 @@ class ConfigService {
           _dispenserBaseUrl = dispenser['baseUrl'] as String?;
           _dispenserApiKey = dispenser['apiKey'] as String?;
           _dispenserTimeoutMs = dispenser['timeoutMs'] as int? ?? 3000;
-          _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 250;
+          _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 500;
         }
 
         // Screen blanking (#763)
@@ -545,7 +552,7 @@ class ConfigService {
     _dispenserBaseUrl = null;
     _dispenserApiKey = null;
     _dispenserTimeoutMs = 3000;
-    _dispenserPollIntervalMs = 250;
+    _dispenserPollIntervalMs = 500;
     _fullscreen = false;
     _screenBlankingEnabled = false;
     _screenBlankingTimeoutSeconds = 300;

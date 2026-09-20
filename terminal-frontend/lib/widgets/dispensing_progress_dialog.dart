@@ -5,30 +5,22 @@ import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/dispense_session.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
-import 'package:clubbar_terminal/utils/app_logger.dart';
 
-/// States for the dispensing state machine
-enum DispensingState {
-  idle,       // Not started
-  requesting, // POST /dispense in progress
-  dispensing, // Polling for status
-  done,       // Completed successfully
-  error,      // Failed
-}
-
-/// Progress dialog shown while dispensing tokens (background state machine)
+/// Progress dialog shown while tokens are dispensed.
 ///
-/// Architecture:
-/// - Background worker manages state (requesting → dispensing → done/error)
-/// - UI updates reactively based on state
-/// - All HTTP operations run in background (non-blocking)
-/// - Timeouts: 30s for POST, 10s per token for polling
-/// - Retries on network errors
+/// It owns no state machine of its own any more: [DispenseSession] runs the
+/// POST, the serial polling and the outcome, and this widget draws its
+/// [DispensePhase] and token count and plays the sound cue. #946 moved that
+/// logic out precisely so it could be tested against a real dispenser without
+/// a widget tree — `flow_test/` drives the very same class this dialog drives.
 ///
-/// Tracks polling state for crash recovery: sets polling_active=1 on init,
-/// updates state on each poll, sets polling_active=0 on dispose.
+/// The dialog therefore never decides what the dispense *was*: it hands
+/// `onComplete` whatever the device last reported. A polling timeout is not a
+/// completed dispense, and saying so here is what keeps the tracking row alive
+/// for reconciliation.
 class DispensingProgressDialog extends StatefulWidget {
   final String dispenserTxId;
   final List<CartItem> tokenProducts;
@@ -36,20 +28,19 @@ class DispensingProgressDialog extends StatefulWidget {
   final Function(DispenseResult) onComplete;
   final Function(DispenserException) onError;
 
-  /// The client to talk to the dispenser with. Null — the production case —
-  /// means "build one from `ConfigService`"; a test passes one in, because
-  /// what the dialog does when the device answers, and when it does not, is
-  /// otherwise only reachable over a real socket. (#946 lifts this state
-  /// machine out of the widget entirely, and the seam goes with it.)
-  final DispenserClient? client;
+  /// The client to talk to the dispenser with. The app has exactly one and
+  /// passes it in (`main.dart` builds it, `CartProvider` hands it on); a test
+  /// passes a mock. It is never closed here — the recovery and health services
+  /// share it.
+  final DispenserClient client;
 
   const DispensingProgressDialog({
     required this.dispenserTxId,
     required this.tokenProducts,
     required this.cartService,
+    required this.client,
     required this.onComplete,
     required this.onError,
-    this.client,
     super.key,
   });
 
@@ -59,249 +50,49 @@ class DispensingProgressDialog extends StatefulWidget {
 }
 
 class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
-  late DispenserClient _client;
-  late int _quantity;
-
-  // State machine
-  DispensingState _state = DispensingState.idle;
-  int _dispensed = 0;
-
-  // Background worker
-  Timer? _pollingTimer;
-  Timer? _timeoutTimer;
-  int _retryCount = 0;
-
-  // Configuration
-  static const int _maxRequestTimeout = 30; // 30 seconds for POST /dispense
-  static const int _timeoutPerToken = 10;   // 10 seconds per token for polling
-  static const int _maxRetries = 3;
-  static const int _retryDelayMs = 1000;
+  late final DispenseSession _session;
+  late final int _quantity;
 
   @override
   void initState() {
     super.initState();
 
-    // Get ConfigService from context
     final config = context.read<ConfigService>();
-    _client = widget.client ??
-        DispenserClient(
-          baseUrl: config.dispenserBaseUrl!,
-          apiKey: config.dispenserApiKey!,
-          timeoutMs: config.dispenserTimeoutMs,
-        );
-
-    // Calculate total tokens from all cart items
     _quantity = widget.tokenProducts.fold(0, (sum, item) => sum + item.quantity);
 
-    // Mark polling as active (prevents recovery service interference)
-    _setPollingActive(true);
+    _session = DispenseSession(
+      client: widget.client,
+      cartService: widget.cartService,
+      txId: widget.dispenserTxId,
+      quantity: _quantity,
+      pollInterval: Duration(milliseconds: config.dispenserPollIntervalMs),
+    )..addListener(_onSessionChanged);
 
-    // Start background state machine
-    _startStateMachine();
+    unawaited(_run());
   }
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
-    _timeoutTimer?.cancel();
-    _setPollingActive(false);
+    _session.removeListener(_onSessionChanged);
+    _session.abandon();
+    _session.dispose();
     super.dispose();
   }
 
-  Future<void> _setPollingActive(bool active) async {
-    await widget.cartService.updateDispenserOperationState(
-      dispenserTxId: widget.dispenserTxId,
-      pollingActive: active ? 1 : 0,
-      lastPolledAt: DateTime.now().toUtc().toIso8601String(),
-    );
+  void _onSessionChanged() {
+    if (mounted) setState(() {});
   }
 
-  /// Start the background state machine
-  void _startStateMachine() {
-    _transitionTo(DispensingState.requesting);
-    _startDispenseRequest();
-  }
-
-  /// Transition to new state
-  void _transitionTo(DispensingState newState) {
+  Future<void> _run() async {
+    final result = await _session.run();
     if (!mounted) return;
-    setState(() {
-      _state = newState;
-    });
-  }
 
-  /// Step 1: POST /dispense (with retries and timeout)
-  Future<void> _startDispenseRequest() async {
-    // Set timeout for the requesting phase (30 seconds)
-    _timeoutTimer = Timer(Duration(seconds: _maxRequestTimeout), () {
-      if (_state == DispensingState.requesting) {
-        _handleError(DispenserException('Request timeout after $_maxRequestTimeout seconds'));
-      }
-    });
-
-    await _tryDispenseRequest();
-  }
-
-  Future<void> _tryDispenseRequest() async {
-    try {
-      final result = await _client.dispenseTokens(
-        txId: widget.dispenserTxId,
-        quantity: _quantity,
-      );
-
-      // Cancel timeout timer
-      _timeoutTimer?.cancel();
-
-      if (!mounted) return;
-
-      // Update state from response
-      setState(() {
-        _dispensed = result.dispensed;
-      });
-
-      // Update tracking
-      await widget.cartService.updateDispenserOperationState(
-        dispenserTxId: widget.dispenserTxId,
-        state: result.state,
-        lastKnownDispensed: result.dispensed,
-        lastPolledAt: DateTime.now().toUtc().toIso8601String(),
-      );
-
-      // Transition to dispensing state and start polling
-      _transitionTo(DispensingState.dispensing);
-      _startPolling();
-
-    } on DispenserBusyException catch (e) {
-      _timeoutTimer?.cancel();
-      _handleError(e);
-    } on DispenserNotFoundException catch (e) {
-      _timeoutTimer?.cancel();
-      _handleError(e);
-    } on DispenserException catch (e) {
-      // Network error - retry if under limit
-      if (_retryCount < _maxRetries) {
-        _retryCount++;
-        AppLog.instance.w(
-            'Dispense request failed, retry $_retryCount/$_maxRetries: ${e.message}');
-        await Future.delayed(Duration(milliseconds: _retryDelayMs));
-        if (mounted && _state == DispensingState.requesting) {
-          await _tryDispenseRequest();
-        }
-      } else {
-        _timeoutTimer?.cancel();
-        _handleError(DispenserException('Request failed after $_maxRetries retries: ${e.message}'));
-      }
-    }
-  }
-
-  /// Step 2: Poll for status (with timeout based on token count)
-  void _startPolling() {
-    // Set timeout for polling phase (10 seconds per token)
-    final pollingTimeout = _quantity * _timeoutPerToken;
-    _timeoutTimer?.cancel();
-    _timeoutTimer = Timer(Duration(seconds: pollingTimeout), () {
-      if (_state == DispensingState.dispensing) {
-        // Timeout - but if we dispensed some tokens, that's partial success
-        if (_dispensed > 0) {
-          _handlePartialSuccess();
-        } else {
-          _handleError(DispenserException('Polling timeout after $pollingTimeout seconds'));
-        }
-      }
-    });
-
-    // Start periodic polling
-    final config = context.read<ConfigService>();
-    final pollInterval = Duration(milliseconds: config.dispenserPollIntervalMs);
-
-    _pollingTimer = Timer.periodic(pollInterval, (_) => _poll());
-  }
-
-  Future<void> _poll() async {
-    if (_state != DispensingState.dispensing) {
-      _pollingTimer?.cancel();
+    if (result == null) {
+      widget.onError(_session.error ?? DispenserException('Dispense failed'));
+      Navigator.of(context).pop();
       return;
     }
 
-    // The heartbeat is written for the *attempt*, before the request, not for
-    // the answer. `lastPolledAt` is what tells the recovery service that this
-    // dispense has an owner; during a WiFi dropout every poll fails, and
-    // writing it only on success let the timestamp age past 30 s while the
-    // dialog was very much alive (#945). Billing is idempotent now, so this
-    // is no longer what stands between the member and a double bill — it is
-    // what keeps two components off the dispenser at the same time.
-    await widget.cartService.updateDispenserOperationState(
-      dispenserTxId: widget.dispenserTxId,
-      lastPolledAt: DateTime.now().toUtc().toIso8601String(),
-    );
-
-    try {
-      final result = await _client.getStatus(widget.dispenserTxId);
-
-      if (!mounted) return;
-
-      // Update state
-      setState(() {
-        _dispensed = result.dispensed;
-      });
-
-      // Update tracking
-      await widget.cartService.updateDispenserOperationState(
-        dispenserTxId: widget.dispenserTxId,
-        state: result.state,
-        lastKnownDispensed: result.dispensed,
-        lastPolledAt: DateTime.now().toUtc().toIso8601String(),
-      );
-
-      // Check if completed
-      if (result.state == 'done') {
-        _pollingTimer?.cancel();
-        _timeoutTimer?.cancel();
-        _handleSuccess(result);
-      } else if (result.state == 'error') {
-        _pollingTimer?.cancel();
-        _timeoutTimer?.cancel();
-        // Dispenser reports error - but if we got some tokens, partial success
-        if (_dispensed > 0) {
-          _handlePartialSuccess();
-        } else {
-          _handleError(DispenserException('Dispenser reported error'));
-        }
-      }
-      // else state is still "dispensing", keep polling
-
-    } on DispenserNotFoundException catch (e) {
-      _pollingTimer?.cancel();
-      _timeoutTimer?.cancel();
-      _handleError(e);
-    } on DispenserException catch (e) {
-      // Network error during polling - keep trying (timeout will catch it)
-      AppLog.instance.w('Polling error: ${e.message}');
-    }
-  }
-
-  void _handleSuccess(DispenseResult result) {
-    _transitionTo(DispensingState.done);
-    _playCompletionSound();
-    widget.onComplete(result);
-
-    // Auto-close after 5 seconds
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
-    });
-  }
-
-  void _handlePartialSuccess() {
-    // Create a partial success result
-    final result = DispenseResult(
-      txId: widget.dispenserTxId,
-      state: 'done', // Mark as done even though partial
-      quantity: _quantity,
-      dispensed: _dispensed,
-    );
-    _transitionTo(DispensingState.done);
     _playCompletionSound();
     widget.onComplete(result);
 
@@ -320,32 +111,23 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
   void _playCompletionSound() {
     if (!mounted) return;
     context.read<SoundService>().play(
-          _dispensed < _quantity
+          _session.dispensed < _quantity
               ? SoundEvent.dispensePartial
               : SoundEvent.dispenseSuccess,
         );
   }
 
-  void _handleError(DispenserException error) {
-    if (!mounted) return;
-
-    setState(() {
-      _state = DispensingState.error;
-    });
-
-    widget.onError(error);
-    Navigator.of(context).pop();
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final isComplete = _state == DispensingState.done;
-    final isError = _state == DispensingState.error;
-
-    // SUCCESS = any tokens dispensed (even if state is "error" due to jam)
-    final isSuccess = _dispensed > 0;
-    final isPartial = isSuccess && _dispensed < _quantity;
+    final dispensed = _session.dispensed;
+    // The completion screen is only ever reached with at least one token: a
+    // dispense that produced none ends in `failed`, and the dialog pops
+    // straight away for `onError` to speak for it. So there is no failure
+    // face to draw here — a jam that still produced tokens is a partial
+    // success, and says so.
+    final isComplete = _session.phase == DispensePhase.finished;
+    final isPartial = dispensed > 0 && dispensed < _quantity;
 
     return Dialog(
       child: Padding(
@@ -355,24 +137,22 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
           children: [
             if (isComplete) ...[
               // Show result icon - GREEN checkmark for any success (full or partial)
-              Icon(
-                isError ? Icons.error_outline : Icons.check_circle,
+              const Icon(
+                Icons.check_circle,
                 size: 48,
-                color: isError ? Colors.red : Colors.green,
+                color: Colors.green,
               ),
               const SizedBox(height: 16),
               // Show result message - POSITIVE framing even for partial
               Text(
-                isError
-                    ? l10n.dispensingFailed
-                    : l10n.dispensingSuccess(_dispensed),
+                l10n.dispensingSuccess(dispensed),
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               if (isPartial) ...[
                 const SizedBox(height: 8),
                 Text(
-                  l10n.dispensingPartialCharged(_dispensed),
+                  l10n.dispensingPartialCharged(dispensed),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[700]),
                 ),
@@ -389,20 +169,20 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
             ] else ...[
               // Show dispensing in progress
               Text(
-                _state == DispensingState.requesting
+                _session.phase == DispensePhase.requesting
                     ? l10n.dispensingStarting
                     : l10n.dispensingTokens,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ],
             const SizedBox(height: 24),
-            _buildProgressIndicator(),
+            _buildProgressIndicator(dispensed),
             if (!isComplete) ...[
               const SizedBox(height: 16),
               const CircularProgressIndicator(),
               const SizedBox(height: 16),
               Text(
-                _state == DispensingState.requesting
+                _session.phase == DispensePhase.requesting
                     ? l10n.dispensingConnecting
                     : l10n.pleaseWait,
               ),
@@ -413,18 +193,18 @@ class _DispensingProgressDialogState extends State<DispensingProgressDialog> {
     );
   }
 
-  Widget _buildProgressIndicator() {
+  Widget _buildProgressIndicator(int dispensed) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(_quantity, (index) {
-        final dispensed = index < _dispensed;
+        final isOut = index < dispensed;
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4.0),
           child: Text(
-            dispensed ? '●' : '○',
+            isOut ? '●' : '○',
             style: TextStyle(
               fontSize: 24,
-              color: dispensed ? Colors.green : Colors.grey,
+              color: isOut ? Colors.green : Colors.grey,
             ),
           ),
         );

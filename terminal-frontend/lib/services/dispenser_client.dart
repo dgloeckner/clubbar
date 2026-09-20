@@ -29,11 +29,26 @@ class DispenseResult {
   final int quantity;
   final int dispensed;
 
+  /// Whether the device vouches for [dispensed] being the real count.
+  ///
+  /// A dispenser that lost its state across a reset knows it dispensed
+  /// *something* and not how much; it says so with `count_reliable: false`,
+  /// and the terminal then keeps the tracking row for reconciliation instead
+  /// of treating the dispense as settled (#946).
+  ///
+  /// Null means the device did not say — every firmware speaking protocol 1,
+  /// which is all of them today. It is **not** read as `false`: protocol 1
+  /// counts are the counts the terminal has always billed on. Making the field
+  /// required, and a response without it a protocol error, belongs with
+  /// protocol 2 (#948, dgloeckner/remote-token-dispenser#3).
+  final bool? countReliable;
+
   DispenseResult({
     required this.txId,
     required this.state,
     required this.quantity,
     required this.dispensed,
+    this.countReliable,
   });
 
   factory DispenseResult.fromJson(Map<String, dynamic> json) {
@@ -42,6 +57,7 @@ class DispenseResult {
       state: json['state'] as String,
       quantity: json['quantity'] as int,
       dispensed: json['dispensed'] as int,
+      countReliable: json['count_reliable'] as bool?,
     );
   }
 }
