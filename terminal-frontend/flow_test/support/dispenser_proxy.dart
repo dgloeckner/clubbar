@@ -112,15 +112,26 @@ class DispenserProxy {
       await request.response.close();
     } on SocketException {
       // The mock is down or frozen. Behave like an unreachable dispenser.
-      try {
-        final socket = await request.response.detachSocket(writeHeaders: false);
-        socket.destroy();
-      } catch (_) {
-        // Client already gone.
-      }
+      await _dropConnection(request);
+    } on HttpException {
+      // The mock hung up mid-response — `crash_after_first` hijacks the socket
+      // and destroys it, which is the point of that scenario. The proxy passes
+      // the broken connection on rather than letting the exception escape into
+      // the test's zone, where it would fail the scenario that asked for it.
+      await _dropConnection(request);
     } finally {
       record.finishedAt = DateTime.now();
       _inFlight--;
+    }
+  }
+
+  /// Hands the terminal a connection that dies without an answer.
+  static Future<void> _dropConnection(HttpRequest request) async {
+    try {
+      final socket = await request.response.detachSocket(writeHeaders: false);
+      socket.destroy();
+    } catch (_) {
+      // Client already gone.
     }
   }
 

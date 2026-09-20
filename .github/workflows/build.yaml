@@ -1229,7 +1229,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dgloeckner/remote-token-dispenser
-          ref: 1d25c20974e226b670d6b856779974cae8968796
+          # F3 (dgloeckner/remote-token-dispenser#3): a transaction survives a
+          # reset — the crashed one comes back as `error` with its exact count
+          # and `count_reliable: true`, and stays in the persisted history
+          # ring, so a later GET is a 200 and not a 404. That is what makes the
+          # reset scenario assertable at all (#947); at the previous pin the
+          # mock threw the crashed transaction away.
+          ref: f0ce893
           path: dispenser-mock-repo
 
       # No setup-go step: the runner image ships Go, and `go build` fetches the
