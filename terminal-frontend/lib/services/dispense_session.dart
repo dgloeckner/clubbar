@@ -106,6 +106,21 @@ class DispenseSession extends ChangeNotifier {
   DispenserException? get error => _error;
 
   bool _abandoned = false;
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// [notifyListeners] after `dispose()` throws, and the session outlives the
+  /// dialog by however long the last request takes to answer: the widget is
+  /// gone, its listener with it, and the loop is still unwinding.
+  void _notify() {
+    if (_disposed) return;
+    notifyListeners();
+  }
 
   /// Stop at the next opportunity: the dialog has gone away.
   ///
@@ -144,6 +159,7 @@ class DispenseSession extends ChangeNotifier {
       try {
         final result =
             await _client.dispenseTokens(txId: txId, quantity: quantity);
+        if (_abandoned) return null;
         _observe(result);
         await _track(state: result.state, dispensed: _dispensed);
         return result;
@@ -225,7 +241,7 @@ class DispenseSession extends ChangeNotifier {
     _lastReportedState = result.state;
     if (result.dispensed > _dispensed) {
       _dispensed = result.dispensed;
-      notifyListeners();
+      _notify();
     }
   }
 
@@ -243,7 +259,7 @@ class DispenseSession extends ChangeNotifier {
   void _enter(DispensePhase phase) {
     if (_phase == phase) return;
     _phase = phase;
-    notifyListeners();
+    _notify();
   }
 
   Future<void> _track({String? state, int? dispensed}) async {
