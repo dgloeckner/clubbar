@@ -16,6 +16,16 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
   final ConfigService _config;
   final SoundService _soundService;
 
+  /// The app's one [DispenserClient], or null when there is no dispenser
+  /// configured (or building it failed at boot).
+  ///
+  /// Injected rather than built here: an ESP8266 has a handful of TCP slots
+  /// and no page should be able to mint another pool of connections to it.
+  /// Checkout needs it for two things — the transaction id and the dialog it
+  /// hands the client to — and both used to construct one of their own, which
+  /// was never closed (#946).
+  final DispenserClient? _dispenserClient;
+
   List<CartItem> _items = [];
   bool _isLoading = false;
 
@@ -37,9 +47,11 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     required CartService service,
     required ConfigService config,
     required SoundService soundService,
+    DispenserClient? dispenserClient,
   })  : _service = service,
         _config = config,
-        _soundService = soundService;
+        _soundService = soundService,
+        _dispenserClient = dispenserClient;
 
   List<CartItem> get items => _items;
   int get itemCount => _items.fold(0, (sum, item) => sum + item.quantity);
@@ -184,11 +196,18 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           return;
         }
 
+        final dispenserClient = _dispenserClient;
+        if (dispenserClient == null) {
+          // Configured, but the client could not be built at boot. Treat it
+          // like a dispenser that is not there rather than building a second
+          // one here, which is how the extra connection pools got in (#946).
+          emitError(TerminalErrorKey.dispenserNotConfigured);
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+
         // Generate dispenserTxId for crash recovery tracking
-        final dispenserClient = DispenserClient(
-          baseUrl: _config.dispenserBaseUrl!,
-          apiKey: _config.dispenserApiKey!,
-        );
         final dispenserTxId = dispenserClient.generateTxId();
 
         // Get token product details for tracking
@@ -296,11 +315,20 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
               lastKnownDispensed: actualQuantity,
             );
 
-            // CONDITIONAL CLEANUP: Only if state is final
-            if (result.state == 'done') {
+            // CONDITIONAL CLEANUP: Only if the *device* called it final.
+            //
+            // `result.state` is now always something the dispenser actually
+            // said. A polling timeout arrives here as `dispensing` and keeps
+            // the row, where it used to arrive as a fabricated `done` and
+            // delete it while the hopper was still turning (#946).
+            //
+            // `countReliable == false` is a device that dispensed an unknown
+            // number of tokens — final state or not, that is a row for
+            // reconciliation, not a settled dispense.
+            if (result.state == 'done' && result.countReliable != false) {
               // ESP8266 completed successfully - safe to cleanup
               await _service.cleanupDispenserOperation(dispenserTxId);
-            } else if (result.state == 'error' || result.state == 'dispensing') {
+            } else {
               // Keep tracking record for reconciliation to verify
               // Recovery service will query ESP8266 and clean up after verification
               AppLog.instance.i(
@@ -379,6 +407,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           dispenserTxId: dispenserTxId,
           tokenProducts: tokenProducts,
           cartService: _service,
+          client: _dispenserClient!,
           onComplete: (dispenseResult) {
             result = dispenseResult;
           },

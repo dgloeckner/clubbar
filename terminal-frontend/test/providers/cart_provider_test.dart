@@ -17,6 +17,13 @@ class MockConfigService extends Mock implements ConfigService {}
 class MockBuildContext extends Mock implements BuildContext {}
 class MockSoundService extends Mock implements SoundService {}
 
+/// The app's one dispenser client, which [CartProvider] now takes instead of
+/// building its own (#946). These tests never let a request out — every one of
+/// them overrides `showDispensingDialog` — so a client pointed at nowhere is
+/// enough; checkout uses it only to mint the transaction id.
+DispenserClient _testDispenserClient() =>
+    DispenserClient(baseUrl: 'http://dispenser.test', apiKey: 'test-key');
+
 /// Drives the dispense branch of [CartProvider.checkout] without a widget tree:
 /// the real implementation puts a dialog on screen, which a unit test has no
 /// way to answer.
@@ -26,6 +33,7 @@ class StubDispenseCartProvider extends CartProvider {
     required super.config,
     required super.soundService,
     required this.dispenseResult,
+    super.dispenserClient,
   });
 
   /// What the dispenser "returns"; null models a cancelled/failed dialog.
@@ -48,6 +56,7 @@ class ScriptedDispenseCartProvider extends CartProvider {
     required super.config,
     required super.soundService,
     required this.outcomes,
+    super.dispenserClient,
   });
 
   /// One entry per checkout. A thunk may throw (the dispense blew up) or
@@ -390,6 +399,7 @@ void main() {
           service: mockService,
           config: mockConfig,
           soundService: mockSoundService,
+          dispenserClient: _testDispenserClient(),
           dispenseResult: DispenseResult(
             txId: 'tx-1',
             state: dispensed > 0 ? 'done' : 'error',
@@ -577,6 +587,7 @@ void main() {
         service: mockService,
         config: mockConfig,
         soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
         outcomes: [
           // First checkout: the dispense attempt blows up as busy.
           () async => throw DispenserBusyException(),

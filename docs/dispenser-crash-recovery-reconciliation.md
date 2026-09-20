@@ -50,7 +50,7 @@ graph TB
         ESP["ESP8266 Dispenser<br/>(Flash Persistence)"]
     end
     
-    Dialog -->|Poll every 250ms| ESP
+    Dialog -->|Poll, serially, 500ms apart| ESP
     Cart -->|Create tracking| DB
     Cart -->|Create transactions| DB
     Recovery -->|Query incomplete ops| DB
@@ -109,7 +109,7 @@ sequenceDiagram
     Dialog->>ESP: POST /dispense (txId, qty=3)
     ESP-->>Dialog: {state: "dispensing", dispensed: 0}
     
-    loop Every 250ms
+    loop One poll at a time, 500ms apart
         Dialog->>ESP: GET /dispense/:txId
         ESP-->>Dialog: {state: "dispensing", dispensed: 1}
         Dialog->>DB: Update last_polled_at, last_known_dispensed=1
