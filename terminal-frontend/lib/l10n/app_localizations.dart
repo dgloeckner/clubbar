@@ -1190,6 +1190,12 @@ abstract class AppLocalizations {
   /// **'Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.'**
   String get errorDispenserMixedProducts;
 
+  /// TerminalErrorKey.dispenserCountUnreliable — the dispenser reset mid-dispense and cannot vouch for its count (#947). Its lower bound was zero, so nothing is billed; the copy must not claim that no tokens came out, because nobody knows that.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Automat konnte nicht sicher zählen, wie viele Token herausgekommen sind. Dir wurde nichts berechnet – bitte beim Bar-Team melden.'**
+  String get errorDispenserCountUnreliable;
+
   /// TerminalErrorKey.backendUnreachable — backend health check failed
   ///
   /// In de, this message translates to:

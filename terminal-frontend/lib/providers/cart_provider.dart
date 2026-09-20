@@ -247,17 +247,24 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         );
 
         if (result == null) {
-          // Dialog was cancelled or error occurred
-          // Update tracking state but DON'T cleanup (recovery service will handle)
-          // `transactionsCreated` is deliberately not written back to 0 here:
-          // it is a high-water mark of what has been billed, raised only
-          // inside billDispensedTokens' transaction. A reconciliation tick may
+          // The dialog gave up — cancelled, timed out, or the dispenser never
+          // answered. The tracking row stays for the recovery service, and
+          // **nothing is written to it here** (#947).
+          //
+          // It used to be written `'cancelled'`, over `last_known_state`. That
+          // erased the device's last word, and with it the one fact that tells
+          // the two meanings of a later 404 apart: a dispenser that never
+          // acknowledged this tx_id never got the request, while one that did
+          // and has since forgotten it lost tokens a human must chase. The
+          // terminal's own idea of how the checkout ended is not a device
+          // state and does not belong in that column (see
+          // `CartService.updateDispenserOperationState`).
+          //
+          // `transactionsCreated` was never written back to 0 here either: it
+          // is a high-water mark of what has been billed, raised only inside
+          // billDispensedTokens' transaction. A reconciliation tick may
           // already have billed tokens for this dispense, and zeroing the
           // counter behind it is how the two used to drift (#945).
-          await _service.updateDispenserOperationState(
-            dispenserTxId: dispenserTxId,
-            state: 'cancelled',
-          );
 
           // Check if error was handled (user made choice to skip tokens)
           if (_errorType is DispenserBusyException ||
@@ -341,12 +348,23 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
               AppLog.instance.i(
                   'Keeping tracking record for reconciliation (state=${result.state})');
             }
+          } else if (result.countReliable == false) {
+            // Zero tokens, and the device says its count is only a lower
+            // bound: it reset mid-dispense and lost its tally (#947). Nothing
+            // is billed — a lower bound of zero is no purchase — but the
+            // tracking record **stays**, because "nothing came out" is
+            // precisely what nobody knows. It is the bar's question now, and
+            // it is listed at the terminal until a human closes it.
+            emitError(TerminalErrorKey.dispenserCountUnreliable);
+            _soundService.play(SoundEvent.checkoutError);
+            return;
           } else {
-            // Nothing came out of the dispenser. There is no purchase to
-            // record, so this is a failed checkout, not a €0.00 success:
-            // release the tracking record, keep the cart so the member can
-            // retry, and say why. Falling through here would clear the cart
-            // and show the green confirmation screen for nothing (#15).
+            // Nothing came out of the dispenser, and the device vouches for
+            // that. There is no purchase to record, so this is a failed
+            // checkout, not a €0.00 success: release the tracking record, keep
+            // the cart so the member can retry, and say why. Falling through
+            // here would clear the cart and show the green confirmation screen
+            // for nothing (#15).
             // `finally` below clears _isLoading and notifies.
             await _service.cleanupDispenserOperation(dispenserTxId);
             emitError(TerminalErrorKey.dispenserNoTokensDispensed);

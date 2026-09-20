@@ -1014,5 +1014,33 @@ void main() {
       expect(firstId, CartService.dispenserTransactionId('disp-closed', 0));
       expect(await rows(), hasLength(2));
     });
+
+    /// #947: `acknowledged` is a latch. Everything else on the tracking row is
+    /// a report of the last thing seen; this one is a fact about the whole
+    /// life of the dispense, and a later write that does not mention it must
+    /// not quietly put it back.
+    test('acknowledgement is set once and never written back', () async {
+      await seedOperation();
+
+      Future<int> flag() async => (await (db.select(db.dispenserOperations)
+                ..where((t) => t.dispenserTxId.equals(txId)))
+              .getSingle())
+          .acknowledged;
+
+      expect(await flag(), 0);
+
+      await service.updateDispenserOperationState(
+          dispenserTxId: txId, state: 'dispensing', acknowledged: true);
+      expect(await flag(), 1);
+
+      // The heartbeat, and then a write that knows nothing about the device.
+      await service.updateDispenserOperationState(
+          dispenserTxId: txId, pollingActive: 0, lastPolledAt: 'now');
+      await service.updateDispenserOperationState(
+          dispenserTxId: txId, lastKnownDispensed: 2);
+
+      expect(await flag(), 1,
+          reason: 'the device did answer once, and nothing can unsay it');
+    });
   });
 }

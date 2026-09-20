@@ -383,6 +383,17 @@ class CartService {
   /// Used after creating transactions to track reconciliation status, and during
   /// polling to update ESP8266 state for recovery service monitoring.
   ///
+  /// **[state] is the device's own word and nothing else** (#947). Every caller
+  /// that passes it has just read it out of a [DispenseResult]; the terminal's
+  /// own idea of how the checkout ended is not written here, because a local
+  /// `'cancelled'` over the device's last state erases the one fact that tells
+  /// "the request never arrived" from "the device lost a transaction it
+  /// accepted".
+  ///
+  /// [acknowledged] is a **latch**: passing true sets it, and nothing ever
+  /// clears it. It is set from a device *response*, not from a request having
+  /// been sent — a POST that died in the network acknowledges nothing.
+  ///
   /// Returns tuple: (success, errorKey)
   Future<(bool, TerminalErrorKey?)> updateDispenserOperationState({
     required String dispenserTxId,
@@ -391,10 +402,12 @@ class CartService {
     int? lastKnownDispensed,
     int? pollingActive,
     String? lastPolledAt,
+    bool acknowledged = false,
   }) async {
     try {
       final companion = DispenserOperationsCompanion(
         lastKnownState: state != null ? Value(state) : Value.absent(),
+        acknowledged: acknowledged ? const Value(1) : const Value.absent(),
         transactionsCreated: transactionsCreated != null
             ? Value(transactionsCreated)
             : Value.absent(),

@@ -243,6 +243,7 @@
   "errorDispenserUnavailable": "The token dispenser is not responding — you can still buy everything else.",
   "errorDispenserNoTokensDispensed": "No tokens came out — you have not been charged. Your cart is still there; please see the bar staff.",
   "errorDispenserMixedProducts": "Only one kind of token can be dispensed per purchase — please take one of them out of your cart and buy it separately.",
+  "errorDispenserCountUnreliable": "The dispenser could not tell for sure how many tokens came out. You have not been charged — please see the bar staff.",
   "errorBackendUnreachable": "No connection to the server — your purchases are saved here and sent later.",
   "errorSyncFailed": "Sync failed — your purchases are saved here and sent later.",
   "errorTransactionSyncFailed": "Some purchases have not reached the server yet — please tell the bar staff.",

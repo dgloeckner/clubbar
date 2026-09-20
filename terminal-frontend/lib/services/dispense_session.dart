@@ -161,7 +161,8 @@ class DispenseSession extends ChangeNotifier {
             await _client.dispenseTokens(txId: txId, quantity: quantity);
         if (_abandoned) return null;
         _observe(result);
-        await _track(state: result.state, dispensed: _dispensed);
+        await _track(
+            state: result.state, dispensed: _dispensed, acknowledged: true);
         return result;
       } on DispenserBusyException catch (e) {
         return _fail(e);
@@ -221,7 +222,8 @@ class DispenseSession extends ChangeNotifier {
         final result = await _client.getStatus(txId);
         if (_abandoned) return null;
         _observe(result);
-        await _track(state: result.state, dispensed: _dispensed);
+        await _track(
+            state: result.state, dispensed: _dispensed, acknowledged: true);
 
         if (result.state == 'done') return _finish(result);
         if (result.state == 'error') return _finish(result);
@@ -262,12 +264,23 @@ class DispenseSession extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> _track({String? state, int? dispensed}) async {
+  /// Writes down what the device just said — and, with [acknowledged], the
+  /// bare fact *that* it said something.
+  ///
+  /// The two `_track` calls that pass `acknowledged: true` are exactly the two
+  /// places a response from the device has been parsed: the answer to the POST
+  /// and the answer to a poll. The heartbeat call before each request does not
+  /// pass it, and neither does anything outside this class — a request that
+  /// went out is not an acknowledgement, which is the whole point of the flag
+  /// (#947).
+  Future<void> _track(
+      {String? state, int? dispensed, bool acknowledged = false}) async {
     await _cartService.updateDispenserOperationState(
       dispenserTxId: txId,
       state: state,
       lastKnownDispensed: dispensed,
       lastPolledAt: DateTime.now().toUtc().toIso8601String(),
+      acknowledged: acknowledged,
     );
   }
 

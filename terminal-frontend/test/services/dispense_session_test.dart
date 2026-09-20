@@ -25,6 +25,7 @@ void main() {
           lastKnownDispensed: any(named: 'lastKnownDispensed'),
           pollingActive: any(named: 'pollingActive'),
           lastPolledAt: any(named: 'lastPolledAt'),
+          acknowledged: any(named: 'acknowledged'),
         )).thenAnswer((_) async => (true, null));
   });
 
@@ -235,5 +236,42 @@ void main() {
           pollingActive: 0,
           lastPolledAt: any(named: 'lastPolledAt'),
         )).called(1);
+  });
+
+  /// #947: `acknowledged` separates "the request never arrived" from "the
+  /// device lost a transaction it accepted" when a later GET answers 404. It
+  /// is set by an *answer*, which is why it is written here and not beside the
+  /// request that went out.
+  test('the device answering at all latches the acknowledgement', () async {
+    acceptsDispense(state: 'done', dispensed: 3);
+
+    await session().run();
+
+    verify(() => cartService.updateDispenserOperationState(
+          dispenserTxId: 'tx-session',
+          state: 'done',
+          lastKnownDispensed: 3,
+          lastPolledAt: any(named: 'lastPolledAt'),
+          acknowledged: true,
+        )).called(1);
+  });
+
+  test('a dispenser that never answers acknowledges nothing', () async {
+    when(() => client.dispenseTokens(
+            txId: any(named: 'txId'), quantity: any(named: 'quantity')))
+        .thenThrow(DispenserException('Connection refused'));
+
+    final result = await session().run();
+
+    expect(result, isNull);
+    verifyNever(() => cartService.updateDispenserOperationState(
+          dispenserTxId: any(named: 'dispenserTxId'),
+          state: any(named: 'state'),
+          transactionsCreated: any(named: 'transactionsCreated'),
+          lastKnownDispensed: any(named: 'lastKnownDispensed'),
+          pollingActive: any(named: 'pollingActive'),
+          lastPolledAt: any(named: 'lastPolledAt'),
+          acknowledged: true,
+        ));
   });
 }

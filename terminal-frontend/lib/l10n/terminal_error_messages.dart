@@ -55,6 +55,8 @@ extension TerminalErrorKeyL10n on TerminalErrorKey {
         return l10n.errorDispenserNoTokensDispensed;
       case TerminalErrorKey.dispenserMixedProducts:
         return l10n.errorDispenserMixedProducts;
+      case TerminalErrorKey.dispenserCountUnreliable:
+        return l10n.errorDispenserCountUnreliable;
       case TerminalErrorKey.productsRefreshFailed:
         return l10n.errorProductsRefreshFailed;
       case TerminalErrorKey.backendUnreachable:

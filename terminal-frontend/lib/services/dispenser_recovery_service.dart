@@ -34,6 +34,16 @@ class DispenserRecoveryService {
   final Logger _logger;
   Timer? _periodicTimer;
 
+  /// How long a tracking row the dispenser has never acknowledged must exist
+  /// before a 404 is read as "the request never arrived" (#947).
+  ///
+  /// Two minutes is not a tuning knob: it has to outlast the longest a POST
+  /// can still be on its way to the device — the session's own request phase
+  /// is capped at 30 s including retries — with room to spare, because the
+  /// cost of waiting is one more 60-second tick and the cost of being early is
+  /// deleting a dispense that then bills nothing.
+  static const Duration unacknowledgedGrace = Duration(minutes: 2);
+
   DispenserRecoveryService({
     required ClubBarDatabase database,
     required DispenserClient client,
@@ -176,27 +186,7 @@ class DispenserRecoveryService {
       try {
         status = await _dispenserClient.getStatus(op.dispenserTxId);
       } on DispenserNotFoundException {
-        // Transaction not found on ESP8266 - CRITICAL ISSUE
-        // This could mean:
-        // 1. ESP8266 crashed and lost state (no EEPROM persistence)
-        // 2. Transaction truly never started (timeout before ESP8266 received it)
-        // 3. ESP8266 firmware doesn't implement state persistence
-        //
-        // Mark as 'not_found' so the retry loop stops hitting it every 60 seconds.
-        // DO NOT delete - record is preserved for manual reconciliation audit.
-        await (_db.update(_db.dispenserOperations)
-              ..where((t) => t.dispenserTxId.equals(op.dispenserTxId)))
-            .write(DispenserOperationsCompanion(
-              lastKnownState: const Value('not_found'),
-              lastPolledAt: Value(DateTime.now().toUtc().toIso8601String()),
-            ));
-
-        _logger.e('CRITICAL: Transaction ${op.dispenserTxId} not found on ESP8266. '
-            'Tokens may have been dispensed but ESP8266 lost state. '
-            'Manual reconciliation required for member ${op.memberId}.');
-
-        return (false, 'Transaction not found on ESP8266 - MANUAL RECONCILIATION REQUIRED. '
-            'Check dispenser logs and verify if tokens were dispensed.');
+        return await _resolveNotFound(op);
       } on DispenserException catch (e) {
         // Network error or other dispenser issue
         // Don't clean up - we'll retry on next app start
@@ -227,11 +217,32 @@ class DispenserRecoveryService {
         }
       }
 
+      // The device answered, so it knows this tx_id. That is the fact a later
+      // 404 is read against (#947), and it is latched here rather than only in
+      // the dialog: a row whose dialog died before the first answer can still
+      // be acknowledged by the very first reconciliation tick that reaches the
+      // device.
       await _updateOperationState(
         op.dispenserTxId,
         lastKnownState: status.state,
         lastKnownDispensed: esp8266Count,
+        acknowledged: true,
       );
+
+      // A count the device does not vouch for settles nothing, whatever state
+      // it carries: `count_reliable: false` is a dispenser saying it lost its
+      // tally across a reset and is reporting a **lower bound**. The tokens it
+      // is sure of are billed above; the row stays, so the difference is a
+      // question for a human instead of a silent discount. Closing it here
+      // would undo the same rule checkout follows (#946, #947).
+      if (status.countReliable == false) {
+        _logger.w('Dispenser ${op.dispenserTxId} reports an unreliable count '
+            '($esp8266Count of ${op.requestedQty} tokens) for member '
+            '${op.memberId}. Billed the reported lower bound; keeping the '
+            'record so the difference can be settled by hand.');
+        return (false, 'Dispenser could not vouch for its count - keeping the '
+            'record for reconciliation by hand.');
+      }
 
       // Clean up tracking record if ESP8266 state is final
       if (status.state == 'done' || status.state == 'error') {
@@ -246,6 +257,82 @@ class DispenserRecoveryService {
     }
   }
 
+  /// What a `404` from the dispenser means for [op] — the whole of #947.
+  ///
+  /// `GET /dispense/{tx_id}` answering 404 has always had two readings, and
+  /// the terminal used to pick the frightening one every time:
+  ///
+  /// | Did the device ever answer for this tx_id? | 404 means | What happens |
+  /// |---|---|---|
+  /// | never | the request never arrived, nothing was dispensed | the row is deleted, nothing is billed, one info line |
+  /// | yes | the device accepted it and has since lost it | `not_found`, kept, shown under *manual reconciliation required* |
+  ///
+  /// The common case is the harmless one: the dispenser was unplugged, the
+  /// POST never got there, no token fell. Every such checkout used to leave a
+  /// permanent red record, and after a weekend with the machine off the one
+  /// row that did need a human was buried in the noise.
+  ///
+  /// Two things make "never acknowledged → never happened" safe to conclude,
+  /// and both are load-bearing:
+  ///
+  /// * the abandoned POST is **dead, not merely timed out** — the session
+  ///   stops at the next opportunity and sends nothing further (#946), so no
+  ///   request can still be on its way to the device;
+  /// * the verdict waits until the row is older than [unacknowledgedGrace].
+  ///   A request in flight while the tick runs would otherwise be declared
+  ///   never to have happened moments before it arrives — the one way this
+  ///   rule could delete a row that was about to be billed.
+  ///
+  /// A row inside the grace window is left exactly as it is: no state written,
+  /// nothing deleted, asked again on the next tick.
+  Future<(bool, String?)> _resolveNotFound(DispenserOperation op) async {
+    if (op.acknowledged == 0) {
+      final age = _age(op);
+      if (age != null && age < unacknowledgedGrace) {
+        return (false, 'Dispenser does not know ${op.dispenserTxId} yet and the '
+            'request may still be in flight - asking again next tick.');
+      }
+
+      await _cleanupOperation(op.dispenserTxId);
+      _logger.i('Dispense ${op.dispenserTxId} was never acknowledged by the '
+          'dispenser and it does not know the transaction: the request never '
+          'arrived. Nothing was dispensed and nothing is billed for member '
+          '${op.memberId}; the record is closed.');
+      return (true, null);
+    }
+
+    // The device did answer for this tx_id once, and now denies knowing it.
+    // That is a transaction it accepted and lost — tokens may be on the floor
+    // and nobody but a human can say how many.
+    //
+    // Mark as 'not_found' so the retry loop stops hitting it every 60 seconds.
+    // DO NOT delete - record is preserved for manual reconciliation audit.
+    await (_db.update(_db.dispenserOperations)
+          ..where((t) => t.dispenserTxId.equals(op.dispenserTxId)))
+        .write(DispenserOperationsCompanion(
+          lastKnownState: const Value('not_found'),
+          lastPolledAt: Value(DateTime.now().toUtc().toIso8601String()),
+        ));
+
+    _logger.e('CRITICAL: Transaction ${op.dispenserTxId} was acknowledged by '
+        'the dispenser and is now unknown to it. Tokens may have been '
+        'dispensed but the dispenser lost the transaction. '
+        'Manual reconciliation required for member ${op.memberId}.');
+
+    return (false, 'Transaction not found on ESP8266 - MANUAL RECONCILIATION REQUIRED. '
+        'Check dispenser logs and verify if tokens were dispensed.');
+  }
+
+  /// How long ago [op] was created, or null when its timestamp is unreadable.
+  ///
+  /// An unreadable one is treated as *no age at all* rather than as infinitely
+  /// old, so a garbled row is never deleted on the strength of it.
+  Duration? _age(DispenserOperation op) {
+    final created = DateTime.tryParse(op.createdAt);
+    if (created == null) return null;
+    return DateTime.now().toUtc().difference(created.toUtc());
+  }
+
   /// Update the state fields this service owns.
   ///
   /// `transactions_created` is deliberately **not** among them: it is raised
@@ -255,12 +342,15 @@ class DispenserRecoveryService {
     String dispenserTxId, {
     required String lastKnownState,
     required int lastKnownDispensed,
+    bool acknowledged = false,
   }) async {
     await (_db.update(_db.dispenserOperations)
           ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
         .write(DispenserOperationsCompanion(
           lastKnownState: Value(lastKnownState),
           lastKnownDispensed: Value(lastKnownDispensed),
+          acknowledged:
+              acknowledged ? const Value(1) : const Value.absent(),
         ));
   }
 

@@ -43,6 +43,14 @@ enum TerminalErrorKey {
   /// refused rather than billed at whichever product came first.
   dispenserMixedProducts,
 
+  /// The dispense ended without the dispenser being able to say how many
+  /// tokens came out (#947). A device that lost its tally across a reset
+  /// reports a **lower bound** and marks the count as not exact; when that
+  /// lower bound is zero there is nothing to bill, but "nothing came out" is
+  /// a claim nobody can make. The member is charged nothing and the tracking
+  /// record is kept, so the bar can settle the difference by hand.
+  dispenserCountUnreliable,
+
   // Products
   productsRefreshFailed,
 
