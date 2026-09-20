@@ -210,7 +210,14 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         // Generate dispenserTxId for crash recovery tracking
         final dispenserTxId = dispenserClient.generateTxId();
 
-        // Get token product details for tracking
+        // Get token product details for tracking.
+        //
+        // `.first` is safe because the cart has been checked: a cart mixing
+        // two dispensable products is refused by
+        // `CartService.validateCartBeforeCheckout` above (#949), so every
+        // token line here names the same product and the same price. Without
+        // that guard this line silently billed the whole dispense at
+        // whichever product happened to come first.
         final tokenProduct = tokenProducts.first;
         final requestedQty = tokenProducts.fold(0, (sum, item) => sum + item.quantity);
 

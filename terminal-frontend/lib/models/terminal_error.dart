@@ -37,6 +37,12 @@ enum TerminalErrorKey {
   dispenserUnavailable,
   dispenserNoTokensDispensed,
 
+  /// The cart holds two different products that both need the dispenser
+  /// (#949). One dispenser dispenses one kind of token: the device is told a
+  /// count, not a product, so such a cart has no single price to bill. It is
+  /// refused rather than billed at whichever product came first.
+  dispenserMixedProducts,
+
   // Products
   productsRefreshFailed,
 

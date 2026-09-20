@@ -502,6 +502,122 @@ void main() {
       });
     });
 
+    /// One dispenser, one dispensable product (#949, owner decision of
+    /// 2026-09-20). Per-product dispensing is not built: the device is told a
+    /// count, and `checkout` bills that count at *one* product's price. With
+    /// two dispensable products in a cart there is no right price to bill, so
+    /// the cart is refused here — before a tracking row exists and before the
+    /// device is asked for anything — rather than billed at whichever product
+    /// happened to come first.
+    group('one dispenser product per cart (#949)', () {
+      CartItem token({
+        required String productId,
+        required String name,
+        int priceCents = 200,
+        int quantity = 1,
+      }) =>
+          CartItem(
+            productId: productId,
+            productName: name,
+            quantity: quantity,
+            priceCents: priceCents,
+            language: 'de',
+            requiresDispenser: true,
+          );
+
+      test('refuses a cart holding two different dispenser products', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(),
+          [
+            token(productId: 'sauna-token', name: 'Sauna-Token'),
+            token(productId: 'wasch-token', name: 'Wasch-Token', priceCents: 500),
+          ],
+        );
+
+        expect(valid, isFalse,
+            reason: 'there is no single price this dispense could be billed at');
+        expect(error, equals(TerminalErrorKey.dispenserMixedProducts));
+      });
+
+      test('accepts one dispenser product across two cart lines', () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(),
+          [
+            token(productId: 'sauna-token', name: 'Sauna-Token'),
+            token(productId: 'sauna-token', name: 'Sauna-Token', quantity: 3),
+          ],
+        );
+
+        expect(valid, isTrue,
+            reason: 'the quantity is what the device is told; one product, one price');
+        expect(error, isNull);
+      });
+
+      test('a second non-dispenser product is none of this guard\'s business',
+          () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(),
+          [
+            token(productId: 'sauna-token', name: 'Sauna-Token'),
+            CartItem(
+              productId: 'pils',
+              productName: 'Pils',
+              quantity: 2,
+              priceCents: 350,
+              language: 'de',
+            ),
+          ],
+        );
+
+        expect(valid, isTrue);
+        expect(error, isNull);
+      });
+
+      /// Ordering, for the same reason the Jugendschutz group pins its own: a
+      /// refusal the member can act on by taking a token out of the cart must
+      /// not arrive dressed as a money message, and a legal refusal outranks
+      /// both.
+      test('reports the age, not the mixed cart, when both would block',
+          () async {
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(dateOfBirth: bornForAge(15)),
+          [
+            token(productId: 'sauna-token', name: 'Sauna-Token'),
+            CartItem(
+              productId: 'korn-token',
+              productName: 'Korn-Token',
+              quantity: 1,
+              priceCents: 250,
+              language: 'de',
+              requiresDispenser: true,
+              minAge: 18,
+            ),
+          ],
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.ageRestricted));
+      });
+
+      test('reports the mixed cart, not the limit, when both would block',
+          () async {
+        when(() => mockRepo.getEffectiveBalance(any()))
+            .thenAnswer((_) async => 9900);
+
+        final (valid, error) = await service.validateCartBeforeCheckout(
+          memberWith(),
+          [
+            token(productId: 'sauna-token', name: 'Sauna-Token', priceCents: 900),
+            token(productId: 'wasch-token', name: 'Wasch-Token', priceCents: 900),
+          ],
+        );
+
+        expect(valid, isFalse);
+        expect(error, equals(TerminalErrorKey.dispenserMixedProducts),
+            reason: 'paying something off would not make this cart dispensable');
+      });
+    });
+
     group('credit limit (UC-T11 E3, UC-T12)', () {
       // The club default is €100.00 until a /sync/config poll says otherwise —
       // the value the backend seeds its own configuration with, so an

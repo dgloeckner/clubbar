@@ -98,6 +98,26 @@ class CartService {
       return (false, TerminalErrorKey.ageRestricted);
     }
 
+    // One dispenser, one dispensable product (#949). The device is told a
+    // *count*, never a product, and `CartProvider.checkout` therefore bills
+    // the whole dispense at one line's price. Two different dispensable
+    // products in one cart have no such price, so the cart is refused here —
+    // before a tracking row exists and before the device is asked for
+    // anything — rather than billed at whichever line came first.
+    //
+    // Deliberately **after** Jugendschutz, which outranks everything, and
+    // **before** the credit limit: paying something off would not make this
+    // cart dispensable, so it must not be reported as a money problem. What
+    // the member can do about it — buy the two separately — is what the copy
+    // says.
+    //
+    // Per-product dispensing is not built and is not planned; this guard is
+    // what keeps the unsupported configuration loud instead of silently
+    // mispriced.
+    if (mixesDispenserProducts(items)) {
+      return (false, TerminalErrorKey.dispenserMixedProducts);
+    }
+
     // Credit limit (UC-T11 E3, UC-T12). The cart screen already disables the
     // button above the limit; this is the authority, not a duplicate of it —
     // the tab can move under the member's feet (a sync landing mid-session)
@@ -145,6 +165,24 @@ class CartService {
 
     return blocking;
   }
+
+  /// Whether [items] would ask the dispenser for two different products
+  /// (#949).
+  ///
+  /// Distinct **products**, not lines: the same token twice is one dispense of
+  /// a larger count, which is exactly what the device does. Non-dispensable
+  /// lines are none of this rule's business — a cart of tokens and a Pils is
+  /// ordinary.
+  ///
+  /// Synchronous and pure, like [requiredAgeBlocking], so the cart screen may
+  /// ask it too.
+  bool mixesDispenserProducts(List<CartItem> items) =>
+      items
+          .where((item) => item.requiresDispenser)
+          .map((item) => item.productId)
+          .toSet()
+          .length >
+      1;
 
   /// Where [items] would leave [member] relative to **their** credit ceiling.
   ///
