@@ -271,10 +271,22 @@ wp_rule="$HOME/.config/wireplumber/wireplumber.conf.d/50-clubbar-hdmi-priority.c
 # Present is not loaded. WirePlumber refuses a section it cannot parse and says
 # so once, at start, in a journal nobody reads — the rule sat on ruderbar for
 # three weeks doing nothing while this check reported it as fine.
+#
+# Ask the WirePlumber that is *running*, by PID. The config is read once per
+# process, so a refusal logged by one that has since been restarted says nothing
+# about today — and searching the whole boot kept reporting ruderbar's old
+# refusal after the fix, a FAIL that re-running the setup script could not clear.
+wp_rule_refusal() {
+  local pid
+  pid=$(systemctl --user show wireplumber -p MainPID --value 2>/dev/null)
+  case "$pid" in ''|0|*[!0-9]*) return 0 ;; esac
+  journalctl --user --no-pager _PID="$pid" 2>/dev/null \
+    | grep -F "failed to open" | grep -F "$1" | tail -1
+}
+
 wp_refused=""
 if [ -r "$wp_rule" ] && command -v journalctl >/dev/null 2>&1; then
-  wp_refused=$(journalctl --user -u wireplumber -b --no-pager 2>/dev/null \
-    | grep -F "failed to open" | grep -F "$(basename "$wp_rule")" | tail -1)
+  wp_refused=$(wp_rule_refusal "$(basename "$wp_rule")")
 fi
 if [ -n "$wp_refused" ]; then
   fail "WirePlumber refused the priority rule — it is installed and does nothing"
