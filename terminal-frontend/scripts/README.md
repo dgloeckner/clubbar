@@ -163,6 +163,20 @@ ranks the causes and says which capture section separates them.
 
 ---
 
+### `audio-ensure-hdmi.sh`
+
+Restarts WirePlumber when a display is connected and no HDMI sink exists — the
+state a Pi is left in when it boots before its display is awake, because
+WirePlumber probes the card's profiles once and vc4 refuses the PCM with nothing
+attached. Run by `clubbar-audio-ensure.timer` (45 s after boot, then every two
+minutes), which `kiosk-session-setup.sh` installs. At most three restarts per
+boot; always exits 0. See `../docs/audio-dropout-debugging.md` §H.
+
+```bash
+./test/audio-ensure.sh      # stub pactl/systemctl — runs anywhere with bash
+journalctl --user -u clubbar-audio-ensure.service -b --no-pager
+```
+
 ## Common Development Tasks
 
 ### Using Makefile

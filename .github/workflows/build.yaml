@@ -1304,6 +1304,13 @@ jobs:
         run: bash scripts/test/updater-flow.sh
         working-directory: terminal-frontend
 
+      # The HDMI sink recovery against a stub pactl and systemctl, and the
+      # WirePlumber rule's one syntax trap: a backslash escape makes WirePlumber
+      # refuse the whole section, and the file then looks installed for weeks.
+      - name: Audio sink recovery
+        run: bash scripts/test/audio-ensure.sh
+        working-directory: terminal-frontend
+
   # A Release publishes both artifacts or neither (ADR-0054).
   #
   # `test-package` and `build-terminal` each used to upload its own artifact,

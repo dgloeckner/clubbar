@@ -292,6 +292,51 @@ again across a real reboot.
 | The mass `apt-get install` of 2026-08-30 | Reinstalled pipewire/wireplumber but did not cause this; the rule survives it, which is the point of having a rule |
 | Mixer mute, missing clips, held device | All clean in the capture |
 
+**Correction, 2026-09-19.** The rule as first shipped was never loaded. Its
+regexes wrote a literal dot as backslash-dot; WirePlumber parses a quoted string
+as JSON, that is not a JSON escape, and the whole section was refused:
+
+```
+wp-conf: failed to open '…/50-clubbar-hdmi-priority.conf': section 'monitor.alsa.rules' has no value
+```
+
+The "verified" above held because the *persisted default* was doing the work,
+not the rule. `kiosk-doctor.sh` reported the rule as present because it was — it
+now reads the WirePlumber journal for that refusal, and
+`scripts/test/audio-ensure.sh` fails on a backslash in the rule.
+
+### H. There is no HDMI sink to choose — **CONFIRMED**
+
+Same symptom as G, same `pactl get-default-sink` answer, different fault. Caught
+on `ruderbar` 2026-09-19 after nine days of silence:
+
+```
+$ pactl list cards        # the HDMI card
+    off: Off (…)
+    pro-audio: Pro Audio (…)
+  Active Profile: off     # no output:hdmi-stereo profile at all
+```
+
+WirePlumber probes a card's profiles **once, when it starts**, by opening the
+PCM. vc4 refuses to open the HDMI PCM while no display is attached, and at that
+boot the kernel had logged `Cannot find any crtc or sizes` — the Pi was up
+before the display was. The stereo probe failed, the profile was never offered,
+and nothing probes again: the HDMI jack read `on` for the following nine days.
+The jack was the default sink because it was the only sink.
+
+No rule and no saved default can help here; both choose among sinks that exist.
+
+**Confirm:** `pactl list short sinks` shows no `hdmi` entry while
+`cat /sys/class/drm/card*-HDMI-A-1/status` says `connected`.
+
+**Fix now:** `systemctl --user restart wireplumber` — the re-probe finds the
+display and the sink comes back as the default.
+
+**Fix kept:** `kiosk-session-setup.sh` installs `clubbar-audio-ensure.timer`,
+which runs `audio-ensure-hdmi.sh` 45 s after boot and every two minutes: display
+connected and no HDMI sink → restart WirePlumber, at most three times per boot
+so a display without speakers does not bounce the sound server forever.
+
 ## 4. Follow-ups in the app
 
 What would turn the next occurrence into a one-line answer instead of another
