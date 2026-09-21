@@ -52,7 +52,9 @@ void main() {
             txId: 'tx-session',
             state: state,
             quantity: 3,
-            dispensed: dispensed));
+            dispensed: dispensed,
+            countReliable: true,
+          ));
   }
 
   test('a polling timeout reports the last state the device reported, never done',
@@ -64,7 +66,7 @@ void main() {
     // (finding 5, #946).
     acceptsDispense();
     when(() => client.getStatus(any())).thenAnswer((_) async => DispenseResult(
-        txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 2));
+        txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 2, countReliable: true));
 
     final result = await session().run();
 
@@ -78,7 +80,7 @@ void main() {
       'dispense', () async {
     acceptsDispense();
     when(() => client.getStatus(any())).thenAnswer((_) async => DispenseResult(
-        txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 0));
+        txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 0, countReliable: true));
 
     final s = session();
     final result = await s.run();
@@ -91,7 +93,7 @@ void main() {
   test('a jam is passed on as the device reported it, tokens and all', () async {
     acceptsDispense();
     when(() => client.getStatus(any())).thenAnswer((_) async => DispenseResult(
-        txId: 'tx-session', state: 'error', quantity: 3, dispensed: 1));
+        txId: 'tx-session', state: 'error', quantity: 3, dispensed: 1, countReliable: true));
 
     final result = await session().run();
 
@@ -118,6 +120,7 @@ void main() {
         state: answered >= 3 ? 'done' : 'dispensing',
         quantity: 3,
         dispensed: answered,
+        countReliable: true,
       );
     });
 
@@ -148,6 +151,7 @@ void main() {
         state: call >= 3 ? 'done' : 'dispensing',
         quantity: 3,
         dispensed: dispensed,
+        countReliable: true,
       );
     });
 
@@ -167,7 +171,7 @@ void main() {
   test('an abandoned session stops talking to the device', () async {
     acceptsDispense();
     when(() => client.getStatus(any())).thenAnswer((_) async => DispenseResult(
-        txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 1));
+        txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 1, countReliable: true));
 
     final s = session(
       pollInterval: const Duration(milliseconds: 5),
@@ -193,10 +197,10 @@ void main() {
       attempts++;
       if (attempts == 1) throw DispenserException('Connection reset');
       return DispenseResult(
-          txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 0);
+          txId: 'tx-session', state: 'dispensing', quantity: 3, dispensed: 0, countReliable: true);
     });
     when(() => client.getStatus(any())).thenAnswer((_) async => DispenseResult(
-        txId: 'tx-session', state: 'done', quantity: 3, dispensed: 3));
+        txId: 'tx-session', state: 'done', quantity: 3, dispensed: 3, countReliable: true));
 
     final result = await session(timeoutPerToken: const Duration(seconds: 5))
         .run();
@@ -222,7 +226,7 @@ void main() {
       () async {
     acceptsDispense();
     when(() => client.getStatus(any())).thenAnswer((_) async => DispenseResult(
-        txId: 'tx-session', state: 'done', quantity: 3, dispensed: 3));
+        txId: 'tx-session', state: 'done', quantity: 3, dispensed: 3, countReliable: true));
 
     await session(timeoutPerToken: const Duration(seconds: 5)).run();
 

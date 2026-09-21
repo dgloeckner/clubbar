@@ -83,7 +83,9 @@ void main() {
             txId: 'disp-heartbeat',
             state: 'dispensing',
             quantity: 2,
-            dispensed: 0));
+            dispensed: 0,
+            countReliable: true,
+          ));
     // The WiFi drops the moment the motor starts: every poll from here on
     // throws, and before #945 the timestamp simply aged while the dialog sat
     // there — which is how the recovery tick decided the row was abandoned.

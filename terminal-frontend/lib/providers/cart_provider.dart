@@ -467,6 +467,12 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           emitError(TerminalErrorKey.checkoutCancelled);
           return null;
         }
+      } else if (errorException is DispenserFaultException) {
+        // The device has a jam or a hopper error and refused the dispense
+        // (#948). Nothing was dispensed and nothing is billed; the member is
+        // told what it is, because "unavailable" sends nobody to fix it.
+        emitError(TerminalErrorKey.dispenserFaulted, cause: errorException);
+        return null;
       } else {
         // Other dispenser errors — the raw message stays in the log.
         emitError(TerminalErrorKey.dispenserUnavailable,

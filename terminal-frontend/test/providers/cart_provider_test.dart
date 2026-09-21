@@ -405,6 +405,7 @@ void main() {
             state: dispensed > 0 ? 'done' : 'error',
             quantity: 1,
             dispensed: dispensed,
+            countReliable: true,
           ),
         );
 
@@ -566,7 +567,9 @@ void main() {
             state: countReliable == null ? 'dispensing' : 'done',
             quantity: 3,
             dispensed: 2,
-            countReliable: countReliable,
+            // Null means "the poll deadline passed" here: the device never
+            // said `done`, so what it last said about its count still holds.
+            countReliable: countReliable ?? true,
           ),
         );
 

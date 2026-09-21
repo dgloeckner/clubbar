@@ -43,6 +43,12 @@ enum TerminalErrorKey {
   /// refused rather than billed at whichever product came first.
   dispenserMixedProducts,
 
+  /// The device refused the dispense because it has a fault: a jam, an empty
+  /// hopper or a hopper error (#948). Only a power cycle clears it, so there
+  /// is nothing for the member to retry — the copy names the bar team and the
+  /// workaround instead.
+  dispenserFaulted,
+
   /// The dispense ended without the dispenser being able to say how many
   /// tokens came out (#947). A device that lost its tally across a reset
   /// reports a **lower bound** and marks the count as not exact; when that

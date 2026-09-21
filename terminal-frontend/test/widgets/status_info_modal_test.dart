@@ -323,8 +323,8 @@ void main() {
         when(() => healthService.removeListener(any())).thenReturn(null);
         when(() => healthService.checkNow()).thenAnswer((_) async {});
         when(() => healthService.currentHealth).thenReturn(DispenserHealth(
-          status: 'ok',
-          dispenser: 'idle',
+          protocol: dispenserProtocolVersion,
+          state: DispenserDeviceState.idle,
           totalDispenses: 1,
           successful: 1,
           jams: 0,
@@ -651,6 +651,194 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Online'), findsNothing);
+    });
+
+    // #948: the modal used to say "Offline" for a jam, an empty hopper, a
+    // sensor fault and a firmware mismatch alike. Each of those sends
+    // somebody somewhere different, and the one it named was the wrong one
+    // for three of the four.
+    group('an unavailable dispenser says why (#948)', () {
+      late MockDispenserHealthService healthService;
+
+      setUp(() {
+        healthService = MockDispenserHealthService();
+        when(() => healthService.addListener(any())).thenReturn(null);
+        when(() => healthService.removeListener(any())).thenReturn(null);
+        when(() => healthService.checkNow()).thenAnswer((_) async {});
+
+        when(() => mockSyncProvider.connectionStatus)
+            .thenReturn(ConnectionStatus.online);
+        when(() => mockSyncProvider.lastSyncTime).thenReturn(null);
+        when(() => mockSyncProvider.lastSuccessfulTransactionSync)
+            .thenReturn(null);
+        when(() => mockSyncProvider.retryCount).thenReturn(0);
+        when(() => mockSyncProvider.lastError).thenReturn(null);
+        when(() => mockSyncProvider.degradedSince).thenReturn(null);
+      });
+
+      DispenserHealth faulted(DispenserFault fault, {int code = 0}) =>
+          DispenserHealth(
+            protocol: dispenserProtocolVersion,
+            state: DispenserDeviceState.fault,
+            fault: fault,
+            faultCode: code,
+            totalDispenses: 4,
+            successful: 3,
+            jams: 1,
+            successRate: 75,
+          );
+
+      Future<String> open(WidgetTester tester, DispenserHealth health,
+          {required Locale locale}) async {
+        when(() => healthService.currentHealth).thenReturn(health);
+
+        await tester.pumpWidget(createTestApp(
+          locale: locale,
+          child: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<SyncProvider>.value(
+                  value: mockSyncProvider),
+              ChangeNotifierProvider<DispenserHealthService>.value(
+                  value: healthService),
+            ],
+            child: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => showStatusInfoModal(context),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ));
+
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+
+        return tester
+            .widgetList<Text>(find.byType(Text))
+            .map((t) => t.data ?? '')
+            .join('\n');
+      }
+
+      Future<void> close(WidgetTester tester) async {
+        await tester.tap(find.byIcon(Icons.close));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('a jam reads "Stau oder leer" and names the power cycle',
+          (tester) async {
+        final rendered =
+            await open(tester, faulted(DispenserFault.jam),
+                locale: const Locale('de'));
+
+        expect(rendered, contains('Stau oder leer'));
+        // The empty sensor does not exist on this hopper, so the copy must
+        // not claim to know which of the two it is.
+        expect(
+          rendered,
+          contains('Stau beseitigen, bei Bedarf nachfüllen, dann das Gerät '
+              '5 Sekunden vom Strom trennen.'),
+        );
+        expect(rendered, isNot(contains('Offline')));
+
+        await close(tester);
+      });
+
+      testWidgets('a hopper error shows its code', (tester) async {
+        final rendered = await open(
+            tester, faulted(DispenserFault.hopperError, code: 5),
+            locale: const Locale('de'));
+
+        expect(rendered, contains('Hopper-Fehler 5'));
+        expect(rendered, contains('vom Strom trennen'));
+
+        await close(tester);
+      });
+
+      testWidgets('a protocol mismatch is its own reason, not offline',
+          (tester) async {
+        final rendered = await open(
+            tester, DispenserHealth.protocolMismatch(reportedProtocol: 1),
+            locale: const Locale('de'));
+
+        expect(rendered, contains('Protokoll passt nicht'));
+        expect(rendered, contains('Gerät: Protokoll 1 · erwartet: 2'));
+        expect(rendered, contains('einem Admin melden'));
+        expect(rendered, isNot(contains('Nicht erreichbar')));
+
+        await close(tester);
+      });
+
+      testWidgets('an unreachable dispenser still reads as unreachable',
+          (tester) async {
+        final rendered = await open(tester, DispenserHealth.offline(),
+            locale: const Locale('de'));
+
+        expect(rendered, contains('Nicht erreichbar'));
+        expect(rendered, contains('Strom und WLAN des Ausgabegeräts prüfen.'));
+
+        await close(tester);
+      });
+
+      testWidgets('the same reasons read in English', (tester) async {
+        var rendered = await open(tester, faulted(DispenserFault.jam),
+            locale: const Locale('en'));
+        expect(rendered, contains('Jammed or empty'));
+        expect(
+          rendered,
+          contains('Clear the jam, refill if empty, then unplug the '
+              'dispenser for 5 seconds.'),
+        );
+        await close(tester);
+
+        rendered = await open(
+            tester, faulted(DispenserFault.hopperError, code: 3),
+            locale: const Locale('en'));
+        expect(rendered, contains('Hopper error 3'));
+        await close(tester);
+
+        rendered = await open(
+            tester, DispenserHealth.protocolMismatch(reportedProtocol: 1),
+            locale: const Locale('en'));
+        expect(rendered, contains('Protocol mismatch'));
+        expect(rendered, contains('Device: protocol 1 · expected: 2'));
+        await close(tester);
+      });
+
+      testWidgets('there is no way to reset the dispenser from the kiosk',
+          (tester) async {
+        // Owner decision (#948): a fault is cleared by a power cycle and by
+        // nothing else. A button here would be a promise the device cannot
+        // keep — there is no /reset route to call.
+        final rendered = await open(tester, faulted(DispenserFault.jam),
+            locale: const Locale('de'));
+
+        expect(rendered.toLowerCase(), isNot(contains('zurücksetzen')));
+        expect(rendered.toLowerCase(), isNot(contains('reset')));
+        expect(rendered.toLowerCase(), isNot(contains('neu starten')));
+
+        await close(tester);
+      });
+
+      testWidgets('a dispensing machine is not reported as unavailable',
+          (tester) async {
+        final rendered = await open(
+          tester,
+          DispenserHealth(
+            protocol: dispenserProtocolVersion,
+            state: DispenserDeviceState.dispensing,
+            totalDispenses: 4,
+            successful: 4,
+            jams: 0,
+            successRate: 100,
+          ),
+          locale: const Locale('de'),
+        );
+
+        expect(rendered, contains('Online'));
+        expect(rendered, isNot(contains('Stau oder leer')));
+
+        await close(tester);
+      });
     });
   });
 }

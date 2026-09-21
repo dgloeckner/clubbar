@@ -68,19 +68,25 @@ code: it used to be asserted against a headless replica
 (`support/flow_dispense_session.dart`, now deleted), which could only ever be
 as accurate as the day someone last kept it in step.
 
-## Scenarios that are skipped, and what un-skips them
+## Nothing is skipped
 
-Every skip names an issue. None of them is "this is flaky".
+Every scenario of #950's table runs on every pass. The five skips it used to carry were
+each waiting for something real, and each was lifted by the issue that owned
+it:
 
-| Scenario | Why it is skipped |
+| Scenario | What lifted it |
 |---|---|
-| dispenser unreachable, nothing billed and nothing left over (#947) | **Red today**: the tracking row survives as `not_found` and becomes a permanent "manual reconciliation" entry for a dispense that never started. |
-| reset mid-dispense, tokens still billed | Needs a newer **mock**: at the pinned commit `crash_after_first` clears the transaction without keeping history, so no terminal behaviour can recover the count. Unblocked by the persisted ring in `dgloeckner/remote-token-dispenser#3` plus a pin bump. |
-| protocol 1 is unavailable, not degraded | Needs a newer **mock**: no `--protocol` flag and no `protocol` field in `/health` at the pinned commit. Lands with #948 once protocol 2 exists. |
+| dropout vs. recovery tick, billed once | #945 |
+| polling timeout, the rest billed by reconcile | #946 |
+| dispenser unreachable, nothing billed and nothing left over | #947 |
+| reset mid-dispense, tokens still billed | the pin bump to F3 (#947) |
+| protocol 1 is unavailable, not degraded | the pin bump to F6 plus #948 |
 
-The first is the red test the epic still owes. It is committed skipped rather
-than failing, because this repository's Test Verification Policy is that `main`
-stays green; the issue that owns it removes its `skip:` in the same pull
-request as its fix — as #945 did with *dropout vs. recovery tick, billed once*
-and #946 with *polling timeout, rest billed by reconcile*, both of which now
-run on every pass of this suite.
+A scenario is committed **skipped** only while it waits for a newer mock or
+for the issue that owns its fix, and the skip names that issue — never "this
+is flaky". The issue removes its `skip:` in the same pull request as the fix.
+
+**The mock's claim can be steered.** `DispenserFlowHarness.start(protocolClaim: 1)`
+passes `--protocol 1` to the mock: it *claims* protocol 1 and behaves like
+protocol 2, which is what makes "unavailable, not degraded" a clean fixture —
+the only thing wrong with that dispenser is the version it reports.

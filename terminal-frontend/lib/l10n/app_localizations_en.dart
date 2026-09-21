@@ -556,6 +556,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dispenserStateUnknown => 'Unknown';
 
   @override
+  String get dispenserStateFault => 'Fault';
+
+  @override
+  String get dispenserProtocol => 'Protocol';
+
+  @override
+  String get dispenserUnavailableShort => 'Unavailable';
+
+  @override
+  String get dispenserReason => 'Reason';
+
+  @override
+  String get dispenserUnavailableOffline => 'Unreachable';
+
+  @override
+  String get dispenserUnavailableJam => 'Jammed or empty';
+
+  @override
+  String dispenserUnavailableHopperError(int code) {
+    return 'Hopper error $code';
+  }
+
+  @override
+  String get dispenserUnavailableFault => 'Fault';
+
+  @override
+  String get dispenserUnavailableProtocol => 'Protocol mismatch';
+
+  @override
+  String dispenserProtocolDetail(int reported, int expected) {
+    return 'Device: protocol $reported · expected: $expected';
+  }
+
+  @override
+  String get dispenserFaultInstruction =>
+      'Clear the jam, refill if empty, then unplug the dispenser for 5 seconds.';
+
+  @override
+  String get dispenserOfflineInstruction =>
+      'Check the dispenser\'s power and WiFi.';
+
+  @override
+  String get dispenserProtocolInstruction =>
+      'The dispenser firmware and the terminal software do not match — please report this to an admin.';
+
+  @override
   String get tabOverview => 'Overview';
 
   @override
@@ -669,6 +715,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorDispenserMixedProducts =>
       'Only one kind of token can be dispensed per purchase — please take one of them out of your cart and buy it separately.';
+
+  @override
+  String get errorDispenserFaulted =>
+      'The token dispenser has a fault and cannot hand out tokens — please see the bar staff. You can still buy everything else.';
 
   @override
   String get errorDispenserCountUnreliable =>

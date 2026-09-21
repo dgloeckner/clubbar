@@ -17,10 +17,18 @@ import 'dart:io';
 /// Neither set is a hard failure, not a skip: a flow suite that quietly passes
 /// without ever reaching the mock is worth less than no suite at all.
 class MockDispenser {
-  MockDispenser._(this._binary, this.apiKey);
+  MockDispenser._(this._binary, this.apiKey, this.protocolClaim);
 
   final String _binary;
   final String apiKey;
+
+  /// The protocol version the mock **claims** in `/health`.
+  ///
+  /// `--protocol` changes the claim and nothing else: the mock keeps behaving
+  /// like protocol 2. That is exactly what a handshake test needs — a device
+  /// that works perfectly and must still be refused, so "unavailable" cannot
+  /// be mistaken for "broken" (#948).
+  final int protocolClaim;
 
   Process? _process;
   int? _port;
@@ -51,8 +59,12 @@ class MockDispenser {
   List<String> get log => List.unmodifiable(_log);
 
   /// Resolves the binary (building it from source when asked to) and starts it.
-  static Future<MockDispenser> start({String apiKey = 'flow-test-key'}) async {
-    final mock = MockDispenser._(await _resolveBinary(), apiKey);
+  static Future<MockDispenser> start({
+    String apiKey = 'flow-test-key',
+    int protocolClaim = 2,
+  }) async {
+    final mock =
+        MockDispenser._(await _resolveBinary(), apiKey, protocolClaim);
     await mock.launch();
     return mock;
   }
@@ -103,6 +115,8 @@ class MockDispenser {
       '127.0.0.1:$_port',
       '--api-key',
       apiKey,
+      '--protocol',
+      '$protocolClaim',
     ]);
     _process = process;
     process.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen(_log.add);
