@@ -107,6 +107,7 @@ use App\Modules\Notifications\Services\CreditLimitDigestNotifier;
 use App\Modules\Notifications\Services\CreditLimitDigestService;
 use App\Modules\Notifications\Services\BackupHealthMailBuilder;
 use App\Modules\Notifications\Services\BackupHealthNotifier;
+use App\Modules\Notifications\Services\DispenserAttentionMailBuilder;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\MemberLifecycleMailBuilder;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -904,6 +905,7 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeyEventMailBuilder(),
             $this->getCreditLimitDigestMailBuilder(),
             $this->getBackupHealthMailBuilder(),
+            $this->getDispenserAttentionMailBuilder(),
             $this->getMemberLifecycleMailBuilder(),
             $this->getRegistrationLinkMailBuilder(),
         ));
@@ -954,6 +956,23 @@ class ServiceFactory implements ContainerInterface
             $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->logger,
+        ));
+    }
+
+    /**
+     * #956. Like the two builders above, the queue row carries no content: the
+     * terminal is in `subject_id`, the occasion in `dedup_key`, and everything
+     * the reader sees is read from the terminal row at send time — so a jam
+     * cleared between the scan and the drain renders as good news rather than
+     * as a claim that is no longer true.
+     */
+    public function getDispenserAttentionMailBuilder(): DispenserAttentionMailBuilder
+    {
+        return $this->resolve(DispenserAttentionMailBuilder::class, fn() => new DispenserAttentionMailBuilder(
+            $this->getTerminalsRepository(),
+            $this->getDispenserFillService(),
+            $this->getAdminUsersRepository(),
+            $this->config->appUrl,
         ));
     }
 
