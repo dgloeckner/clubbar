@@ -12,6 +12,7 @@ import 'package:clubbar_terminal/repository/sync_repository.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 import 'package:clubbar_terminal/services/sync_service.dart';
+import 'package:clubbar_terminal/services/terminal_status_reporter.dart';
 
 // Mock classes
 class MockNetworkService extends Mock implements NetworkService {}
@@ -23,6 +24,9 @@ class MockProductsRepository extends Mock implements ProductsRepository {}
 class MockTransactionsRepository extends Mock implements TransactionsRepository {}
 
 class MockSyncRepository extends Mock implements SyncRepository {}
+
+class MockTerminalStatusReporter extends Mock
+    implements TerminalStatusReporter {}
 
 void main() {
   group('SyncService', () {
@@ -1263,6 +1267,71 @@ void main() {
       test('returns null for a non-NetworkException error', () {
         expect(SyncService.credentialRefusalReasonFor('not an exception'), isNull);
         expect(SyncService.credentialRefusalReasonFor(null), isNull);
+      });
+    });
+
+    /// The dispenser status rides the sync cadence (ADR-0057, #953) — and it
+    /// is the one thing in the cycle that is allowed to fail without anybody
+    /// noticing. A bar that cannot sell beer because a peripheral's telemetry
+    /// was refused is the failure this wiring exists to prevent.
+    group('dispenser status reporting', () {
+      late MockTerminalStatusReporter reporter;
+      late SyncService reportingSync;
+
+      setUp(() {
+        reporter = MockTerminalStatusReporter();
+        reportingSync = SyncService(
+          networkService: mockNetworkService,
+          membersRepo: mockMembersRepo,
+          productsRepo: mockProductsRepo,
+          transactionsRepo: mockTransactionsRepo,
+          syncRepo: mockSyncRepo,
+          statusReporter: reporter,
+        );
+        when(() => mockSyncRepo.setLastSyncError(any()))
+            .thenAnswer((_) async => {});
+        when(() => mockSyncRepo.incrementSyncRetryCount())
+            .thenAnswer((_) async => {});
+      });
+
+      test('every cycle reports', () async {
+        stubReferenceDataSync();
+        when(() => reporter.reportNow()).thenAnswer((_) async {});
+
+        expect(await reportingSync.syncAll(), equals(SyncResult.success));
+
+        verify(() => reporter.reportNow()).called(1);
+      });
+
+      test('a failed cycle reports too', () async {
+        // The terminal nobody can see is exactly the one whose status is
+        // worth having, so this runs in the `finally` rather than after a
+        // success.
+        when(() => mockNetworkService.syncMembers(since: any(named: 'since')))
+            .thenThrow(NetworkException('the backend is down'));
+        when(() => reporter.reportNow()).thenAnswer((_) async {});
+
+        expect(await reportingSync.syncAll(), equals(SyncResult.failure));
+
+        verify(() => reporter.reportNow()).called(1);
+      });
+
+      test('a reporter that throws does not fail the cycle', () async {
+        stubReferenceDataSync();
+        when(() => reporter.reportNow()).thenThrow(Exception('telemetry blew up'));
+
+        expect(await reportingSync.syncAll(), equals(SyncResult.success));
+      });
+
+      test('a report whose future fails does not fail the cycle', () async {
+        stubReferenceDataSync();
+        when(() => reporter.reportNow())
+            .thenAnswer((_) async => throw NetworkException('HTTP 500'));
+
+        expect(await reportingSync.syncAll(), equals(SyncResult.success));
+        // And the cycle is still recorded as the success it was: a refused
+        // report must not leave a sync error behind it.
+        verifyNever(() => mockSyncRepo.setLastSyncError(any()));
       });
     });
   });
