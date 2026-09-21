@@ -38,7 +38,7 @@ import { randomUUID } from 'node:crypto'
 import type { APIRequestContext } from '@playwright/test'
 
 import { test, expect } from '../../fixtures/pageObjects'
-import { loginAs } from '../../utils/csrf'
+import { loginAs, type CsrfAwareContext } from '../../utils/csrf'
 import { stepUp } from '../../fixtures/stepUp'
 import { TEST_CREDENTIALS } from '../../config/test-credentials'
 import { SettingsPage } from '../../pages/SettingsPage'
@@ -48,7 +48,7 @@ type Playwright = typeof import('playwright-core')
 const API_BASE = 'http://localhost:8080/api'
 
 /** An admin context of its own, so nothing here disturbs the page's session. */
-async function asAdmin<T>(playwright: Playwright, run: (ctx: APIRequestContext) => Promise<T>): Promise<T> {
+async function asAdmin<T>(playwright: Playwright, run: (ctx: CsrfAwareContext) => Promise<T>): Promise<T> {
   const ctx = await loginAs(playwright, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password)
   try {
     return await run(ctx)
