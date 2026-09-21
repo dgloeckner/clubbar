@@ -1,4 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:clubbar_terminal/generated/terminal.enums.swagger.dart'
+    as api_enums;
+import 'package:clubbar_terminal/generated/terminal.swagger.dart';
 import 'package:clubbar_terminal/services/network_service.dart';
 
 void main() {
@@ -43,6 +49,99 @@ void main() {
       final service = NetworkService(baseUrl: 'http://localhost:19999/api');
       final result = await service.fetchInstanceId();
       expect(result, isNull);
+    });
+  });
+
+  /// The one place the status report's wire shape is asserted against a real
+  /// socket (#953). Everything else about it is a model; this is what the
+  /// backend actually receives — the route, the verb, the bearer token that
+  /// names the terminal, and a body of counts and nothing else.
+  group('NetworkService.reportTerminalStatus', () {
+    late HttpServer server;
+    late List<HttpRequest> received;
+    late List<String> bodies;
+    int status = 204;
+
+    setUp(() async {
+      received = [];
+      bodies = [];
+      status = 204;
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        received.add(request);
+        bodies.add(await utf8.decoder.bind(request).join());
+        request.response.statusCode = status;
+        await request.response.close();
+      });
+    });
+
+    tearDown(() => server.close(force: true));
+
+    NetworkService serviceUnderTest() {
+      final service =
+          NetworkService(baseUrl: 'http://127.0.0.1:${server.port}/api');
+      service.setAuthToken('terminal-token');
+      return service;
+    }
+
+    const report = TerminalStatusReport(
+      dispenser: DispenserStatus(
+        configured: true,
+        contact: api_enums.DispenserStatusContact.reported,
+        state: api_enums.DispenserStatusState.idle,
+        fault: api_enums.DispenserStatusFault.none,
+        faultCode: 0,
+        pendingReconciliations: 0,
+        manualReconciliations: 0,
+      ),
+    );
+
+    test('PUTs the report to the sync route, named by its bearer token',
+        () async {
+      await serviceUnderTest().reportTerminalStatus(report);
+
+      expect(received, hasLength(1));
+      expect(received.single.method, 'PUT');
+      expect(received.single.uri.path, '/api/sync/terminal-status');
+      expect(received.single.headers.value('authorization'),
+          'Bearer terminal-token');
+
+      final body = jsonDecode(bodies.single) as Map<String, dynamic>;
+      expect(body.keys, ['dispenser']);
+      final dispenser = body['dispenser'] as Map<String, dynamic>;
+      expect(dispenser['configured'], isTrue);
+      expect(dispenser['contact'], 'reported');
+      expect(dispenser['state'], 'idle');
+      expect(dispenser['fault'], 'none');
+      // Nothing naming a person or a purchase reaches the wire.
+      expect(bodies.single.contains('member'), isFalse);
+      expect(bodies.single.contains('tx_id'), isFalse);
+      // The verdict is the backend's to derive, never the terminal's to send:
+      // a reason on the wire could contradict the state beside it.
+      expect(dispenser.containsKey('available'), isFalse);
+      expect(dispenser.containsKey('unavailable_reason'), isFalse);
+      expect(dispenser.containsKey('state_since'), isFalse);
+    });
+
+    test('a non-204 answer is a transport failure, and says so', () async {
+      // The route answers 204 for a stored report and a dropped one alike,
+      // so anything else came from something other than the route.
+      status = 503;
+
+      await expectLater(
+        serviceUnderTest().reportTerminalStatus(report),
+        throwsA(isA<NetworkException>()
+            .having((e) => e.statusCode, 'statusCode', 503)),
+      );
+    });
+
+    test('throws rather than hanging when nothing is listening', () async {
+      final port = server.port;
+      await server.close(force: true);
+      final service = NetworkService(baseUrl: 'http://127.0.0.1:$port/api');
+
+      await expectLater(service.reportTerminalStatus(report),
+          throwsA(isA<NetworkException>()));
     });
   });
 
