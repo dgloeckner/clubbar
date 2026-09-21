@@ -66,5 +66,53 @@ void main() {
       expect(service.currentHealth!.unavailableReason,
           equals(DispenserUnavailableReason.jam));
     });
+
+    /// When the reading was taken, which travels to the backend as
+    /// `observed_at` (#953). The terminal's own clock: an ESP8266 has no wall
+    /// clock and reports an uptime instead.
+    group('lastCheckedAt', () {
+      test('is null until the first poll answers', () {
+        expect(service.lastCheckedAt, isNull);
+      });
+
+      test('is stamped in UTC on a reading', () async {
+        when(() => client.getHealth()).thenAnswer((_) async => DispenserHealth(
+              protocol: dispenserProtocolVersion,
+              state: DispenserDeviceState.idle,
+              totalDispenses: 0,
+              successful: 0,
+              jams: 0,
+              successRate: 0,
+            ));
+
+        await service.checkNow();
+
+        expect(service.lastCheckedAt, isNotNull);
+        expect(service.lastCheckedAt!.isUtc, isTrue);
+      });
+
+      test('a failed poll is a reading too', () async {
+        // "We looked at 20:14 and nothing was there" is a fact with a time on
+        // it; without one, an outage would be dated to the last time the
+        // machine answered.
+        when(() => client.getHealth())
+            .thenThrow(DispenserException('connection refused'));
+
+        await service.checkNow();
+
+        expect(service.currentHealth!.contact,
+            equals(DispenserContact.unreachable));
+        expect(service.lastCheckedAt, isNotNull);
+      });
+
+      test('a protocol mismatch is a reading too', () async {
+        when(() => client.getHealth()).thenThrow(
+            DispenserProtocolException('nope', reportedProtocol: 1));
+
+        await service.checkNow();
+
+        expect(service.lastCheckedAt, isNotNull);
+      });
+    });
   });
 }

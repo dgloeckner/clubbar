@@ -274,6 +274,15 @@ class DispenserHealth {
 
   final int? uptime; // seconds
   final String? firmware;
+
+  /// Why the controller last booted, in the SDK's own words ("Power on",
+  /// "Software Watchdog", …) — `null` when the device did not say.
+  ///
+  /// Read leniently on purpose, unlike everything above it: it is free-form
+  /// text a reader compares against the previous value rather than parses
+  /// (`dispenser-protocol.md`, *GET /health*), and a firmware that stopped
+  /// sending it must not turn a working machine into a protocol mismatch.
+  final String? resetReason;
   final WifiInfo? wifi;
   final int? failures;
   final int? partial;
@@ -302,6 +311,7 @@ class DispenserHealth {
     required this.successRate,
     this.uptime,
     this.firmware,
+    this.resetReason,
     this.wifi,
     this.failures,
     this.partial,
@@ -402,6 +412,9 @@ class DispenserHealth {
       successRate: successRate,
       uptime: _optionalInt(json, 'uptime'),
       firmware: json['firmware'] as String?,
+      resetReason: json['reset_reason'] is String
+          ? json['reset_reason'] as String
+          : null,
       wifi: wifi,
       failures: _optionalInt(metrics, 'failures'),
       partial: _optionalInt(metrics, 'partial'),

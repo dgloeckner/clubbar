@@ -318,6 +318,7 @@ void main() {
             'fault_code': faultCode,
             'uptime': 84230,
             'firmware': '1.2.0',
+            'reset_reason': 'Power on',
             'wifi': {'rssi': -47, 'ip': '192.168.188.243', 'ssid': 'Ponyhof'},
             'metrics': {
               'total_dispenses': 150,
@@ -364,7 +365,21 @@ void main() {
         expect(result.overrunTokens, equals(4));
         expect(result.filteredPulses, equals(11));
         expect(result.wifi!.ssid, equals('Ponyhof'));
+        expect(result.resetReason, equals('Power on'));
         expect(result.errorHistory!.single.type, equals('JAM_PERMANENT'));
+      });
+
+      test('a document without a reset reason is still a good document',
+          () async {
+        // Free-form text a reader compares against its previous value, not a
+        // field any verdict rests on: a firmware that stops sending it must
+        // not turn a working machine into a protocol mismatch (#953).
+        answers(healthDocument()..remove('reset_reason'));
+
+        final result = await client.getHealth();
+
+        expect(result.resetReason, isNull);
+        expect(result.isUnavailable, isFalse);
       });
 
       test('a jam is unavailable and names its errand', () async {
