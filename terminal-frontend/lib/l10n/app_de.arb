@@ -757,6 +757,39 @@
   "@dispenserStateOffline": { "description": "Dispenser machine state: offline/unreachable" },
   "dispenserStateUnknown": "Unbekannt",
   "@dispenserStateUnknown": { "description": "Dispenser machine state: unknown/unexpected value" },
+  "dispenserStateFault": "Störung",
+  "@dispenserStateFault": { "description": "Dispenser device state: fault — the machine needs a human and only a power cycle clears it (#948)" },
+
+  "dispenserProtocol": "Protokoll",
+  "@dispenserProtocol": { "description": "Label of the row showing the protocol versions behind a mismatch (#948)" },
+  "dispenserUnavailableShort": "Nicht verfügbar",
+  "@dispenserUnavailableShort": { "description": "Status value for a dispenser that cannot serve a token right now; the reason row next to it says which (#948)" },
+  "dispenserReason": "Grund",
+  "@dispenserReason": { "description": "Label of the row naming why the dispenser is unavailable (#948)" },
+  "dispenserUnavailableOffline": "Nicht erreichbar",
+  "@dispenserUnavailableOffline": { "description": "Reason: nothing answered at the dispenser's address" },
+  "dispenserUnavailableJam": "Stau oder leer",
+  "@dispenserUnavailableJam": { "description": "Reason: fault=jam. The device cannot tell a wedged token from an empty hopper, and the copy must not pretend it can (#948)" },
+  "dispenserUnavailableHopperError": "Hopper-Fehler {code}",
+  "@dispenserUnavailableHopperError": {
+    "description": "Reason: fault=hopper_error, with the Azkoyen code 1-7 the hopper reported",
+    "placeholders": { "code": { "type": "int" } }
+  },
+  "dispenserUnavailableFault": "Störung",
+  "@dispenserUnavailableFault": { "description": "Reason: the device reports a fault state without naming a fault" },
+  "dispenserUnavailableProtocol": "Protokoll passt nicht",
+  "@dispenserUnavailableProtocol": { "description": "Reason: the device answered in a protocol this terminal does not speak — deliberately not 'offline' (#948)" },
+  "dispenserProtocolDetail": "Gerät: Protokoll {reported} · erwartet: {expected}",
+  "@dispenserProtocolDetail": {
+    "description": "The two protocol versions behind a mismatch",
+    "placeholders": { "reported": { "type": "int" }, "expected": { "type": "int" } }
+  },
+  "dispenserFaultInstruction": "Stau beseitigen, bei Bedarf nachfüllen, dann das Gerät 5 Sekunden vom Strom trennen.",
+  "@dispenserFaultInstruction": { "description": "What staff must do about a fault. There is no reset from the kiosk — a power cycle is the only way (owner decision, #948)" },
+  "dispenserOfflineInstruction": "Strom und WLAN des Ausgabegeräts prüfen.",
+  "@dispenserOfflineInstruction": { "description": "What staff should check when the dispenser does not answer" },
+  "dispenserProtocolInstruction": "Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – bitte einem Admin melden.",
+  "@dispenserProtocolInstruction": { "description": "What to do about a protocol mismatch: it is a deployment problem, not something to clear at the machine" },
 
   "tabOverview": "Übersicht",
   "tabDispenserStatus": "Ausgabegerät-Status",
@@ -865,6 +898,10 @@
   "errorDispenserMixedProducts": "Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.",
   "@errorDispenserMixedProducts": {
     "description": "TerminalErrorKey.dispenserMixedProducts — the cart holds two different products that both need the dispenser (#949). The dispenser is told a count, never a product, so the member is asked to split the purchase instead of being billed at one of the two prices."
+  },
+  "errorDispenserFaulted": "Der Token-Automat hat eine Störung und gibt gerade keine Token aus – bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.",
+  "@errorDispenserFaulted": {
+    "description": "TerminalErrorKey.dispenserFaulted — the device refused the dispense because it has a fault: a jam, an empty hopper or a hopper error (#948). Only a power cycle clears it, so the copy names the bar team and the workaround instead of offering a retry."
   },
   "errorDispenserCountUnreliable": "Der Automat konnte nicht sicher zählen, wie viele Token herausgekommen sind. Dir wurde nichts berechnet – bitte beim Bar-Team melden.",
   "@errorDispenserCountUnreliable": {

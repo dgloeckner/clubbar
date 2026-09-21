@@ -2,6 +2,7 @@
 library;
 
 import 'package:clubbar_terminal/database/database.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,8 +23,10 @@ void main() {
 
   Future<void> boot({
     Duration timeoutPerToken = const Duration(seconds: 2),
+    int protocolClaim = 2,
   }) async {
-    harness = await DispenserFlowHarness.start(timeoutPerToken: timeoutPerToken);
+    harness = await DispenserFlowHarness.start(
+        timeoutPerToken: timeoutPerToken, protocolClaim: protocolClaim);
   }
 
   tearDown(() async {
@@ -260,14 +263,40 @@ void main() {
     });
   });
 
-  group('pending a newer mock — the pin in build.yaml is what unblocks these',
-      () {
-    // The pin moved to F3 with #947, which is what unblocked the reset
-    // scenario above. This one waits for protocol 2.
-    test('a dispenser speaking protocol 1 is unavailable, not degraded',
-        () async {},
-        skip: 'The mock at the pinned commit has no --protocol flag and no '
-            'protocol field in /health. Needs protocol 2 '
-            '(dgloeckner/remote-token-dispenser#1, #6) and lands with #948.');
+  // Unblocked by the pin bump to F6, which brought `--protocol`: the mock
+  // claims protocol 1 and behaves like protocol 2, so the only thing wrong
+  // with this dispenser is the version it reports.
+  test('a dispenser speaking protocol 1 is unavailable, not degraded',
+      () async {
+    await boot(protocolClaim: 1);
+
+    // The device itself is fine — idle, answering, ready to dispense. That is
+    // what makes this a handshake test and not an outage test.
+    final raw = await harness.rawHealth();
+    expect(raw['protocol'], 1);
+    expect(raw['state'], 'idle');
+
+    await harness.health.checkNow();
+    final health = harness.health.currentHealth!;
+
+    expect(health.isUnavailable, isTrue,
+        reason: 'the terminal requires the exact version it was built for');
+    expect(health.unavailableReason,
+        DispenserUnavailableReason.protocolMismatch,
+        reason: 'reported as a mismatch, never as the network fault that the '
+            'hard casts used to invent');
+    expect(health.unavailableReason,
+        isNot(DispenserUnavailableReason.offline));
+    expect(health.protocol, 1,
+        reason: 'the claimed version is what the kiosk and the admin panel '
+            'show');
+
+    // And the consequence the member sees: the token is off the grid. A
+    // mismatch must never degrade into "works, mostly".
+    expect(harness.products.isProductAvailable(DispenserFlowHarness.tokenProduct),
+        isFalse);
+
+    expect(await harness.billedTokens(), 0);
+    expect(await harness.trackingRows(), isEmpty);
   });
 }

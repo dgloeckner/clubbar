@@ -49,6 +49,15 @@ class DispenserHealthService extends ChangeNotifier {
       final health = await client.getHealth();
       _lastHealth = health;
       notifyListeners(); // Notify UI of health status change
+    } on DispenserProtocolException catch (e) {
+      // The device answered — in a protocol this terminal does not speak, or
+      // in a shape it could not read. That is *not* offline, and reporting it
+      // as offline sent whoever was called out looking for a network fault
+      // that did not exist (#948). The dispenser is unavailable either way;
+      // only the reason on the screen differs, and the reason is the point.
+      _lastHealth =
+          DispenserHealth.protocolMismatch(reportedProtocol: e.reportedProtocol);
+      notifyListeners();
     } catch (e) {
       // Dispenser offline or unreachable
       _lastHealth = DispenserHealth.offline();

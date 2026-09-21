@@ -66,6 +66,9 @@ void main() {
                 'state': 'dispensing',
                 'quantity': quantity,
                 'dispensed': 0,
+              'count_reliable': true,
+              'error_code': 0,
+              'error_type': 'NONE',
               }),
               200,
             ));
@@ -105,6 +108,9 @@ void main() {
                 'state': 'dispensing',
                 'quantity': quantity,
                 'dispensed': 1,
+              'count_reliable': true,
+              'error_code': 0,
+              'error_type': 'NONE',
               }),
               200,
             ));
@@ -130,6 +136,56 @@ void main() {
         expect(
           () => client.dispenseTokens(txId: 'test123', quantity: 2),
           throwsA(isA<DispenserBusyException>()),
+        );
+      });
+
+      test('a 409 naming a fault is a fault, not "busy"', () async {
+        // Two different answers used to arrive as the same exception: "wait,
+        // somebody else is using it" and "somebody has to walk over" (#948).
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async => http.Response(
+              jsonEncode({
+                'error': 'fault',
+                'fault': 'hopper_error',
+                'fault_code': 3,
+              }),
+              409,
+            ));
+
+        await expectLater(
+          client.dispenseTokens(txId: 'test123', quantity: 2),
+          throwsA(isA<DispenserFaultException>()
+              .having((e) => e.fault, 'fault', DispenserFault.hopperError)
+              .having((e) => e.faultCode, 'faultCode', 3)),
+        );
+      });
+
+      test('a response without count_reliable is a protocol error', () async {
+        // Not a default, and above all not `false`: "we do not know how many
+        // fell" read as "we counted zero" is the reading that bills nothing
+        // while the tray is full (#948).
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async => http.Response(
+              jsonEncode({
+                'tx_id': 'abc12345',
+                'state': 'dispensing',
+                'quantity': 3,
+                'dispensed': 0,
+                'error_code': 0,
+                'error_type': 'NONE',
+              }),
+              200,
+            ));
+
+        await expectLater(
+          client.dispenseTokens(txId: 'abc12345', quantity: 3),
+          throwsA(isA<DispenserProtocolException>()),
         );
       });
 
@@ -183,6 +239,9 @@ void main() {
                 'state': 'done',
                 'quantity': 3,
                 'dispensed': 3,
+              'count_reliable': true,
+              'error_code': 0,
+              'error_type': 'NONE',
               }),
               200,
             ));
@@ -213,6 +272,9 @@ void main() {
                 'state': 'done',
                 'quantity': 3,
                 'dispensed': 3,
+              'count_reliable': true,
+              'error_code': 0,
+              'error_type': 'NONE',
               }),
               200,
             ));
@@ -242,93 +304,141 @@ void main() {
     });
 
     group('getHealth', () {
-      test('parses health metrics correctly', () async {
+      /// A whole protocol-2 document, as `dispenser-protocol.md` prints it.
+      Map<String, dynamic> healthDocument({
+        int protocol = 2,
+        String state = 'idle',
+        String fault = 'none',
+        int faultCode = 0,
+      }) =>
+          {
+            'protocol': protocol,
+            'state': state,
+            'fault': fault,
+            'fault_code': faultCode,
+            'uptime': 84230,
+            'firmware': '1.2.0',
+            'wifi': {'rssi': -47, 'ip': '192.168.188.243', 'ssid': 'Ponyhof'},
+            'metrics': {
+              'total_dispenses': 150,
+              'successful': 147,
+              'jams': 3,
+              'partial': 2,
+              'crashes': 1,
+              'failures': 3,
+              'requested_tokens': 320,
+              'dispensed_tokens': 318,
+              'overrun_tokens': 4,
+              'filtered_pulses': 11,
+            },
+            'error_history': [
+              {'code': 3, 'type': 'JAM_PERMANENT', 'timestamp': 82150},
+            ],
+          };
+
+      void answers(Object body, {int status = 200}) {
         when(() => mockHttpClient.get(
               any(),
               headers: any(named: 'headers'),
             )).thenAnswer((_) async => http.Response(
-              jsonEncode({
-                'status': 'ok',
-                'dispenser': 'idle',
-                'metrics': {
-                  'total_dispenses': 150,
-                  'successful': 147,
-                  'jams': 3,
-                }
-              }),
-              200,
+              body is String ? body : jsonEncode(body),
+              status,
             ));
+      }
+
+      test('health parses the protocol 2 document', () async {
+        answers(healthDocument());
 
         final result = await client.getHealth();
 
-        expect(result.status, equals('ok'));
-        expect(result.dispenser, equals('idle'));
+        expect(result.protocol, equals(2));
+        expect(result.state, equals(DispenserDeviceState.idle));
+        expect(result.fault, equals(DispenserFault.none));
+        expect(result.faultCode, equals(0));
+        expect(result.isUnavailable, isFalse);
+        expect(result.unavailableReason, isNull);
         expect(result.totalDispenses, equals(150));
         expect(result.successful, equals(147));
         expect(result.jams, equals(3));
+        expect(result.successRate, closeTo(98.0, 0.001));
+        expect(result.overrunTokens, equals(4));
+        expect(result.filteredPulses, equals(11));
+        expect(result.wifi!.ssid, equals('Ponyhof'));
+        expect(result.errorHistory!.single.type, equals('JAM_PERMANENT'));
       });
 
-      test('calculates successRate correctly', () async {
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              jsonEncode({
-                'status': 'ok',
-                'dispenser': 'idle',
-                'metrics': {
-                  'total_dispenses': 200,
-                  'successful': 190,
-                  'jams': 10,
-                }
-              }),
-              200,
-            ));
+      test('a jam is unavailable and names its errand', () async {
+        answers(healthDocument(state: 'fault', fault: 'jam'));
 
         final result = await client.getHealth();
 
-        // 190/200 * 100 = 95.0
-        expect(result.successRate, equals(95.0));
+        expect(result.isUnavailable, isTrue);
+        expect(result.needsAttendance, isTrue);
+        expect(result.unavailableReason,
+            equals(DispenserUnavailableReason.jam));
       });
 
-      test('handles zero dispenses correctly', () async {
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              jsonEncode({
-                'status': 'ok',
-                'dispenser': 'idle',
-                'metrics': {
-                  'total_dispenses': 0,
-                  'successful': 0,
-                  'jams': 0,
-                }
-              }),
-              200,
-            ));
+      test('a hopper error carries the Azkoyen code', () async {
+        answers(healthDocument(
+            state: 'fault', fault: 'hopper_error', faultCode: 5));
 
         final result = await client.getHealth();
 
-        expect(result.successRate, equals(0.0));
+        expect(result.unavailableReason,
+            equals(DispenserUnavailableReason.hopperError));
+        expect(result.faultCode, equals(5));
+      });
+
+      test('dispensing is busy, not unavailable', () async {
+        answers(healthDocument(state: 'dispensing'));
+
+        final result = await client.getHealth();
+
+        expect(result.isUnavailable, isFalse);
+      });
+
+      test('a wrong protocol version is a mismatch, not offline', () async {
+        answers(healthDocument(protocol: 1));
+
+        await expectLater(
+          client.getHealth(),
+          throwsA(isA<DispenserProtocolException>()
+              .having((e) => e.reportedProtocol, 'reportedProtocol', 1)),
+        );
+      });
+
+      test('a malformed health document is a mismatch, not offline', () async {
+        // Every one of these used to reach the caller as a `TypeError` out of
+        // a hard cast, which the health service turned into `offline` — a
+        // network fault that did not exist (#948).
+        final broken = <String, Map<String, dynamic>>{
+          'no protocol': healthDocument()..remove('protocol'),
+          'no state': healthDocument()..remove('state'),
+          'no fault': healthDocument()..remove('fault'),
+          'no fault_code': healthDocument()..remove('fault_code'),
+          'no metrics': healthDocument()..remove('metrics'),
+          'unknown state': healthDocument(state: 'wobbling'),
+          'unknown fault': healthDocument(fault: 'gremlins'),
+        };
+
+        for (final entry in broken.entries) {
+          answers(entry.value);
+          await expectLater(
+            client.getHealth(),
+            throwsA(isA<DispenserProtocolException>()),
+            reason: '${entry.key} must be a protocol error',
+          );
+        }
+
+        answers('<html>not json at all</html>');
+        await expectLater(
+          client.getHealth(),
+          throwsA(isA<DispenserProtocolException>()),
+        );
       });
 
       test('sends correct GET request to /health', () async {
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              jsonEncode({
-                'status': 'ok',
-                'dispenser': 'idle',
-                'metrics': {
-                  'total_dispenses': 0,
-                  'successful': 0,
-                  'jams': 0,
-                }
-              }),
-              200,
-            ));
+        answers(healthDocument());
 
         await client.getHealth();
 
@@ -346,15 +456,28 @@ void main() {
     });
 
     group('DispenserHealth.offline', () {
-      test('creates offline health state', () {
+      test('is unavailable for the reason "offline"', () {
         final health = DispenserHealth.offline();
 
-        expect(health.status, equals('error'));
-        expect(health.dispenser, equals('offline'));
+        expect(health.contact, equals(DispenserContact.unreachable));
+        expect(health.isUnavailable, isTrue);
+        expect(health.unavailableReason,
+            equals(DispenserUnavailableReason.offline));
+        expect(health.needsAttendance, isFalse,
+            reason: 'nobody has to open the machine for a network problem');
         expect(health.totalDispenses, equals(0));
-        expect(health.successful, equals(0));
-        expect(health.jams, equals(0));
         expect(health.successRate, equals(0.0));
+      });
+    });
+
+    group('DispenserHealth.protocolMismatch', () {
+      test('is unavailable, and never reads as offline', () {
+        final health = DispenserHealth.protocolMismatch(reportedProtocol: 1);
+
+        expect(health.isUnavailable, isTrue);
+        expect(health.unavailableReason,
+            equals(DispenserUnavailableReason.protocolMismatch));
+        expect(health.protocol, equals(1));
       });
     });
   });

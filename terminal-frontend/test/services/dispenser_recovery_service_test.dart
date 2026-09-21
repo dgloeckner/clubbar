@@ -96,7 +96,8 @@ void main() {
           txId: 'disp-abc',
           state: 'done',
           quantity: 3,
-          dispensed: 3, // ESP says 3 dispensed
+          dispensed: 3, // ESP says 3 dispensed,
+          countReliable: true,
         ),
       );
 
@@ -212,6 +213,7 @@ void main() {
           state: 'done',
           quantity: 1,
           dispensed: 1,
+          countReliable: true,
         ),
       );
 
@@ -247,6 +249,7 @@ void main() {
           state: 'done',
           quantity: 5,
           dispensed: 4,
+          countReliable: true,
         ),
       );
 
@@ -285,6 +288,7 @@ void main() {
           state: 'done', // Final state
           quantity: 1,
           dispensed: 1,
+          countReliable: true,
         ),
       );
 
@@ -316,6 +320,7 @@ void main() {
           state: 'error', // Final state
           quantity: 3,
           dispensed: 2,
+          countReliable: true,
         ),
       );
 
@@ -346,7 +351,8 @@ void main() {
           txId: 'disp-vwx',
           state: 'dispensing', // Not final
           quantity: 5,
-          dispensed: 2, // Partial progress
+          dispensed: 2, // Partial progress,
+          countReliable: true,
         ),
       );
 
@@ -465,7 +471,7 @@ void main() {
       await openDialogRow('disp-orphan');
       when(() => mockClient.getStatus('disp-orphan')).thenAnswer(
         (_) async => DispenseResult(
-            txId: 'disp-orphan', state: 'done', quantity: 5, dispensed: 5),
+            txId: 'disp-orphan', state: 'done', quantity: 5, dispensed: 5, countReliable: true),
       );
 
       await service.recoverAtStartup();
@@ -480,7 +486,7 @@ void main() {
       final op = await openDialogRow('disp-race');
       when(() => mockClient.getStatus('disp-race')).thenAnswer(
         (_) async => DispenseResult(
-            txId: 'disp-race', state: 'done', quantity: 5, dispensed: 5),
+            txId: 'disp-race', state: 'done', quantity: 5, dispensed: 5, countReliable: true),
       );
 
       // The tick gets there first (the dialog's flag having been cleared by a
@@ -496,7 +502,7 @@ void main() {
       final op = await openDialogRow('disp-race2');
       when(() => mockClient.getStatus('disp-race2')).thenAnswer(
         (_) async => DispenseResult(
-            txId: 'disp-race2', state: 'done', quantity: 5, dispensed: 5),
+            txId: 'disp-race2', state: 'done', quantity: 5, dispensed: 5, countReliable: true),
       );
 
       await cartService.billDispensedTokens(op, upTo: 5);
@@ -511,7 +517,7 @@ void main() {
       await openDialogRow('disp-late');
       when(() => mockClient.getStatus('disp-late')).thenAnswer(
         (_) async => DispenseResult(
-            txId: 'disp-late', state: 'done', quantity: 5, dispensed: 2),
+            txId: 'disp-late', state: 'done', quantity: 5, dispensed: 2, countReliable: true),
       );
 
       await service.recoverAtStartup();
@@ -532,7 +538,7 @@ void main() {
         // Six fell although five were asked for
         // (dgloeckner/remote-token-dispenser#5).
         (_) async => DispenseResult(
-            txId: 'disp-over', state: 'done', quantity: 5, dispensed: 6),
+            txId: 'disp-over', state: 'done', quantity: 5, dispensed: 6, countReliable: true),
       );
 
       await service.recoverAtStartup();
@@ -685,7 +691,7 @@ void main() {
       await openRow('disp-ack');
       when(() => mockClient.getStatus('disp-ack')).thenAnswer(
         (_) async => DispenseResult(
-            txId: 'disp-ack', state: 'dispensing', quantity: 3, dispensed: 1),
+            txId: 'disp-ack', state: 'dispensing', quantity: 3, dispensed: 1, countReliable: true),
       );
 
       await service.reconcile();

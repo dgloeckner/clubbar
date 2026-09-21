@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/models/cart_item.dart';
@@ -6,9 +8,13 @@ import 'package:clubbar_terminal/models/credit_limit.dart';
 import 'package:clubbar_terminal/providers/cart_provider.dart';
 import 'package:clubbar_terminal/repository/transactions_repository.dart';
 import 'package:clubbar_terminal/services/cart_service.dart';
+import 'package:clubbar_terminal/providers/products_provider.dart';
+import 'package:clubbar_terminal/repository/products_repository.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
 import 'package:clubbar_terminal/services/dispense_session.dart';
+import 'package:clubbar_terminal/services/products_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:drift/drift.dart';
@@ -44,6 +50,8 @@ class DispenserFlowHarness {
     required this.provider,
     required this.recovery,
     required this.client,
+    required this.health,
+    required this.products,
   });
 
   final MockDispenser mock;
@@ -53,6 +61,14 @@ class DispenserFlowHarness {
   final FlowCartProvider provider;
   final DispenserRecoveryService recovery;
   final DispenserClient client;
+
+  /// The real health poller, on the real client. It polls only when a
+  /// scenario asks it to (`checkNow`), so it never competes with a dispense
+  /// for the device's single connection.
+  final DispenserHealthService health;
+
+  /// The real grid provider, reading [health]: what the member can tap.
+  final ProductsProvider products;
 
   /// Whether the scenario expects the terminal to keep one request in flight
   /// at a time (finding 7, #946). True for every scenario where a single
@@ -79,15 +95,27 @@ class DispenserFlowHarness {
 
   /// Starts the mock, the proxy and an in-memory database, and wires the
   /// terminal's own services on top of them.
+  /// The token as the grid knows it, for [ProductsProvider.isProductAvailable].
+  static final ProductsCacheData tokenProduct = ProductsCacheData(
+    id: tokenProductId,
+    categoryId: 'cat-sauna',
+    names: '{"de":"Sauna-Token"}',
+    priceCents: tokenPriceCents,
+    isActive: 1,
+    requiresDispenser: 1,
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  );
+
   static Future<DispenserFlowHarness> start({
     Duration pollInterval = const Duration(milliseconds: 50),
     Duration timeoutPerToken = const Duration(seconds: 2),
     Duration requestTimeout = const Duration(seconds: 5),
     Duration retryDelay = const Duration(milliseconds: 100),
+    int protocolClaim = 2,
   }) async {
     _registerFallbacks();
 
-    final mock = await MockDispenser.start();
+    final mock = await MockDispenser.start(protocolClaim: protocolClaim);
     final proxy = await DispenserProxy.start(mock.baseUrl);
     final db = ClubBarDatabase.forTesting(NativeDatabase.memory());
 
@@ -132,6 +160,13 @@ class DispenserFlowHarness {
       cartService: cartService,
     );
 
+    final health = DispenserHealthService(client: client);
+    final products = ProductsProvider(
+      service: ProductsService(repository: ProductsRepository(db)),
+      config: config,
+      dispenserHealth: health,
+    );
+
     return DispenserFlowHarness._(
       mock: mock,
       proxy: proxy,
@@ -140,6 +175,8 @@ class DispenserFlowHarness {
       provider: provider,
       recovery: recovery,
       client: client,
+      health: health,
+      products: products,
     );
   }
 
@@ -220,7 +257,24 @@ class DispenserFlowHarness {
     }
   }
 
+  /// `GET /health` read straight off the mock, bypassing every terminal
+  /// class — what the device really says, for a scenario that asserts the
+  /// terminal refused a device that was working.
+  Future<Map<String, dynamic>> rawHealth() async {
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(Uri.parse('${mock.baseUrl}/health'));
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      return jsonDecode(body) as Map<String, dynamic>;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Future<void> dispose() async {
+    products.dispose();
+    health.dispose();
     recovery.dispose();
     await proxy.dispose();
     await mock.dispose();

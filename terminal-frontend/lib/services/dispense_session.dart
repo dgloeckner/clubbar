@@ -100,6 +100,11 @@ class DispenseSession extends ChangeNotifier {
   /// The last `state` the device itself sent, or null if it never answered.
   String? get lastReportedState => _lastReportedState;
 
+  /// The last `count_reliable` the device sent. True until it says otherwise:
+  /// a device that has not answered has not disclaimed its count either, and
+  /// no result is fabricated before the first answer anyway.
+  bool _lastCountReliable = true;
+
   DispenserException? _error;
 
   /// Why the session failed, when [phase] is [DispensePhase.failed].
@@ -166,7 +171,15 @@ class DispenseSession extends ChangeNotifier {
         return result;
       } on DispenserBusyException catch (e) {
         return _fail(e);
+      } on DispenserFaultException catch (e) {
+        // The device has a jam or a hopper error. Retrying cannot clear it —
+        // only a power cycle can (#948) — so this fails now and says why.
+        return _fail(e);
       } on DispenserNotFoundException catch (e) {
+        return _fail(e);
+      } on DispenserProtocolException catch (e) {
+        // A device speaking a protocol this terminal does not: no number of
+        // retries makes a schema match.
         return _fail(e);
       } on DispenserException catch (e) {
         if (attempt >= maxRetries || deadline.passed) {
@@ -202,6 +215,11 @@ class DispenseSession extends ChangeNotifier {
             state: _lastReportedState ?? 'dispensing',
             quantity: quantity,
             dispensed: _dispensed,
+            // The device's own last word about its count, carried through
+            // rather than assumed: a dispenser that already said it lost its
+            // tally does not become trustworthy because the terminal stopped
+            // watching (#948).
+            countReliable: _lastCountReliable,
           ));
         }
         return _fail(DispenserException(
@@ -229,6 +247,8 @@ class DispenseSession extends ChangeNotifier {
         if (result.state == 'error') return _finish(result);
       } on DispenserNotFoundException catch (e) {
         return _fail(e);
+      } on DispenserProtocolException catch (e) {
+        return _fail(e);
       } on DispenserException catch (e) {
         // Network trouble mid-poll: keep trying until the deadline. The next
         // request goes out only now, after this one has failed — that is what
@@ -241,6 +261,7 @@ class DispenseSession extends ChangeNotifier {
   /// Takes in what the device said, without ever letting the count regress.
   void _observe(DispenseResult result) {
     _lastReportedState = result.state;
+    _lastCountReliable = result.countReliable;
     if (result.dispensed > _dispensed) {
       _dispensed = result.dispensed;
       _notify();
