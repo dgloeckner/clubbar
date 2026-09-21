@@ -108,6 +108,7 @@ use App\Modules\Notifications\Services\CreditLimitDigestService;
 use App\Modules\Notifications\Services\BackupHealthMailBuilder;
 use App\Modules\Notifications\Services\BackupHealthNotifier;
 use App\Modules\Notifications\Services\DispenserAttentionMailBuilder;
+use App\Modules\Notifications\Services\DispenserAttentionNotifier;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\MemberLifecycleMailBuilder;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -973,6 +974,25 @@ class ServiceFactory implements ContainerInterface
             $this->getDispenserFillService(),
             $this->getAdminUsersRepository(),
             $this->config->appUrl,
+        ));
+    }
+
+    /**
+     * The scan that queues it, riding the mail tick (#956).
+     *
+     * Not the request that received the report: a status report must never cost
+     * a sale (ADR-0057), and the condition worth mailing about is one that has
+     * *held* — which only a later pass can know. See
+     * {@see DispenserAttentionNotifier}.
+     */
+    public function getDispenserAttentionNotifier(): DispenserAttentionNotifier
+    {
+        return $this->resolve(DispenserAttentionNotifier::class, fn() => new DispenserAttentionNotifier(
+            $this->getTerminalsRepository(),
+            $this->getDispenserFillService(),
+            $this->getAdminNotifier(),
+            $this->getMailConfigService(),
+            $this->logger,
         ));
     }
 

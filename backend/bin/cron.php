@@ -13,8 +13,8 @@
  *   php bin/cron.php --quiet           # say nothing unless something failed
  *
  * A run does two things in this order: it queues whatever periodic mail has
- * become due — the Deckelauszug (ADR-0039) and the credential expiry warnings
- * (#438) — then it drains. One entrypoint rather than two, because the install
+ * become due — the Deckelauszug (ADR-0039), the credential expiry warnings
+ * (#438) and the dispenser notices (#956) — then it drains. One entrypoint rather than two, because the install
  * gate (#405) and the heartbeat verify exactly one scheduled command and a
  * second one would be a job nothing watches.
  *
@@ -326,6 +326,30 @@ try {
         }
     } catch (\Throwable $e) {
         fwrite(STDERR, "Warning: backup health scan failed: {$e->getMessage()}\n");
+    }
+
+    // The dispenser watch (#956, ADR-0057 / ADR-0058), before the drain for the
+    // same reason as every scan above it: a warning raised now should leave on
+    // this tick rather than wait a quarter of an hour for the next one.
+    //
+    // It is here rather than in the route that receives the report, and that is
+    // the design: telemetry must never cost a sale, and "the machine has been
+    // like this for ten minutes" is something only a later pass can know. On a
+    // club whose dispensers work it queues nothing, for ever — there is no
+    // digest and no all-clear.
+    //
+    // `run()` never throws, and is caught anyway, for the same reason as the
+    // scans above: the drain running is the property that matters here, and it
+    // should not depend on a promise made in another file.
+    try {
+        $dispenser = $factory->getDispenserAttentionNotifier()->run(new \DateTimeImmutable('now'));
+        $say('Dispenser attention scan: ' . $dispenser->summary());
+
+        if ($dispenser->queued > 0) {
+            fwrite(STDERR, "Dispenser attention warnings queued: {$dispenser->summary()}\n");
+        }
+    } catch (\Throwable $e) {
+        fwrite(STDERR, "Warning: dispenser attention scan failed: {$e->getMessage()}\n");
     }
 
     $result = $factory->getDrainService()->run(DrainSource::CLI, $batchSize, $budgetSeconds);
