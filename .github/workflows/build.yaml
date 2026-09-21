@@ -1235,7 +1235,13 @@ jobs:
           # ring, so a later GET is a 200 and not a 404. That is what makes the
           # reset scenario assertable at all (#947); at the previous pin the
           # mock threw the crashed transaction away.
-          ref: f0ce893
+          #
+          # A **full 40-character SHA**, not the short one: `actions/checkout`
+          # recognises a `ref` as a commit only at full length, and otherwise
+          # takes it for a branch or tag name — it fetched
+          # `refs/heads/f0ce893*`, found nothing, and failed the job three
+          # retries later.
+          ref: f0ce89368056b2a9d61096e17969292b56709272
           path: dispenser-mock-repo
 
       # No setup-go step: the runner image ships Go, and `go build` fetches the
