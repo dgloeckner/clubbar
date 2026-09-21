@@ -314,7 +314,7 @@ final class MailStrings
             'dispenser.remedy.protocol' => 'Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – '
                                          . 'bitte einem Admin melden.',
             'dispenser.remedy.low'      => 'Hopper nachfüllen und die Nachfüllung im Admin-Bereich eintragen — die '
-                                         . 'eingezählte Zahl setzt die Schätzung zurück.',
+                                         . 'eingezählte Zahl ersetzt die bisherige Schätzung.',
             'dispenser.fill'            => 'Noch etwa {value} Token — bald nachfüllen (Warnung ab {threshold}).',
             'dispenser.fill_exhausted'  => 'Schätzung aufgebraucht — nachfüllen.',
             'dispenser.fill_note'       => 'Geschätzt: eingezählte Token minus seitdem verkaufte. Das Gerät kann den '
@@ -323,7 +323,7 @@ final class MailStrings
             // und leeren Hopper nicht unterscheiden.
             'dispenser.probably_empty'  => 'Die Schätzung des Füllstands ist aufgebraucht — wahrscheinlich ist der '
                                          . 'Hopper leer und nicht verklemmt.',
-            'dispenser.where'           => 'Der gemeldete Zustand steht im Admin-Bereich unter '
+            'dispenser.where'           => 'Das Ausgabegerät steht im Admin-Bereich unter '
                                          . 'Einstellungen → Terminals.',
             // Owner-Entscheidung 3 aus #944: Es gibt keinen Fernzugriff auf das
             // Gerät. Diese Mail quittiert deshalb nichts und kann nichts
@@ -959,7 +959,7 @@ final class MailStrings
                                          . 'cannot report its fill level — it has no empty sensor.',
             'dispenser.probably_empty'  => 'The fill estimate is used up — the hopper is probably empty rather than '
                                          . 'jammed.',
-            'dispenser.where'           => 'The reported state is in the admin panel under Settings → Terminals.',
+            'dispenser.where'           => 'The dispenser is in the admin panel under Settings → Terminals.',
             'dispenser.no_remote'       => 'This email acknowledges nothing and resets nothing: the dispenser has no '
                                          . 'remote control. A jam is cleared at the machine itself.',
 
