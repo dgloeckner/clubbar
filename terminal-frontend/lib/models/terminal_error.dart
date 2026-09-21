@@ -49,6 +49,14 @@ enum TerminalErrorKey {
   /// workaround instead.
   dispenserFaulted,
 
+  /// The dispenser refused the terminal's signature (#951): the signing key
+  /// configured here is not the one the device was flashed with, or there is
+  /// none. A configuration fault, not a machine fault and not an outage —
+  /// nothing came out, nothing is billed, and no amount of retrying helps.
+  /// The copy therefore sends the member to the bar team rather than telling
+  /// them to try again.
+  dispenserKeyRejected,
+
   /// The dispense ended without the dispenser being able to say how many
   /// tokens came out (#947). A device that lost its tally across a reset
   /// reports a **lower bound** and marks the count as not exact; when that

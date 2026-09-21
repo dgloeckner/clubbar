@@ -790,6 +790,10 @@
   "@dispenserOfflineInstruction": { "description": "What staff should check when the dispenser does not answer" },
   "dispenserProtocolInstruction": "Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – bitte einem Admin melden.",
   "@dispenserProtocolInstruction": { "description": "What to do about a protocol mismatch: it is a deployment problem, not something to clear at the machine" },
+  "dispenserUnavailableKeyRejected": "Zugangsschlüssel abgelehnt",
+  "@dispenserUnavailableKeyRejected": { "description": "Reason: the device answered and refused this terminal's signature (#951) — deliberately not 'offline', which would send somebody to look at the network" },
+  "dispenserKeyInstruction": "Dieses Terminal und das Ausgabegerät haben nicht denselben Zugangsschlüssel – bitte einem Admin melden.",
+  "@dispenserKeyInstruction": { "description": "What to do about a rejected signature: it is a configuration problem, not something to clear at the machine" },
 
   "tabOverview": "Übersicht",
   "tabDispenserStatus": "Ausgabegerät-Status",
@@ -902,6 +906,10 @@
   "errorDispenserFaulted": "Der Token-Automat hat eine Störung und gibt gerade keine Token aus – bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.",
   "@errorDispenserFaulted": {
     "description": "TerminalErrorKey.dispenserFaulted — the device refused the dispense because it has a fault: a jam, an empty hopper or a hopper error (#948). Only a power cycle clears it, so the copy names the bar team and the workaround instead of offering a retry."
+  },
+  "errorDispenserKeyRejected": "Der Token-Automat nimmt dieses Terminal nicht an – es ist nicht richtig eingerichtet. Dir wurde nichts berechnet; bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.",
+  "@errorDispenserKeyRejected": {
+    "description": "TerminalErrorKey.dispenserKeyRejected — the dispenser refused the terminal's signature (#951): the signing key here is not the one the device was flashed with, or there is none. A configuration fault nobody at the kiosk can fix, so the copy sends the member to the bar team instead of offering a retry."
   },
   "errorDispenserCountUnreliable": "Der Automat konnte nicht sicher zählen, wie viele Token herausgekommen sind. Dir wurde nichts berechnet – bitte beim Bar-Team melden.",
   "@errorDispenserCountUnreliable": {

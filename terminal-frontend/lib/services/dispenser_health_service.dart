@@ -60,6 +60,14 @@ class DispenserHealthService extends ChangeNotifier {
       _lastHealth = health;
       _lastCheckedAt = DateTime.now().toUtc();
       notifyListeners(); // Notify UI of health status change
+    } on DispenserSignatureException {
+      // The device answered and refused our signature: the key on this
+      // terminal is not the key it was flashed with (#951). Reporting that as
+      // *offline* would send somebody to look at the WLAN for a fault that is
+      // in `config.json`.
+      _lastHealth = DispenserHealth.signingKeyRejected();
+      _lastCheckedAt = DateTime.now().toUtc();
+      notifyListeners();
     } on DispenserProtocolException catch (e) {
       // The device answered — in a protocol this terminal does not speak, or
       // in a shape it could not read. That is *not* offline, and reporting it

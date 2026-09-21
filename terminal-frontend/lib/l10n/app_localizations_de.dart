@@ -604,6 +604,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – bitte einem Admin melden.';
 
   @override
+  String get dispenserUnavailableKeyRejected => 'Zugangsschlüssel abgelehnt';
+
+  @override
+  String get dispenserKeyInstruction =>
+      'Dieses Terminal und das Ausgabegerät haben nicht denselben Zugangsschlüssel – bitte einem Admin melden.';
+
+  @override
   String get tabOverview => 'Übersicht';
 
   @override
@@ -720,6 +727,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get errorDispenserFaulted =>
       'Der Token-Automat hat eine Störung und gibt gerade keine Token aus – bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.';
+
+  @override
+  String get errorDispenserKeyRejected =>
+      'Der Token-Automat nimmt dieses Terminal nicht an – es ist nicht richtig eingerichtet. Dir wurde nichts berechnet; bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.';
 
   @override
   String get errorDispenserCountUnreliable =>

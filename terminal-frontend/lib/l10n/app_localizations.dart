@@ -1082,6 +1082,18 @@ abstract class AppLocalizations {
   /// **'Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – bitte einem Admin melden.'**
   String get dispenserProtocolInstruction;
 
+  /// Reason: the device answered and refused this terminal's signature (#951) — deliberately not 'offline', which would send somebody to look at the network
+  ///
+  /// In de, this message translates to:
+  /// **'Zugangsschlüssel abgelehnt'**
+  String get dispenserUnavailableKeyRejected;
+
+  /// What to do about a rejected signature: it is a configuration problem, not something to clear at the machine
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Terminal und das Ausgabegerät haben nicht denselben Zugangsschlüssel – bitte einem Admin melden.'**
+  String get dispenserKeyInstruction;
+
   /// No description provided for @tabOverview.
   ///
   /// In de, this message translates to:
@@ -1273,6 +1285,12 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Der Token-Automat hat eine Störung und gibt gerade keine Token aus – bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.'**
   String get errorDispenserFaulted;
+
+  /// TerminalErrorKey.dispenserKeyRejected — the dispenser refused the terminal's signature (#951): the signing key here is not the one the device was flashed with, or there is none. A configuration fault nobody at the kiosk can fix, so the copy sends the member to the bar team instead of offering a retry.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Token-Automat nimmt dieses Terminal nicht an – es ist nicht richtig eingerichtet. Dir wurde nichts berechnet; bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.'**
+  String get errorDispenserKeyRejected;
 
   /// TerminalErrorKey.dispenserCountUnreliable — the dispenser reset mid-dispense and cannot vouch for its count (#947). Its lower bound was zero, so nothing is billed; the copy must not claim that no tokens came out, because nobody knows that.
   ///

@@ -467,6 +467,14 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           emitError(TerminalErrorKey.checkoutCancelled);
           return null;
         }
+      } else if (errorException is DispenserSignatureException) {
+        // The device refused our signature. Nothing was dispensed, nothing is
+        // billed, and there is nothing for the member to retry: the key on
+        // this terminal is wrong or missing and only somebody with the right
+        // one can fix it (#951).
+        emitError(TerminalErrorKey.dispenserKeyRejected,
+            cause: errorException);
+        return null;
       } else if (errorException is DispenserFaultException) {
         // The device has a jam or a hopper error and refused the dispense
         // (#948). Nothing was dispensed and nothing is billed; the member is
