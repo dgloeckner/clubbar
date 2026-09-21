@@ -152,6 +152,34 @@ enum MailKind: string
     case TERMINAL_TOKEN_ISSUED = 'terminal_token_issued';
 
     /**
+     * ADR-0057 / ADR-0058: a token dispenser needs a human — it is jammed, its
+     * hopper reports an error, the terminal cannot reach it, it answers in a
+     * protocol the terminal does not speak, or the fill estimate says the load
+     * is running out (#956).
+     *
+     * One kind rather than five, because it is one errand addressed to one
+     * office: *go and look at the machine bolted next to that till*. Which of
+     * the conditions it is reaches the reader in the subject line and in the
+     * body, from the same words the panel and the kiosk use.
+     *
+     * **The episode lives in the `dedup_key`, and there are two kinds of
+     * episode** ({@see \App\Modules\Notifications\Enums\DispenserAttentionOccasion}).
+     * A fault is keyed on `state_since` — one notice per episode, dated the way
+     * the panel dates it — and the low-fill warning on
+     * `terminals.dispenser_refilled_at`, so it fires at most once per hopper
+     * load. A draining hopper moves none of the five fields `state_since`
+     * follows, so keying the shortage on it would warn once and then never
+     * again.
+     *
+     * **It commands nothing.** The device has no reset route and a jam is
+     * cleared by a power cycle (owner decision 3 of #944), so this message
+     * carries no acknowledgement link and no way to dismiss anything — a button
+     * that changed a screen and not a hopper would be the promise ADR-0057
+     * refuses to make.
+     */
+    case DISPENSER_ATTENTION = 'dispenser_attention';
+
+    /**
      * "Your login address was changed", sent to the address it was changed
      * *from* — the one place the change is visible to someone who did not make
      * it. An attacker holding a session can move the address; this is what
@@ -514,6 +542,11 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            // Operational detail about one machine, and the club address is not
+            // an operator: ADR-0057 gives the dispenser to the `admin` office
+            // alone, and a club-wide list reading that a hopper is empty would
+            // widen exactly the grant this kind mirrors.
+            self::DISPENSER_ATTENTION,
             self::BACKUP_SECRET_EXPIRY_WARNING,
             self::BACKUP_HEALTH_WARNING,
             self::ADMIN_EMAIL_CHANGED,
@@ -599,6 +632,13 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            // The same rule, applied to the same page. Every
+            // `/api/admin/terminals*` route is ADMIN_ONLY in `RouteRoleMap`
+            // and ADR-0057 states the office in words, so the mail about that
+            // screen is `[ADMIN]`. The Kassenwart and the Getränkewart are
+            // narrowed out here by the rule that includes them elsewhere — not
+            // by a judgement call about who cares about beer tokens.
+            self::DISPENSER_ATTENTION,
             // Backups belong to the Admin — *whoever holds the server* — and
             // deliberately not to the Kassenwart, who holds the IBAN key
             // because SEPA collection needs it. An archive carries the audit
@@ -685,7 +725,11 @@ enum MailKind: string
             self::ENCRYPTION_KEY_REVOKED => MailSubject::ENCRYPTION_KEY,
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
-            self::TERMINAL_TOKEN_ISSUED => MailSubject::TERMINAL,
+            self::TERMINAL_TOKEN_ISSUED,
+            // The terminal, not the dispenser: the peripheral has no row of
+            // its own — its status is two columns on `terminals` (ADR-0057) —
+            // and the terminal is what an admin looks up.
+            self::DISPENSER_ATTENTION => MailSubject::TERMINAL,
 
             // The installation itself, `subject_id` the literal `1`, the way
             // CREDIT_LIMIT_DIGEST files under its singleton config row.
@@ -755,6 +799,7 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            self::DISPENSER_ATTENTION,
             self::BACKUP_SECRET_EXPIRY_WARNING,
             self::BACKUP_HEALTH_WARNING,
             self::ADMIN_EMAIL_CHANGED,
@@ -812,6 +857,7 @@ enum MailKind: string
             self::TERMINAL_TOKEN_EXPIRY_WARNING,
             self::TERMINAL_ANOMALY_WARNING,
             self::TERMINAL_TOKEN_ISSUED,
+            self::DISPENSER_ATTENTION,
             self::BACKUP_SECRET_EXPIRY_WARNING,
             self::BACKUP_HEALTH_WARNING,
             self::ADMIN_EMAIL_CHANGED,

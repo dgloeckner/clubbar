@@ -276,6 +276,7 @@ class MailKindTest extends TestCase
             MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
             MailKind::TERMINAL_ANOMALY_WARNING,
             MailKind::TERMINAL_TOKEN_ISSUED,
+            MailKind::DISPENSER_ATTENTION,
             MailKind::ADMIN_EMAIL_CHANGED,
             MailKind::ADMIN_ACCOUNT_CREATED,
             MailKind::ADMIN_ROLE_CHANGED,
@@ -316,5 +317,28 @@ class MailKindTest extends TestCase
                 $kind->value . ' must not reach an office that cannot open the screen it is about'
             );
         }
+    }
+
+    /**
+     * **Only `admin` hears about a dispenser** (#956, ADR-0057; owner decision
+     * 2026-09-20).
+     *
+     * Stated on its own as well as in the list above, because this is the kind
+     * whose audience is easiest to argue into being wider: a token dispenser
+     * looks like bar equipment, and the Getränkewart holds the bar. The rule
+     * settles it without a judgement call — every `/api/admin/terminals*` route
+     * is ADMIN_ONLY, so the mail about that screen is `[ADMIN]`, and the office
+     * that includes the Getränkewart elsewhere is what excludes them here.
+     */
+    public function test_dispenser_attention_is_admin_only(): void
+    {
+        $this->assertSame([AdminRole::ADMIN], MailKind::DISPENSER_ATTENTION->recipientRoles());
+        $this->assertFalse(MailKind::DISPENSER_ATTENTION->addressesMember());
+        $this->assertFalse(MailKind::DISPENSER_ATTENTION->addressesProspect());
+        $this->assertFalse(
+            MailKind::DISPENSER_ATTENTION->addressesClub(),
+            'a club-wide list is not an operator and would widen the grant this kind mirrors',
+        );
+        $this->assertSame(MailSubject::TERMINAL, MailKind::DISPENSER_ATTENTION->subjectType());
     }
 }
