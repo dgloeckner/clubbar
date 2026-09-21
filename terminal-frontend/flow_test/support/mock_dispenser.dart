@@ -17,10 +17,15 @@ import 'dart:io';
 /// Neither set is a hard failure, not a skip: a flow suite that quietly passes
 /// without ever reaching the mock is worth less than no suite at all.
 class MockDispenser {
-  MockDispenser._(this._binary, this.apiKey, this.protocolClaim);
+  MockDispenser._(this._binary, this.signingKey, this.protocolClaim);
 
   final String _binary;
-  final String apiKey;
+
+  /// The shared secret the mock verifies signatures with (#951). It is
+  /// `--signing-key` on the command line and never travels on the wire —
+  /// `--api-key` is gone from the mock, as it is from the firmware and from
+  /// this client.
+  final String signingKey;
 
   /// The protocol version the mock **claims** in `/health`.
   ///
@@ -60,11 +65,11 @@ class MockDispenser {
 
   /// Resolves the binary (building it from source when asked to) and starts it.
   static Future<MockDispenser> start({
-    String apiKey = 'flow-test-key',
+    String signingKey = 'flow-test-key',
     int protocolClaim = 2,
   }) async {
     final mock =
-        MockDispenser._(await _resolveBinary(), apiKey, protocolClaim);
+        MockDispenser._(await _resolveBinary(), signingKey, protocolClaim);
     await mock.launch();
     return mock;
   }
@@ -113,8 +118,8 @@ class MockDispenser {
     final process = await Process.start(_binary, [
       '--bind',
       '127.0.0.1:$_port',
-      '--api-key',
-      apiKey,
+      '--signing-key',
+      signingKey,
       '--protocol',
       '$protocolClaim',
     ]);
