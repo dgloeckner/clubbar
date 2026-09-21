@@ -29,7 +29,7 @@ void main() {
     client = MockDispenserClient();
 
     when(() => config.dispenserBaseUrl).thenReturn('http://dispenser');
-    when(() => config.dispenserApiKey).thenReturn('key');
+    when(() => config.dispenserSigningKey).thenReturn('key');
     when(() => config.dispenserTimeoutMs).thenReturn(1000);
     when(() => config.dispenserPollIntervalMs).thenReturn(50);
     when(() => cartService.updateDispenserOperationState(

@@ -360,9 +360,21 @@ void main() async {
   DispenserClient? dispenserClient;
   if (configService.dispenserEnabled) {
     try {
+      // The signing key has no default and no fallback (#951): without it
+      // every request would be refused, so the client is not built at all and
+      // the kiosk says *not set up* instead of *not responding*. Named here
+      // rather than left to a `!` so the log says which half is missing.
+      final signingKey = configService.dispenserSigningKey;
+      if (signingKey == null || signingKey.isEmpty) {
+        throw StateError(
+            'dispenser.signingKey is missing from config.json — the terminal '
+            'signs every dispenser request and cannot talk to the device '
+            'without it');
+      }
+
       dispenserClient = DispenserClient(
         baseUrl: configService.dispenserBaseUrl!,
-        apiKey: configService.dispenserApiKey!,
+        signingKey: signingKey,
         timeoutMs: configService.dispenserTimeoutMs,
       );
 
