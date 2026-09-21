@@ -31,6 +31,7 @@ import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
+import 'package:clubbar_terminal/services/terminal_status_reporter.dart';
 import 'package:clubbar_terminal/services/error_file_output.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
@@ -387,8 +388,28 @@ void main() async {
     }
   }
 
+  // What the admin office sees about the machine at the bar (ADR-0057, #953).
+  // It is created whether or not a dispenser is configured: `configured:
+  // false` is a report, and it is what lets the panel show *no dispenser*
+  // rather than *unknown*.
+  final statusReporter = TerminalStatusReporter(
+    network: networkService,
+    dispenserHealth: dispenserHealthService,
+    // Not `dispenserHealthService != null`: a configured dispenser whose
+    // client failed to start above is a machine nobody is reaching, not a
+    // terminal that has none.
+    dispenserConfigured: configService.dispenserEnabled,
+    counts: dispenserOperationCounts(database),
+    logger: logger,
+  );
+  // Listens to the health service's own 15-second poll, so a fault reaches the
+  // panel without waiting out the sync interval. No second timer, and nothing
+  // extra talking to the device.
+  statusReporter.start();
+
   final syncService = SyncService(
     networkService: networkService,
+    statusReporter: statusReporter,
     membersRepo: membersRepo,
     productsRepo: productsRepo,
     transactionsRepo: transactionsRepo,
