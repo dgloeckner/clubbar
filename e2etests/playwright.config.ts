@@ -508,6 +508,22 @@ export default defineConfig({
       dependencies: ['mail-member'],
     },
 
+    // The dispenser chain (#956, ADR-0057/0058): a terminal reports a jam →
+    // bin/cron.php → the admin's mailbox, and nobody else's.
+    //
+    // Its own project for the reason every chain here is one — its drains claim
+    // the whole queue — and last for a reason of its own: the condition it
+    // stands up lives on a *terminal row*, and while it exists every drain
+    // anywhere in the suite queues a notice to every active admin. The file
+    // deletes its terminals in `afterAll`, so running it at the end keeps that
+    // window as short as the suite can make it.
+    {
+      name: 'mail-dispenser',
+      testDir: './tests/mail-dispenser',
+      fullyParallel: false,
+      dependencies: ['mail-anmeldelink'],
+    },
+
     // Package smoke tests - only run when PACKAGE_TEST=1
     {
       name: 'package-tests',
