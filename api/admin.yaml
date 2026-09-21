@@ -5158,6 +5158,70 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /admin/terminals/{terminalId}/dispenser-refill:
+    post:
+      tags: [Terminals]
+      summary: Record a hopper refill
+      description: |
+        The hopper has no empty sensor — it is a factory option this unit does
+        not have — so the fill level is arithmetic rather than a measurement
+        (ADR-0058): what was counted in at the last refill, minus the token
+        purchases this terminal has booked since.
+
+        This route is the only moment the count is ever known for certain, and
+        it takes an **exact count**: the number of tokens in the hopper *now*.
+        Not "added N", not "filled up" — both build on a figure nobody has
+        checked, and the point of a refill is to put the estimate back on a
+        known value. Zero is a legitimate count (a hopper emptied for
+        maintenance).
+
+        It is **not** an acknowledgement, and clears nothing. No surface in this
+        system commands the dispenser: the device has no reset route, and a jam
+        is cleared by a power cycle.
+
+        `admin` only, like every other dispenser surface.
+      operationId: recordDispenserRefill
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: terminalId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tokens]
+              properties:
+                tokens:
+                  type: integer
+                  minimum: 0
+                  maximum: 100000
+                  description: Tokens counted in the hopper after filling it.
+      responses:
+        '200':
+          description: The reading as it stands right after the refill
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dispenser_fill:
+                    $ref: '#/components/schemas/TerminalDispenserFill'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/terminals/{terminalId}/anomalies:
     get:
       tags: [Terminals]
@@ -8444,6 +8508,59 @@ components:
             terminal can keep syncing perfectly while reporting nothing — an
             older build, a dropped body, a firmware whose document this backend
             refused.
+        dispenser_fill:
+          allOf:
+            - $ref: '#/components/schemas/TerminalDispenserFill'
+          description: >
+            The hopper's fill estimate (ADR-0058). Beside the report rather than
+            inside it: the report is what the terminal said about the machine,
+            this is what the backend worked out from its own books, and the
+            device is not involved in it.
+
+    TerminalDispenserFill:
+      type: object
+      description: >
+        How full the hopper probably is (ADR-0058, #955) — **arithmetic, not a
+        measurement**. The dispenser cannot say it is running out, so this is a
+        counted refill minus the token purchases booked since. It cannot see
+        tokens that coasted out after a motor stop, or a dispense recovered
+        with an unreliable count; every refill is a count, so that drift never
+        outlives one hopper load. Read it as a warning, never as a stock figure.
+      properties:
+        refilled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            When the hopper was last counted into. Null = never recorded, and
+            then there is no estimate at all — which is not "0 tokens left".
+        refill_tokens:
+          type: integer
+          nullable: true
+          description: What was counted into the hopper at that moment.
+        sold_since:
+          type: integer
+          nullable: true
+          description: >
+            Token purchases this terminal booked since `refilled_at`, counted
+            by **when the bar sold them** rather than when they synced — an
+            offline terminal's late upload belongs to the load it was sold
+            from. A storno is not subtracted: a reversed booking returns money
+            to a member, not a token to the hopper. Null where this code path
+            did not count, which is not zero.
+        estimated_left:
+          type: integer
+          nullable: true
+          description: >
+            `refill_tokens - sold_since`, floored at zero — at or below zero the
+            load is *exhausted*, and a negative number would be false precision
+            about an unmeasured drift. Null when there is nothing to estimate
+            from.
+        low_threshold:
+          type: integer
+          description: >
+            Warn at or below this. Always present: it is a stored setting with a
+            default, and it survives the absence of an estimate.
 
     TerminalDispenserStatus:
       type: object
@@ -8618,6 +8735,16 @@ components:
           type: string
         is_active:
           type: boolean
+        dispenser_low_threshold:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          description: >
+            Warn once the hopper estimate is at or below this many tokens
+            (ADR-0058). A setting rather than a reading, which is why it rides
+            the ordinary terminal update instead of the refill route: recording
+            a refill is a fact about the machine, changing when to warn is a
+            preference about it. Zero warns only once the estimate is used up.
 
     TerminalWithToken:
       allOf:

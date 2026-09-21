@@ -53,9 +53,26 @@ final readonly class TerminalDto
          */
         public ?array $dispenserStatus = null,
         public ?string $dispenserStatusAt = null,
+        /**
+         * How full the hopper probably is (#955, ADR-0058). Always present —
+         * it carries the warning threshold, which is a stored setting with a
+         * value whether or not anybody has ever recorded a refill. What is
+         * missing without one is the *estimate*, and that reads as null.
+         */
+        public ?DispenserFillDto $dispenserFill = null,
     ) {}
 
-    public static function fromRow(array $row, ?string $backendVersion = null): self
+    /**
+     * @param int|null $dispenserTokensSold tokens this terminal has sold since
+     *        its last refill. **Null is not zero**: it means this code path did
+     *        not count, and the estimate then reads as absent rather than as a
+     *        full hopper (#955).
+     */
+    public static function fromRow(
+        array $row,
+        ?string $backendVersion = null,
+        ?int $dispenserTokensSold = null,
+    ): self
     {
         return new self(
             id: $row['id'],
@@ -76,6 +93,7 @@ final readonly class TerminalDto
             backendVersion: $backendVersion,
             dispenserStatus: self::decodeDispenserStatus($row['dispenser_status'] ?? null),
             dispenserStatusAt: $row['dispenser_status_at'] ?? null,
+            dispenserFill: DispenserFillDto::fromRow($row, $dispenserTokensSold),
         );
     }
 
@@ -161,6 +179,11 @@ final readonly class TerminalDto
             // terminal can keep syncing while reporting nothing, and a stale
             // status read as current is worse than none.
             'dispenser_status_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->dispenserStatusAt),
+            // #955. Beside the report rather than inside it: the report is what
+            // the terminal said about the machine, and this is what the backend
+            // worked out about the hopper from its own books. The device is not
+            // involved in it and cannot contradict it.
+            'dispenser_fill' => ($this->dispenserFill ?? DispenserFillDto::fromRow([], null))->toArray(),
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
         ];
