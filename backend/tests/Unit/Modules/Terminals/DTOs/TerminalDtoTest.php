@@ -157,4 +157,60 @@ class TerminalDtoTest extends TestCase
 
         $this->assertSame('2026-09-06T04:03:11Z', $array['reported_version_at']);
     }
+
+    /**
+     * ADR-0057. The panel reads the document whole, so the DTO has to hand it
+     * back decoded rather than as the JSON string the column holds — a client
+     * that has to `JSON.parse` a field is a client that will forget to.
+     */
+    public function test_it_serves_the_dispenser_report_decoded(): void
+    {
+        $document = [
+            'configured' => true,
+            'contact' => 'reported',
+            'state' => 'fault',
+            'fault' => 'jam',
+            'fault_code' => 0,
+            'available' => false,
+            'unavailable_reason' => 'jam',
+            'state_since' => '2026-09-20T17:00:00Z',
+        ];
+
+        $array = TerminalDto::fromRow($this->row([
+            'dispenser_status' => (string) json_encode($document),
+            'dispenser_status_at' => '2026-09-20 18:00:00',
+        ]))->toArray();
+
+        $this->assertSame($document, $array['dispenser_status']);
+        $this->assertSame('2026-09-20T18:00:00Z', $array['dispenser_status_at']);
+    }
+
+    /**
+     * Never reported is *unknown*, and the panel must be able to tell it from a
+     * report of `configured: false`, which says there is no dispenser attached.
+     */
+    public function test_a_terminal_that_has_never_reported_carries_nulls(): void
+    {
+        $array = TerminalDto::fromRow($this->row())->toArray();
+
+        $this->assertArrayHasKey('dispenser_status', $array);
+        $this->assertNull($array['dispenser_status']);
+        $this->assertNull($array['dispenser_status_at']);
+    }
+
+    /**
+     * Nothing but the status service writes that column, so a value that will
+     * not decode is a corrupted row rather than an input to validate. It reads
+     * as *never reported* — one unreadable peripheral document must not 500 the
+     * whole terminals list.
+     */
+    public function test_a_document_that_will_not_decode_reads_as_nothing_reported(): void
+    {
+        $array = TerminalDto::fromRow($this->row([
+            'dispenser_status' => '{not json',
+            'dispenser_status_at' => '2026-09-20 18:00:00',
+        ]))->toArray();
+
+        $this->assertNull($array['dispenser_status']);
+    }
 }
