@@ -40,6 +40,15 @@
  * the hash it wants to test against, the same way it writes a token expiry it
  * cannot request.
  *
+ * ### The fourth exception (#956)
+ *
+ * `ageDispenserEpisode()` below. A dispenser notice is only sent once the
+ * condition has *held* for ten minutes, and `state_since` is stamped from the
+ * **backend's** clock on receipt — deliberately, so a kiosk whose clock is
+ * wrong cannot date a fault (ADR-0057). There is therefore no request, from any
+ * client, that produces a jam which started ten minutes ago; the only
+ * alternative to writing it would be a test that sleeps for ten minutes.
+ *
  * ### Shape
  *
  * `docker compose exec` and `spawnSync`, the same mechanism (and the same
@@ -543,4 +552,32 @@ export function queuedRegistrationLinks(
 export function expireRegistration(registrationId: string): void {
   const id = registrationId.replace(/'/g, '')
   execSql(`UPDATE pending_registrations SET expires_at = '2000-01-01 00:00:00' WHERE id = '${id}'`)
+}
+
+/**
+ * Backdate one terminal's dispenser episode, leaving the report itself current.
+ *
+ * Two stamps, and they move in opposite directions on purpose:
+ *
+ * - `state_since`, inside the stored JSON, goes back — that is *how long the
+ *   machine has been like this*, which is what the ten-minute persistence
+ *   window measures and what the panel renders as *seit …*.
+ * - `dispenser_status_at` stays **now**, because it is when the terminal last
+ *   filed a report. A fault nothing has confirmed for an hour is deliberately
+ *   not mailed, so a fixture that aged both would silently exercise the
+ *   staleness path instead of the one it meant to.
+ *
+ * `JSON_SET` rather than a rewritten document: the report carries a dozen
+ * fields and a backend verdict, and a test that rebuilt it by hand would be
+ * asserting against a document no terminal ever sent.
+ */
+export function ageDispenserEpisode(terminalId: string, minutes: number): void {
+  const id = terminalId.replace(/'/g, '')
+  const ago = Math.max(0, Math.trunc(minutes))
+
+  execSql(
+    "UPDATE terminals SET dispenser_status = JSON_SET(dispenser_status, '$.state_since', " +
+      `DATE_FORMAT(UTC_TIMESTAMP() - INTERVAL ${ago} MINUTE, '%Y-%m-%dT%H:%i:%s.000Z')), ` +
+      `dispenser_status_at = UTC_TIMESTAMP() WHERE id = '${id}'`,
+  )
 }
