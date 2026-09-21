@@ -61,7 +61,7 @@ Create `config.json` at the platform-specific path:
   "dispenser": {
     "enabled": false,
     "baseUrl": "http://192.168.1.100",
-    "apiKey": "<dispenser-api-key>"
+    "signingKey": "<dispenser-signing-key>"
   }
 }
 ```
@@ -89,7 +89,7 @@ export TERMINAL_SEED_TEST_DATA="false"
 export TERMINAL_DEMO_MODE="false"
 export DISPENSER_ENABLED="false"
 export DISPENSER_BASE_URL="http://192.168.1.100"
-export DISPENSER_API_KEY="<dispenser-api-key>"
+export DISPENSER_SIGNING_KEY="<dispenser-signing-key>"
 ```
 
 Note: `fontSizes` cannot be set via environment variables.

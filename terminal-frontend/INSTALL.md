@@ -854,7 +854,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
   "dispenser": {
     "enabled":        false,
     "baseUrl":        "http://dispenser.local",
-    "apiKey":         "your-dispenser-api-key",
+    "signingKey":     "your-dispenser-signing-key",
     "timeoutMs":      3000,
     "pollIntervalMs": 500
   },
@@ -896,7 +896,7 @@ for the app to connect). Omitted keys fall back to the defaults shown below.
 | `fontSizes.display` | number | `55` | Idle screen headline ("Durstig?" / reader-offline title) — the one display-size string in the app. |
 | `dispenser.enabled` | bool | `false` | Enable the sauna token dispenser integration. |
 | `dispenser.baseUrl` | string | — | Base URL of the dispenser hardware API, e.g. `http://192.168.1.50`. |
-| `dispenser.apiKey` | string | — | API key for authenticating with the dispenser. |
+| `dispenser.signingKey` | string | — | Shared secret the terminal signs every dispenser request with. It is **never transmitted** — see *Request signing* below. Must be the same string that was flashed into the ESP8266. No default: without it the dispenser stays switched off and the kiosk says so. |
 | `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout for dispenser calls in milliseconds. |
 | `dispenser.pollIntervalMs` | integer | `500` | Gap between one status poll answering and the next going out. Polling is serial — one request at a time. |
 | `rfidReader.monitor` | bool | `true` | Watch whether the RFID reader is still plugged in. Has no effect until the reader is described by at least one of the three keys below. |
@@ -1020,7 +1020,7 @@ for CI, Docker deployments, or `.desktop` file `Exec=env ...` lines:
 | `TERMINAL_DEMO_MODE` | `demoMode` (`true`/`false`) |
 | `DISPENSER_ENABLED` | `dispenser.enabled` |
 | `DISPENSER_BASE_URL` | `dispenser.baseUrl` |
-| `DISPENSER_API_KEY` | `dispenser.apiKey` |
+| `DISPENSER_SIGNING_KEY` | `dispenser.signingKey` |
 | `RFID_READER_MONITOR` | `rfidReader.monitor` (`true`/`false`) |
 | `RFID_READER_VENDOR_ID` | `rfidReader.vendorId` |
 | `RFID_READER_PRODUCT_ID` | `rfidReader.productId` |
@@ -1116,8 +1116,70 @@ over local WiFi — no internet or cloud dependency required.
 - Assign the ESP8266 a **static IP** or **mDNS hostname** (e.g.
   `dispenser.local`) on your local network
 - Ensure the Raspberry Pi and ESP8266 are on the **same WiFi network / VLAN**
-- The dispenser API requires an **API key** via `X-API-Key` header (configured
-  in both the ESP8266 firmware and the terminal `config.json`)
+- Every request is **signed** (see *Request signing* below); the shared secret
+  is configured in both the ESP8266 firmware and the terminal `config.json`
+  and never travels on the network
+
+#### Network isolation is an installation requirement
+
+**The dispenser and the terminal belong on a dedicated WPA2 SSID / VLAN with
+client isolation, separate from the members' WiFi.** No route into it from the
+members' network, no port forward from the internet. This is a requirement,
+not a recommendation, and it is the same one the firmware's own
+`hardware/README.md` states to whoever mounts the device.
+
+The traffic between terminal and dispenser is **plain HTTP**. TLS on an
+ESP8266 was evaluated and rejected — the heap and the handshake time are not
+there — and request signing was put in its place
+(dgloeckner/remote-token-dispenser#8). Signing is an honest control and a
+narrow one. It means a captured request cannot be replayed and a forged one is
+refused. It does **not** mean:
+
+- **Confidentiality.** Anyone on the segment reads who dispensed how many
+  tokens and when. The requests are in clear; only the secret is not.
+- **Availability.** Signing stops nobody from flooding the device, and an
+  ESP8266 has a handful of TCP slots. A client on the segment can also empty
+  the nonce pool — at most eight are outstanding — and make every other
+  client pay one extra round trip.
+- **Anything at all if the segment is shared.** On the members' WiFi the two
+  points above are a stranger's to exploit; on a dedicated segment they are
+  the club's own devices.
+
+Treat the signing key like the terminal's API token: written once at
+provisioning, `chmod 600`, never committed, never mailed. The firmware ships
+with a **placeholder** key and both ends must be given the real one at install
+time — a dispenser still carrying the placeholder is a dispenser anyone who
+has read the firmware can operate.
+
+### Request signing
+
+Since protocol 2 the terminal signs every request instead of sending the
+secret. `X-API-Key` is gone from the firmware, from the mock and from the
+terminal — there is no fallback header and no compatibility switch.
+
+1. `GET /nonce` (unauthenticated — the terminal holds nothing to sign with
+   until it has one) returns a 32-character nonce and the seconds it lives.
+2. The request carries `X-Nonce` and `X-Signature`, the latter being
+   HMAC-SHA256 over `METHOD \n PATH \n BODY \n NONCE`, hex, lower case.
+3. `POST /dispense` **spends** its nonce — replaying the identical bytes is
+   refused, which is the replay defence. A status poll does not, so **one
+   `GET /nonce` covers a whole dispense** and the polls behind it until the
+   TTL runs out.
+
+What this means for an installer:
+
+- **A wrong or missing key looks like a configuration error, not an outage.**
+  With the key missing the dispenser is not switched on at all and the kiosk
+  says *Der Token-Automat ist nicht eingerichtet*. With the wrong key the
+  device refuses the signature, nothing is dispensed, **nothing is billed**,
+  and the kiosk says *Der Token-Automat nimmt dieses Terminal nicht an – es
+  ist nicht richtig eingerichtet*. The terminal's status screen names it as
+  *Zugangsschlüssel abgelehnt* rather than *offline*, so nobody goes looking
+  for a network fault that is not there.
+- **The terminal never retries a refused signature.** A stale nonce is
+  retried exactly once; a wrong key is not retried at all.
+- **Both ends have to be changed together.** Flashing a new key into the
+  dispenser without editing `config.json` stops dispensing immediately.
 
 ### Terminal configuration
 
@@ -1131,7 +1193,7 @@ Enable the dispenser in the terminal's `config.json`:
   "dispenser": {
     "enabled": true,
     "baseUrl": "http://dispenser.local",
-    "apiKey": "your-dispenser-api-key",
+    "signingKey": "your-dispenser-signing-key",
     "timeoutMs": 3000,
     "pollIntervalMs": 500
   }
@@ -1143,14 +1205,14 @@ Or via environment variables:
 ```bash
 DISPENSER_ENABLED=true
 DISPENSER_BASE_URL=http://dispenser.local
-DISPENSER_API_KEY=your-dispenser-api-key
+DISPENSER_SIGNING_KEY=your-dispenser-signing-key
 ```
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `dispenser.enabled` | bool | `false` | Enable the dispenser integration. When `false`, products with `requires_dispenser` are sold normally without dispensing. |
 | `dispenser.baseUrl` | string | — | Base URL of the ESP8266 HTTP server, e.g. `http://192.168.1.50` or `http://dispenser.local`. |
-| `dispenser.apiKey` | string | — | Shared secret for `X-API-Key` authentication. Must match the key configured in the ESP8266 firmware. |
+| `dispenser.signingKey` | string | — | Shared secret used to sign every request (HMAC-SHA256). **Never sent on the wire.** Must match the key configured in the ESP8266 firmware. There is no default and no fallback: with it missing the terminal does not talk to the dispenser at all. |
 | `dispenser.timeoutMs` | integer | `3000` | HTTP request timeout in milliseconds. Increase if the ESP8266 is on a slow network. |
 | `dispenser.pollIntervalMs` | integer | `500` | Gap between one poll for dispense completion answering and the next going out (polling is serial). Lower values give faster UI feedback and take more of the ESP8266's few TCP slots. |
 
