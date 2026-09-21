@@ -289,7 +289,9 @@ Once you have it, **`config.json` is not a generic settings file — treat it as
 the member database.** `apiToken` is a device credential with no user scoping:
 whoever holds it can pull every member's name, date of birth, balance and
 purchase history from the backend, and write bookings against any of them
-(issue #885). The dispenser's `apiKey` lives in the same file.
+(issue #885). The dispenser's `signingKey` lives in the same file — it is
+never transmitted, but it is the secret that lets this terminal dispense
+tokens, so it is protected the same way (#951).
 
 - **Never `cat`, `scp`, paste, or screen-share this file.** Pulling it for a
   diagnosis is pulling the club's membership roster off the premises.
