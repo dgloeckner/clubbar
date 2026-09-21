@@ -253,6 +253,55 @@ class TerminalsRepository
         return $stmt->execute([$now, $version, $now, $blockedVersion, $now, $id]);
     }
 
+    /**
+     * The dispenser document this terminal last filed, decoded — or null when
+     * it has never filed one (ADR-0057).
+     *
+     * Its own read rather than a field of `findById()`: the only caller is the
+     * write below, on a route that runs on the sync cadence, and it needs one
+     * column rather than the row plus its transactions subquery. A document
+     * that will not decode reads as *never reported*, which is what it is: a
+     * column nothing else can write, holding something this backend did not
+     * produce, is not a value to carry a `state_since` forward from.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findDispenserStatus(string $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT dispenser_status FROM terminals WHERE id = ?');
+        $stmt->execute([$id]);
+        $json = $stmt->fetchColumn();
+
+        if (!is_string($json) || $json === '') {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Last write wins (ADR-0057). Both columns move together: a stored document
+     * with no receipt stamp beside it is a status nobody can age, and an age is
+     * the first thing an admin reads.
+     *
+     * The statement names neither `updated_at` nor `last_sync_at` — but do not
+     * read that as "a report leaves the row's own stamps alone". The column
+     * carries `ON UPDATE CURRENT_TIMESTAMP`, so MariaDB moves `updated_at` for
+     * every write here whatever this statement says, exactly as it does for
+     * `updateLastSync()` on every authenticated request. `dispenser_status_at`
+     * is the stamp that means *this report*, and it is the one the panel reads.
+     */
+    public function updateDispenserStatus(string $id, string $document, string $receivedAt): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE terminals SET dispenser_status = ?, dispenser_status_at = ? WHERE id = ?'
+        );
+
+        return $stmt->execute([$document, $receivedAt, $id]);
+    }
+
     public function listPaginated(int $limit, int $offset, ?bool $isActive = null): array
     {
         $where = [];

@@ -42,6 +42,17 @@ final readonly class TerminalDto
          * {@see TerminalVersionState::UNKNOWN} rather than as agreement.
          */
         public ?string $backendVersion = null,
+        /**
+         * The dispenser document this terminal last filed (ADR-0057), already
+         * carrying the backend's own `available` / `unavailable_reason` /
+         * `state_since` verdict. Null while nothing has been reported — which
+         * is *unknown*, and is not the same as `configured: false`, which is a
+         * report saying there is no dispenser.
+         *
+         * @var array<string, mixed>|null
+         */
+        public ?array $dispenserStatus = null,
+        public ?string $dispenserStatusAt = null,
     ) {}
 
     public static function fromRow(array $row, ?string $backendVersion = null): self
@@ -63,7 +74,29 @@ final readonly class TerminalDto
             reportedVersionAt: $row['reported_version_at'] ?? null,
             blockedVersion: $row['blocked_version'] ?? null,
             backendVersion: $backendVersion,
+            dispenserStatus: self::decodeDispenserStatus($row['dispenser_status'] ?? null),
+            dispenserStatusAt: $row['dispenser_status_at'] ?? null,
         );
+    }
+
+    /**
+     * A column nothing but {@see \App\Modules\Terminals\Services\DispenserStatusService}
+     * writes, so a value that will not decode is a corrupted row rather than an
+     * input to validate. It reads as *never reported* — the panel says
+     * "unknown", which is true, instead of a 500 on the terminals list because
+     * one peripheral's telemetry went bad.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function decodeDispenserStatus(mixed $raw): ?array
+    {
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : null;
     }
 
     public function versionState(): TerminalVersionState
@@ -118,6 +151,16 @@ final readonly class TerminalDto
             'blocked_version' => $this->blockedVersion,
             'backend_version' => $this->backendVersion,
             'version_state' => $this->versionState()->value,
+            // ADR-0057. Display-only, and served whole rather than flattened
+            // into columns: the panel renders the document, the fields in it
+            // grow with the firmware, and nothing queries it by field.
+            'dispenser_status' => $this->dispenserStatus,
+            // When the report arrived, not when the device observed it (that is
+            // `observed_at` inside the document). Its own stamp beside
+            // `last_sync_at` for the reason `reported_version_at` has one: a
+            // terminal can keep syncing while reporting nothing, and a stale
+            // status read as current is worse than none.
+            'dispenser_status_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->dispenserStatusAt),
             'created_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->createdAt),
             'updated_at' => \App\Shared\Utils\DateFormatter::toUtcIso($this->updatedAt),
         ];

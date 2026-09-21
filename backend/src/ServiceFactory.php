@@ -164,7 +164,9 @@ use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Terminals\Controllers\DispenserStatusController;
 use App\Modules\Terminals\Controllers\PairingController;
+use App\Modules\Terminals\Services\DispenserStatusService;
 use App\Modules\Terminals\Services\PairingService;
 use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
@@ -246,6 +248,7 @@ class ServiceFactory implements ContainerInterface
         // Terminals
         TerminalsAdminController::class => 'getTerminalsAdminController',
         PairingController::class => 'getPairingController',
+        DispenserStatusController::class => 'getDispenserStatusController',
 
         // Dashboard
         DashboardAdminController::class => 'getDashboardAdminController',
@@ -1890,6 +1893,27 @@ class ServiceFactory implements ContainerInterface
             $this->getValidator(),
             $this->getStepUpAuthService(),
         ));
+    }
+
+    public function getDispenserStatusController(): DispenserStatusController
+    {
+        return $this->resolve(
+            DispenserStatusController::class,
+            fn() => new DispenserStatusController($this->getDispenserStatusService()),
+        );
+    }
+
+    /**
+     * ADR-0057. The repository and a logger and nothing else: recording
+     * telemetry must not be able to fail for a reason the caller would have to
+     * handle, so it has no collaborator that can refuse.
+     */
+    public function getDispenserStatusService(): DispenserStatusService
+    {
+        return $this->resolve(
+            DispenserStatusService::class,
+            fn() => new DispenserStatusService($this->getTerminalsRepository(), $this->logger),
+        );
     }
 
     public function getPairingController(): PairingController
