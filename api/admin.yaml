@@ -8424,6 +8424,135 @@ components:
         updated_at:
           type: string
           format: date-time
+        dispenser_status:
+          allOf:
+            - $ref: '#/components/schemas/TerminalDispenserStatus'
+          nullable: true
+          description: >
+            The terminal's last report about its token dispenser (ADR-0057).
+            **Null means it has never reported** — which is *unknown*, and is
+            not the same as a report of `configured: false`, which says there is
+            no dispenser attached. Read it with `dispenser_status_at`: reporting
+            is fail-open, so a status with no age beside it is a claim nobody
+            can check.
+        dispenser_status_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            When that report was received. Deliberately not `last_sync_at`: a
+            terminal can keep syncing perfectly while reporting nothing — an
+            older build, a dropped body, a firmware whose document this backend
+            refused.
+
+    TerminalDispenserStatus:
+      type: object
+      description: >
+        Display-only, served whole. Everything up to `observed_at` is what the
+        terminal reported; the last three fields are the backend's own verdict,
+        derived rather than accepted so that the kiosk and the panel cannot
+        describe one machine differently.
+      properties:
+        configured:
+          type: boolean
+          description: Whether a dispenser is attached at all. `false` is a report, not an absence of one.
+        contact:
+          type: string
+          enum: [reported, unreachable, protocol_mismatch]
+          nullable: true
+          description: >
+            How the terminal came by the document — it parsed one, nothing
+            answered, or something answered in a protocol it does not speak. A
+            protocol mismatch is *not* a device fault: nothing is wrong at the
+            machine and the errand is a deployment one.
+        state:
+          type: string
+          enum: [idle, dispensing, fault]
+          nullable: true
+          description: What the device said it was doing. Availability is `state != fault`.
+        fault:
+          type: string
+          enum: [none, jam, hopper_error]
+          description: >
+            The device-level fault — the field that names the errand. Anything
+            but `none` means a human has to go there, and no surface can clear
+            it: the device has no reset route, and a jam is cleared by a power
+            cycle. A controller that crashed and recovered reports `idle` /
+            `none` and stays in service.
+        fault_code:
+          type: integer
+          description: The Azkoyen code (1-7) behind a `hopper_error`, 0 otherwise.
+        firmware:
+          type: string
+          nullable: true
+        protocol:
+          type: integer
+          nullable: true
+        rssi:
+          type: integer
+          nullable: true
+          description: Wi-Fi signal strength in dBm.
+        uptime_s:
+          type: integer
+          nullable: true
+        reset_reason:
+          type: string
+          nullable: true
+        lifetime:
+          type: object
+          description: >
+            Cumulative device counters, by the names the firmware publishes.
+            Only counters this backend knows are stored, so the object may be
+            empty and any member of it may be absent.
+          additionalProperties:
+            type: integer
+          properties:
+            requested_tokens:
+              type: integer
+            dispensed_tokens:
+              type: integer
+            jams:
+              type: integer
+            crashes:
+              type: integer
+            overrun_tokens:
+              type: integer
+            filtered_pulses:
+              type: integer
+        pending_reconciliations:
+          type: integer
+          nullable: true
+        manual_reconciliations:
+          type: integer
+          nullable: true
+        observed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: The device's own clock — never a substitute for `dispenser_status_at`.
+        available:
+          type: boolean
+          description: Derived. A configured dispenser with no reason not to serve.
+        unavailable_reason:
+          type: string
+          enum: [offline, protocol_mismatch, jam, hopper_error, unspecified_fault]
+          nullable: true
+          description: >
+            Derived, and the same enum the kiosk uses. Null when the dispenser
+            can serve. Contact outranks the device's own words (a machine we did
+            not reach has no state worth believing), and a named fault outranks
+            the generic `state: fault`, which becomes `unspecified_fault` so an
+            unavailable dispenser can never be rendered as available.
+        state_since:
+          type: string
+          format: date-time
+          description: >
+            When this episode began, on the backend's clock. It moves only when
+            `configured`, `contact`, `state`, `fault` or `fault_code` changes —
+            so a jam re-reported every thirty seconds for an hour is one fault
+            that started an hour ago. Carries milliseconds: two episodes can
+            land in the same second, and the second one must not inherit the
+            first one's stamp.
 
     TerminalAnomaly:
       type: object
