@@ -1,0 +1,57 @@
+-- =============================================================================
+-- 071_terminal_dispenser_fill.sql — what the hopper was last filled with (#955)
+-- =============================================================================
+-- The most ordinary failure a token dispenser has is running empty, and it is
+-- also the most expensive: the dispense that finds the hopper empty runs into
+-- the firmware's 5 s jam timeout, the device goes to `fault`, token sales stop,
+-- and clearing it costs a walk to the plug (owner decision 3 of #944 — there is
+-- no reset route).
+--
+-- The machine cannot warn us. Its *empty* sensor is a factory option this unit
+-- does not have, so `hopper_low` was removed from the protocol rather than
+-- published as a value that always says "fine" (owner decision 7). The
+-- replacement is arithmetic instead of a sensor: what was counted in, minus
+-- what has been sold since.
+--
+-- Three columns, and each of them is a fact this backend cannot get anywhere
+-- else:
+--
+-- * `dispenser_refilled_at` is the *anchor* the subtraction counts from. The
+--   device's own counters cannot serve as one: they are cumulative and
+--   RAM-only, so a reboot zeroes them (firmware F7, whose WiFi supervisor
+--   restarts an unreachable controller on purpose) and a counter that went
+--   *down* since the last observation would read as tokens reappearing. No
+--   history of the reports is kept either — ADR-0057 rejected a
+--   `dispenser_reports` table — so without this column there is nothing at all
+--   to count from.
+-- * `dispenser_refill_tokens` is a **counted** number, not a derived one. An
+--   admin records what is in the hopper after filling it, and that number
+--   replaces the estimate outright. "Added N" and "filled to the top" both
+--   build on a figure nobody has checked, and the point of a refill is to put
+--   the estimate back on a known value (owner decision 8).
+-- * `dispenser_low_threshold` is per terminal, because how many tokens a hopper
+--   holds and how fast a bar sells them are properties of that bar. NOT NULL
+--   with a default, so the warning exists from the first refill without anybody
+--   configuring anything; 20 is roughly one busy evening's tail.
+--
+-- What is deliberately *not* here: no `dispenser_tokens_sold` counter. The
+-- sales are already in `transactions` — one row per token, written with the
+-- terminal that sold it and the moment it was sold — so a counter beside them
+-- would be a second copy of a number the database already holds, kept in step
+-- by hand across an offline terminal's late sync. The estimate is computed on
+-- read instead.
+--
+-- DATETIME rather than TIMESTAMP, as in 011, 021, 065 and 070: no auto-update
+-- behaviour, no 2038 wall. UTC, per Pattern 020.
+--
+-- No backfill. NULL in `dispenser_refilled_at` means "no refill has ever been
+-- recorded for this terminal", which is true of every terminal today, and which
+-- the panel must show as *no estimate* — never as "0 tokens left".
+--
+-- Rollback: db/rollback/071_terminal_dispenser_fill.down.sql
+-- =============================================================================
+
+ALTER TABLE terminals
+    ADD COLUMN dispenser_refilled_at   DATETIME NULL COMMENT 'When the hopper was last refilled (UTC); NULL = never recorded, no estimate shown (#955)' AFTER dispenser_status_at,
+    ADD COLUMN dispenser_refill_tokens INT NULL COMMENT 'Tokens counted in the hopper right after that refill' AFTER dispenser_refilled_at,
+    ADD COLUMN dispenser_low_threshold INT NOT NULL DEFAULT 20 COMMENT 'Warn at or below this estimated number of tokens left' AFTER dispenser_refill_tokens;

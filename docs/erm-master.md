@@ -207,6 +207,9 @@ erDiagram
         varchar_64 blocked_version "Tag whose update failed there, never retried"
         json dispenser_status "Last dispenser status this terminal reported"
         datetime dispenser_status_at "When that report was received"
+        datetime dispenser_refilled_at "When the hopper was last refilled"
+        int dispenser_refill_tokens "Tokens counted in at that refill"
+        int dispenser_low_threshold "Warn at or below this estimate"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -820,6 +823,9 @@ Registered POS terminals with API authentication.
 | blocked_version | VARCHAR(64) | NULL | Tag whose update failed on this terminal; its updater will never retry it |
 | dispenser_status | JSON | NULL | The terminal's last report about its token dispenser ([ADR-0057](../adr/0057-terminals-report-peripheral-status.md)), with the backend's derived `available`, `unavailable_reason` and `state_since` stamped in. NULL = **never reported**, which is not the same as a report of `configured: false` (= no dispenser attached) |
 | dispenser_status_at | DATETIME | NULL | When that report was received (UTC). Separate from `last_sync_at` for the reason `reported_version_at` is: reporting is fail-open, so a terminal can sync perfectly while reporting nothing |
+| dispenser_refilled_at | DATETIME | NULL | When the hopper was last refilled ([ADR-0058](../adr/0058-hopper-fill-is-estimated-from-sales.md)). The anchor the fill estimate counts from; NULL = never recorded, which means **no estimate** and is not "0 tokens left" |
+| dispenser_refill_tokens | INT | NULL | Tokens counted into the hopper at that moment. A counted number that *replaces* the estimate — never an increment |
+| dispenser_low_threshold | INT | NOT NULL, DEFAULT 20 | Warn once the estimate is at or below this. Per terminal, because hopper size and turnover belong to the bar |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
