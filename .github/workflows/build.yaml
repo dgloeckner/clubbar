@@ -1229,26 +1229,34 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: dgloeckner/remote-token-dispenser
-          # F6 (dgloeckner/remote-token-dispenser#6): protocol 2 — one `state`
-          # and one `fault` in `/health`, `count_reliable`/`error_code`/
-          # `error_type` required on every transaction response, a `409 fault`
-          # for a POST while faulted, and a `--protocol` flag that changes
-          # only what the mock *claims*. The flag is what makes "a dispenser
-          # speaking protocol 1 is unavailable, not degraded" assertable
-          # against a mock whose behaviour is still correct (#948).
+          # F8 (dgloeckner/remote-token-dispenser#8): request signing. The
+          # mock issues nonces at `GET /nonce`, verifies `X-Nonce` /
+          # `X-Signature` over `METHOD \n PATH \n BODY \n NONCE`, spends the
+          # nonce on a mutating request and answers a refusal with
+          # `401 {"error":"unauthorized","reason":"nonce"|"signature"}` — the
+          # distinction the client's single retry hangs on (#951). It is
+          # started with `--signing-key`; **`--api-key` no longer exists**, so
+          # this pin and the terminal's signing client move together or the
+          # flow suite cannot even start the mock.
           #
-          # It carries F3 with it (a transaction survives a reset: the crashed
-          # one comes back as `error` with its exact count and
-          # `count_reliable: true`, and stays in the persisted history ring,
-          # so a later GET is a 200 and not a 404 — the reset scenario of
-          # #947).
+          # It carries F6 with it (protocol 2 — one `state` and one `fault` in
+          # `/health`, `count_reliable`/`error_code`/`error_type` required on
+          # every transaction response, a `409 fault` for a POST while
+          # faulted, and a `--protocol` flag that changes only what the mock
+          # *claims*, which is what makes "a dispenser speaking protocol 1 is
+          # unavailable, not degraded" assertable against a mock whose
+          # behaviour is still correct, #948), and F3 before it (a transaction
+          # survives a reset: the crashed one comes back as `error` with its
+          # exact count and `count_reliable: true`, and stays in the persisted
+          # history ring, so a later GET is a 200 and not a 404 — the reset
+          # scenario of #947).
           #
           # A **full 40-character SHA**, not the short one: `actions/checkout`
           # recognises a `ref` as a commit only at full length, and otherwise
           # takes it for a branch or tag name — it fetched
           # `refs/heads/f0ce893*`, found nothing, and failed the job three
           # retries later.
-          ref: 6a8e087e64bad40ee3ae20a0eadc72f27a3e7b5e
+          ref: 49d4c9313696912615f19bc421efbf35e04e5d41
           path: dispenser-mock-repo
 
       # No setup-go step: the runner image ships Go, and `go build` fetches the

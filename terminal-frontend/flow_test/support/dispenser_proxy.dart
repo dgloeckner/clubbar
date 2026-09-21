@@ -10,8 +10,14 @@ class ProxiedRequest {
   final DateTime startedAt;
   DateTime? finishedAt;
 
+  /// What the mock answered, or `null` when the answer never came back (a
+  /// dropped response, a dead mock). A `401` here is the device refusing a
+  /// signature or a nonce (#951).
+  int? statusCode;
+
   bool get isPoll => method == 'GET' && path.startsWith('/dispense/');
   bool get isDispense => method == 'POST' && path == '/dispense';
+  bool get isNonce => method == 'GET' && path == '/nonce';
 
   @override
   String toString() => '$method $path';
@@ -55,6 +61,10 @@ class DispenserProxy {
   int get pollCount => _requests.where((r) => r.isPoll).length;
 
   int get dispenseCount => _requests.where((r) => r.isDispense).length;
+
+  /// How many nonces the terminal asked for. One per dispense is the budget
+  /// the protocol's read-only rule buys (#951).
+  int get nonceCount => _requests.where((r) => r.isNonce).length;
 
   static Future<DispenserProxy> start(String targetBaseUrl) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -100,6 +110,7 @@ class DispenserProxy {
         return;
       }
 
+      record.statusCode = response.statusCode;
       request.response.statusCode = response.statusCode;
       response.headers.forEach((name, values) {
         if (name.toLowerCase() == 'content-length') return;

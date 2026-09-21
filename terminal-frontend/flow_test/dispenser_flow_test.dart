@@ -1,6 +1,8 @@
 @Timeout(Duration(seconds: 60))
 library;
 
+import 'dart:io';
+
 import 'package:clubbar_terminal/database/database.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:drift/drift.dart' show Value;
@@ -24,9 +26,12 @@ void main() {
   Future<void> boot({
     Duration timeoutPerToken = const Duration(seconds: 2),
     int protocolClaim = 2,
+    String? clientSigningKey,
   }) async {
     harness = await DispenserFlowHarness.start(
-        timeoutPerToken: timeoutPerToken, protocolClaim: protocolClaim);
+        timeoutPerToken: timeoutPerToken,
+        protocolClaim: protocolClaim,
+        clientSigningKey: clientSigningKey);
   }
 
   tearDown(() async {
@@ -170,6 +175,94 @@ void main() {
         DispenserFlowHarness.tokenPriceCents);
     expect(await harness.trackingRows(), isEmpty,
         reason: 'a count the device vouches for settles the dispense');
+  });
+
+  group('request signing (#951)', () {
+    /// Asks the mock for nonces out of band — straight at it, past the proxy,
+    /// so these do not show up as requests the terminal made.
+    ///
+    /// The device keeps at most 8 outstanding (`NoncePoolSize`), so nine
+    /// evict the one the terminal is holding. That is how a *real* device
+    /// invalidates a nonce nobody spent: a second client on the same segment
+    /// asking for its own.
+    Future<void> crowdOutTheNoncePool() async {
+      final client = HttpClient();
+      try {
+        for (var i = 0; i < 9; i++) {
+          final request =
+              await client.getUrl(Uri.parse('${harness.mock.baseUrl}/nonce'));
+          final response = await request.close();
+          await response.drain<void>();
+        }
+      } finally {
+        client.close();
+      }
+    }
+
+    test('a nonce the device has forgotten costs one retry, not the dispense',
+        () async {
+      await boot();
+
+      // Warm the client's nonce cache with a read-only request: `/health`
+      // does not spend its nonce, so the terminal keeps holding it.
+      await harness.client.getHealth();
+      await crowdOutTheNoncePool();
+
+      // The POST now arrives signed with a nonce the device no longer knows.
+      // `401 reason=nonce` is retryable — exactly once, with a fresh nonce —
+      // and the member never learns any of it happened.
+      await harness.checkoutTokens(MockDispenser.qtySuccess);
+
+      final refused = harness.proxy.requests
+          .where((r) => r.isDispense && r.statusCode == 401);
+      expect(refused, hasLength(1),
+          reason: 'the stale nonce must be refused, and refused once');
+      expect(
+          harness.proxy.requests
+              .where((r) => r.isDispense && r.statusCode == 200),
+          hasLength(1),
+          reason: 'the retry must go through');
+
+      expect(await harness.billedTokens(), MockDispenser.qtySuccess,
+          reason: 'a retried dispense is still one dispense — tx_id is '
+              'idempotent');
+      expect(await harness.trackingRows(), isEmpty);
+    });
+
+    test('a dispense costs one nonce, and the polls behind it cost none',
+        () async {
+      await boot();
+
+      await harness.checkoutTokens(MockDispenser.qtySuccess);
+
+      expect(harness.proxy.pollCount, greaterThanOrEqualTo(1));
+      // One for the POST (which spends it) and one for the polls behind it,
+      // which are read-only and share it until the TTL runs out.
+      expect(harness.proxy.nonceCount, lessThanOrEqualTo(2),
+          reason: 'a nonce per request would be a round trip per poll on a '
+              'device with a handful of TCP slots');
+    });
+
+    test('a terminal holding the wrong key dispenses nothing and bills nothing',
+        () async {
+      await boot(clientSigningKey: 'not-the-key-the-device-was-flashed-with');
+
+      await harness.checkoutTokens(MockDispenser.qtySuccess);
+
+      expect(
+          harness.proxy.requests
+              .where((r) => r.isDispense && r.statusCode == 401),
+          hasLength(1),
+          reason: 'a wrong signature is refused, and retrying it is pointless');
+      expect(await harness.billedTokens(), 0,
+          reason: 'nothing came out, so nothing is owed');
+
+      // The health poll goes the same way, and must not read as *offline*:
+      // the machine is fine, this terminal is not set up (#951).
+      await harness.health.checkNow();
+      expect(harness.health.currentHealth?.unavailableReason,
+          DispenserUnavailableReason.signingKeyRejected);
+    });
   });
 
   group('known defects — red until the issue that owns them lands', () {

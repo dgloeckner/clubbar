@@ -112,17 +112,21 @@ class DispenserFlowHarness {
     Duration requestTimeout = const Duration(seconds: 5),
     Duration retryDelay = const Duration(milliseconds: 100),
     int protocolClaim = 2,
+    String? clientSigningKey,
   }) async {
     _registerFallbacks();
 
     final mock = await MockDispenser.start(protocolClaim: protocolClaim);
+    // Normally the two ends share the secret. A scenario hands in a different
+    // one to stand where a mis-provisioned kiosk stands (#951).
+    final signingKey = clientSigningKey ?? mock.signingKey;
     final proxy = await DispenserProxy.start(mock.baseUrl);
     final db = ClubBarDatabase.forTesting(NativeDatabase.memory());
 
     final config = _MockConfigService();
     when(() => config.dispenserEnabled).thenReturn(true);
     when(() => config.dispenserBaseUrl).thenReturn(proxy.baseUrl);
-    when(() => config.dispenserApiKey).thenReturn(mock.apiKey);
+    when(() => config.dispenserSigningKey).thenReturn(signingKey);
     when(() => config.dispenserTimeoutMs).thenReturn(2000);
     when(() => config.dispenserPollIntervalMs).thenReturn(pollInterval.inMilliseconds);
     when(() => config.creditLimitPolicy).thenReturn(CreditLimitPolicy.shipped);
@@ -138,7 +142,7 @@ class DispenserFlowHarness {
 
     final client = DispenserClient(
       baseUrl: proxy.baseUrl,
-      apiKey: mock.apiKey,
+      signingKey: signingKey,
       timeoutMs: 2000,
     );
 
