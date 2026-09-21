@@ -1,0 +1,46 @@
+-- =============================================================================
+-- 070_terminal_dispenser_status.sql — terminals report their dispenser's status
+-- (#952, ADR-0057)
+-- =============================================================================
+-- ADR-0054 had the terminal *report* and the backend *record beside
+-- last_sync_at*, fail-open, for the version it runs. ADR-0057 applies that same
+-- shape to the peripheral hanging off it: a jammed, empty or unplugged token
+-- dispenser is otherwise discovered by a member at the kiosk, and the only way
+-- to learn anything is to walk to the machine and open its diagnostics modal.
+--
+-- One JSON column rather than a dozen typed ones. The document is display-only
+-- — nothing queries it by field, nothing sorts or aggregates on it — and it
+-- grows with the dispenser firmware, which is versioned and released
+-- separately from this backend. Twelve columns would mean a migration per
+-- firmware counter, and `metrics.filtered_pulses` (which the mock does not
+-- even emit) is exactly the kind of field that arrives, is interesting for a
+-- month, and is then never read again.
+--
+-- `dispenser_status_at` is deliberately separate from `last_sync_at`, for the
+-- same reason `reported_version_at` is: the report is fail-open, so a terminal
+-- can keep syncing perfectly while reporting nothing — an older build, a
+-- dropped body, a firmware whose document this backend refused. Reading a
+-- stale status as current would be worse than reading none.
+--
+-- No history table beside it. The device's own counters are cumulative, so a
+-- trend is recoverable from two reads; a history would be a second thing to
+-- prune, and ADR-0031 has no cron on shared hosting to prune it with. The one
+-- fact that is not recoverable that way — *when this episode began* — is
+-- carried inside the document as `state_since`, stamped by the backend when a
+-- report changes the state, the fault or the contact.
+--
+-- DATETIME rather than TIMESTAMP, as in 011, 021 and 065: no auto-update
+-- behaviour, no 2038 wall. UTC, per Pattern 020.
+--
+-- No backfill, and no DEFAULT. NULL means "this terminal has never reported",
+-- which is exactly true of every terminal until it next syncs with a build that
+-- files one — and which the panel must show as *unknown*, never as *no
+-- dispenser*. A report of `{"configured": false}` is what says there is no
+-- dispenser, and that is a document, not an absence of one.
+--
+-- Rollback: db/rollback/070_terminal_dispenser_status.down.sql
+-- =============================================================================
+
+ALTER TABLE terminals
+    ADD COLUMN dispenser_status    JSON NULL COMMENT 'Last dispenser status this terminal reported (ADR-0057); NULL = never reported' AFTER blocked_version,
+    ADD COLUMN dispenser_status_at DATETIME NULL COMMENT 'When that report was received (UTC); separate from last_sync_at because reporting is fail-open' AFTER dispenser_status;
