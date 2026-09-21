@@ -12,6 +12,8 @@ import { Tooltip } from '../common/Tooltip'
 import { TerminalLifecycleBadge, type TokenLifecycleBadgeState } from './TerminalLifecycleBadge'
 import { TerminalAnomalyPanel } from './TerminalAnomalyPanel'
 import { TerminalVersionCell } from './TerminalVersionCell'
+import { TerminalDispenserCell } from './TerminalDispenserCell'
+import { TerminalDispenserPanel } from './TerminalDispenserPanel'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import type { Terminal as GeneratedTerminal } from '../../api/generated/model'
 
@@ -188,6 +190,10 @@ export function TerminalsTab({
   const breakpoint = useBreakpoint()
   const isMobile = breakpoint === 'smallMobile' || breakpoint === 'mobile'
   const [anomalyTerminal, setAnomalyTerminal] = useState<Terminal | null>(null)
+  // The dispenser detail is read out of the row, not fetched: the terminals
+  // list already carries the whole document (ADR-0057), so opening it costs no
+  // request and the Data Fetching Pattern is untouched.
+  const [dispenserTerminal, setDispenserTerminal] = useState<Terminal | null>(null)
 
   if (loading) {
     return (
@@ -334,6 +340,14 @@ export function TerminalsTab({
                   <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.terminalVersion')}</div>
                   <TerminalVersionCell terminal={terminal} testId={`settings-terminal-version-${terminal.id}`} />
                 </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ color: theme.colors.text.muted, marginBottom: '2px' }}>{t('settings.terminalDispenser')}</div>
+                  <TerminalDispenserCell
+                    terminal={terminal}
+                    testId={`settings-terminal-dispenser-${terminal.id}`}
+                    onSelect={() => setDispenserTerminal(terminal)}
+                  />
+                </div>
               </div>
 
               {/* Actions row */}
@@ -457,6 +471,16 @@ export function TerminalsTab({
                 <th
                   style={{
                     padding: theme.spacing.md,
+                    textAlign: 'left',
+                    borderBottom: `1px solid ${theme.colors.border.light}`,
+                    fontWeight: theme.typography.fontWeight.semibold,
+                  }}
+                >
+                  {t('settings.terminalDispenser')}
+                </th>
+                <th
+                  style={{
+                    padding: theme.spacing.md,
                     textAlign: 'center',
                     borderBottom: `1px solid ${theme.colors.border.light}`,
                     fontWeight: theme.typography.fontWeight.semibold,
@@ -563,6 +587,21 @@ export function TerminalsTab({
                     <TerminalVersionCell terminal={terminal} testId={`settings-terminal-version-${terminal.id}`} />
                   </td>
 
+                  {/* What the terminal last said about its dispenser (ADR-0057) */}
+                  <td
+                    style={{
+                      padding: theme.spacing.md,
+                      color: theme.colors.text.secondary,
+                      fontSize: theme.typography.fontSize.xs,
+                    }}
+                  >
+                    <TerminalDispenserCell
+                      terminal={terminal}
+                      testId={`settings-terminal-dispenser-${terminal.id}`}
+                      onSelect={() => setDispenserTerminal(terminal)}
+                    />
+                  </td>
+
                   {/* Actions */}
                   <td style={{ padding: theme.spacing.md, textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: theme.spacing.sm, justifyContent: 'center', alignItems: 'center' }}>
@@ -631,6 +670,13 @@ export function TerminalsTab({
           </table>
         </div>
       )}
+
+      <TerminalDispenserPanel
+        isOpen={dispenserTerminal !== null}
+        terminalName={dispenserTerminal?.name ?? ''}
+        terminal={dispenserTerminal}
+        onClose={() => setDispenserTerminal(null)}
+      />
 
       <TerminalAnomalyPanel
         isOpen={anomalyTerminal !== null}
