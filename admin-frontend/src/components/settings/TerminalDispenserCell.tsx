@@ -33,6 +33,13 @@
  *    power cycle (owner decision 3 of #944); a button would change a screen
  *    and not a hopper. The only control is the one that opens the detail.
  *
+ * A fifth state sits between ready and unavailable: **low**. The hopper's fill
+ * estimate (#955) is arithmetic rather than a sensor — a counted refill minus
+ * the tokens sold since — and it warns about a machine that is still working,
+ * which is the whole point of it. It never overrides `available`: that verdict
+ * is the backend's, so the kiosk and the panel cannot disagree about one
+ * machine, and an estimate is not evidence against a machine that is serving.
+ *
  * The vocabulary is the kiosk's, deliberately: *Stau oder leer*,
  * *Hopper-Fehler N*, *Protokoll passt nicht*, *Nicht erreichbar*, *Störung*.
  * Two surfaces describing one machine differently is how a club stops trusting
@@ -46,6 +53,7 @@ import { useDispenserAgeText } from '../../hooks/useDispenserAgeText'
 import {
   dispenserAge,
   dispenserDisplay,
+  dispenserFill,
   type DispenserDisplayState,
 } from '../../utils/dispenserStatus'
 import type {
@@ -53,7 +61,10 @@ import type {
   TerminalDispenserStatusUnavailableReason,
 } from '../../api/generated/model'
 
-export type DispenserTerminal = Pick<GeneratedTerminal, 'dispenser_status' | 'dispenser_status_at'>
+export type DispenserTerminal = Pick<
+  GeneratedTerminal,
+  'dispenser_status' | 'dispenser_status_at' | 'dispenser_fill'
+>
 
 type Variant = NonNullable<BadgeProps['variant']>
 
@@ -64,6 +75,17 @@ type Variant = NonNullable<BadgeProps['variant']>
  * wrong at the machine, and an admin reading the row should not be sent to the
  * bar with a power cable (epic finding 13).
  */
+/**
+ * The estimate's two warning wordings (#955).
+ *
+ * Both say *about* — it is arithmetic, not a measurement, and an operator who
+ * reads it as a stock figure will be surprised by the hopper either way round.
+ */
+const FILL = {
+  low: 'settings.terminalDispenserFillLow',
+  exhausted: 'settings.terminalDispenserFillExhausted',
+} as const
+
 const REASON: Record<
   NonNullable<TerminalDispenserStatusUnavailableReason>,
   { key: string; variant: Variant }
@@ -88,16 +110,22 @@ export function TerminalDispenserCell({
   const { t } = useTranslation()
   const ageText = useDispenserAgeText()
 
-  const display = dispenserDisplay(terminal.dispenser_status)
+  const display = dispenserDisplay(terminal.dispenser_status, terminal.dispenser_fill)
+  const fill = dispenserFill(terminal.dispenser_fill)
   const age = dispenserAge(terminal.dispenser_status_at)
   const status = terminal.dispenser_status
 
   const variant: Variant | null =
     display.state === 'available'
       ? 'success'
-      : display.state === 'unavailable' && display.reason
-        ? REASON[display.reason].variant
-        : null
+      : // The hopper estimate warns about a machine that is working: amber, not
+        // red, because nothing is broken yet and that is the entire value of
+        // saying it now rather than after the jam.
+        display.state === 'low'
+        ? 'warning'
+        : display.state === 'unavailable' && display.reason
+          ? REASON[display.reason].variant
+          : null
 
   // The state travels as attributes as well as a badge, because the badge text
   // is translated and E2E has to read something stable.
@@ -111,7 +139,23 @@ export function TerminalDispenserCell({
   const label =
     display.state === 'unavailable' && display.reason
       ? t(REASON[display.reason].key, { code: display.faultCode ?? 0 })
-      : t('settings.terminalDispenserReady')
+      : display.state === 'low'
+        ? t(FILL[fill.state === 'exhausted' ? 'exhausted' : 'low'], {
+            // `value`, not `count`: i18next reads `count` as a plural selector
+            // and would look for keys that do not exist.
+            value: fill.estimatedLeft ?? 0,
+          })
+        : t('settings.terminalDispenserReady')
+
+  // The one place both facts are known at once. A jam the machine cannot tell
+  // from an empty hopper — it says *Stau oder leer* for exactly that reason —
+  // next to an estimate that has run out is the strongest guess this system
+  // can make, and it is still a guess, so it is a sentence beside the badge
+  // rather than a replacement for it.
+  const probablyEmpty =
+    display.state === 'unavailable' &&
+    display.reason === 'jam' &&
+    fill.state === 'exhausted'
 
   const body =
     display.state === 'unknown' ? (
@@ -156,6 +200,15 @@ export function TerminalDispenserCell({
           style={{ color: theme.colors.text.muted, fontSize: theme.typography.fontSize.xs }}
         >
           {ageText(age)}
+        </span>
+      )}
+
+      {probablyEmpty && (
+        <span
+          data-testid={`${testId}-probably-empty`}
+          style={{ color: theme.colors.text.muted, fontSize: theme.typography.fontSize.xs }}
+        >
+          {t('settings.terminalDispenserProbablyEmpty')}
         </span>
       )}
 

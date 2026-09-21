@@ -203,4 +203,98 @@ describe('TerminalDispenserCell', () => {
     expect(cell.getAttribute('data-dispenser-state')).toBe('available')
     expect(screen.queryByTestId(`${testId}-age`)).toBeNull()
   })
+
+  /**
+   * The fifth state (#955): a machine that is working and will stop soon.
+   * Amber rather than red, because nothing is broken yet — which is the entire
+   * value of saying it before the jam instead of after it.
+   */
+  describe('the fill estimate', () => {
+    const fill = (overrides: Record<string, unknown>) => ({
+      dispenser_status: healthy,
+      dispenser_status_at: '2026-09-21T11:59:00Z',
+      dispenser_fill: { refilled_at: '2026-09-20T18:00:00Z', refill_tokens: 400, sold_since: 0, low_threshold: 20, estimated_left: 400, ...overrides },
+    })
+
+    it('leaves a comfortable hopper reading as ready', () => {
+      const cell = renderCell(fill({ estimated_left: 263, sold_since: 137 }))
+
+      expect(cell.getAttribute('data-dispenser-state')).toBe('available')
+      expect(cell.textContent).toContain('settings.terminalDispenserReady')
+    })
+
+    it('warns at or below the threshold, with the number and in amber', () => {
+      const cell = renderCell(fill({ estimated_left: 20, sold_since: 380 }))
+
+      expect(cell.getAttribute('data-dispenser-state')).toBe('low')
+      expect(cell.getAttribute('data-dispenser-variant')).toBe('warning')
+      expect(cell.textContent).toContain('settings.terminalDispenserFillLow:value=20')
+    })
+
+    it('says the estimate is used up rather than showing a zero on its own', () => {
+      const cell = renderCell(fill({ estimated_left: 0, sold_since: 411 }))
+
+      expect(cell.getAttribute('data-dispenser-state')).toBe('low')
+      expect(cell.textContent).toContain('settings.terminalDispenserFillExhausted')
+    })
+
+    /**
+     * `undefined ?? 0` here would print "0 Token übrig" for a hopper nobody has
+     * ever counted, and send somebody to a full machine with a bag of tokens.
+     */
+    it('makes no claim when no refill has been recorded', () => {
+      const cell = renderCell({
+        dispenser_status: healthy,
+        dispenser_status_at: '2026-09-21T11:59:00Z',
+        dispenser_fill: { refilled_at: null, refill_tokens: null, sold_since: null, estimated_left: null, low_threshold: 20 },
+      })
+
+      expect(cell.getAttribute('data-dispenser-state')).toBe('available')
+      expect(cell.textContent).not.toContain('settings.terminalDispenserFill')
+    })
+
+    /**
+     * The estimate never overrides the backend's `available`: that verdict is
+     * derived server-side so the kiosk and the panel cannot describe one
+     * machine differently, and a fault outranks a guess about the hopper.
+     */
+    it('never unsets a fault the backend named', () => {
+      const cell = renderCell({
+        dispenser_status: { ...healthy, state: 'fault', fault: 'jam', available: false, unavailable_reason: 'jam' },
+        dispenser_status_at: '2026-09-21T11:59:00Z',
+        dispenser_fill: { refilled_at: '2026-09-20T18:00:00Z', refill_tokens: 400, sold_since: 0, estimated_left: 400, low_threshold: 20 },
+      })
+
+      expect(cell.getAttribute('data-dispenser-state')).toBe('unavailable')
+      expect(cell.textContent).toContain('settings.terminalDispenserUnavailableJam')
+      expect(screen.queryByTestId(`${testId}-probably-empty`)).toBeNull()
+    })
+
+    /**
+     * The machine genuinely cannot tell a jam from an empty hopper — which is
+     * why the badge says *Stau oder leer*. An exhausted estimate beside it is
+     * the one place both facts are known, so it adds a sentence and still does
+     * not pretend to know.
+     */
+    it('says probably empty when a jam meets an exhausted estimate', () => {
+      renderCell({
+        dispenser_status: { ...healthy, state: 'fault', fault: 'jam', available: false, unavailable_reason: 'jam' },
+        dispenser_status_at: '2026-09-21T11:59:00Z',
+        dispenser_fill: { refilled_at: '2026-09-20T18:00:00Z', refill_tokens: 400, sold_since: 400, estimated_left: 0, low_threshold: 20 },
+      })
+
+      expect(screen.getByTestId(`${testId}-probably-empty`).textContent).toBe(
+        'settings.terminalDispenserProbablyEmpty',
+      )
+    })
+
+    /** Owner decision 3, again: a warning is not a thing to press. */
+    it('adds no control of its own', () => {
+      const cell = renderCell(fill({ estimated_left: 0, sold_since: 411 }))
+
+      const buttons = cell.querySelectorAll('button')
+      expect(buttons).toHaveLength(1)
+      expect(buttons[0].getAttribute('data-testid')).toBe(`${testId}-details`)
+    })
+  })
 })

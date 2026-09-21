@@ -13,6 +13,7 @@ import {
   dispenserAge,
   durationParts,
   dispenserDisplay,
+  dispenserFill,
   dispenserNeedsAttention,
   hasCounter,
 } from './dispenserStatus'
@@ -169,5 +170,77 @@ describe('hasCounter', () => {
     expect(hasCounter(null)).toBe(false)
     expect(hasCounter('3')).toBe(false)
     expect(hasCounter(Number.NaN)).toBe(false)
+  })
+})
+
+/**
+ * The hopper estimate (#955, ADR-0058) — arithmetic, not a sensor, and the
+ * reading has to keep saying so. The machine has no empty switch; this is a
+ * counted refill minus what has been billed since.
+ */
+describe('dispenserFill', () => {
+  const fill = (overrides: Record<string, unknown> = {}) =>
+    dispenserFill({ refilled_at: '2026-09-20T18:00:00Z', refill_tokens: 400, sold_since: 137, estimated_left: 263, low_threshold: 20, ...overrides } as never)
+
+  it('reads a comfortable hopper as ok', () => {
+    expect(fill()).toEqual({ state: 'ok', estimatedLeft: 263, threshold: 20 })
+  })
+
+  it('warns at the threshold, not only below it', () => {
+    expect(fill({ estimated_left: 20 }).state).toBe('low')
+    expect(fill({ estimated_left: 21 }).state).toBe('ok')
+  })
+
+  it('reads a used-up load as exhausted rather than as a number', () => {
+    // The backend floors the estimate at zero: a negative number would be
+    // false precision about a drift nobody measured.
+    expect(fill({ estimated_left: 0 })).toEqual({ state: 'exhausted', estimatedLeft: 0, threshold: 20 })
+  })
+
+  /**
+   * The `hasCounter` rule, applied to the estimate: an absent number is not a
+   * zero. "No refill recorded" and "the hopper is empty" are opposite errands,
+   * and `undefined ?? 0` would turn the first into the second.
+   */
+  it('makes no claim when there is nothing to estimate from', () => {
+    expect(dispenserFill(null)).toEqual({ state: 'unknown', estimatedLeft: null, threshold: null })
+    expect(dispenserFill(undefined)).toEqual({ state: 'unknown', estimatedLeft: null, threshold: null })
+    expect(fill({ estimated_left: null })).toEqual({ state: 'unknown', estimatedLeft: null, threshold: 20 })
+    expect(fill({ estimated_left: undefined })).toEqual({ state: 'unknown', estimatedLeft: null, threshold: 20 })
+  })
+
+  /** A threshold of zero warns only once the estimate is used up. */
+  it('honours a threshold of zero', () => {
+    expect(fill({ low_threshold: 0, estimated_left: 1 }).state).toBe('ok')
+    expect(fill({ low_threshold: 0, estimated_left: 0 }).state).toBe('exhausted')
+  })
+})
+
+describe('dispenserDisplay with an estimate beside the report', () => {
+  const healthyStatus = { configured: true, contact: 'reported', state: 'idle', fault: 'none', available: true, unavailable_reason: null }
+  const low = { refilled_at: '2026-09-20T18:00:00Z', refill_tokens: 400, sold_since: 390, estimated_left: 10, low_threshold: 20 }
+
+  it('adds a fifth state between ready and unavailable', () => {
+    expect(dispenserDisplay(healthyStatus as never, low as never).state).toBe('low')
+  })
+
+  /**
+   * `available` is the backend's verdict precisely so that the kiosk and the
+   * panel cannot describe one machine differently. An estimate is a guess
+   * about a hopper somebody may have topped up without saying so, and it is
+   * never evidence against a machine that is serving.
+   */
+  it('never unsets availability, in either direction', () => {
+    const jammed = { ...healthyStatus, state: 'fault', fault: 'jam', available: false, unavailable_reason: 'jam' }
+    const full = { ...low, sold_since: 0, estimated_left: 400 }
+
+    expect(dispenserDisplay(jammed as never, full as never).state).toBe('unavailable')
+    expect(dispenserDisplay(jammed as never, low as never).reason).toBe('jam')
+  })
+
+  it('leaves the four report-only states exactly as they were', () => {
+    expect(dispenserDisplay(null, low as never).state).toBe('unknown')
+    expect(dispenserDisplay({ configured: false } as never, low as never).state).toBe('none')
+    expect(dispenserDisplay(healthyStatus as never).state).toBe('available')
   })
 })
