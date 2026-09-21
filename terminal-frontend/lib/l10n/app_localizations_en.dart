@@ -602,6 +602,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'The dispenser firmware and the terminal software do not match — please report this to an admin.';
 
   @override
+  String get dispenserUnavailableKeyRejected => 'Access key refused';
+
+  @override
+  String get dispenserKeyInstruction =>
+      'This terminal and the dispenser do not share the same access key — please report this to an admin.';
+
+  @override
   String get tabOverview => 'Overview';
 
   @override
@@ -719,6 +726,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get errorDispenserFaulted =>
       'The token dispenser has a fault and cannot hand out tokens — please see the bar staff. You can still buy everything else.';
+
+  @override
+  String get errorDispenserKeyRejected =>
+      'The token dispenser does not accept this terminal — it is not set up correctly. You have not been charged; please see the bar staff. You can still buy everything else.';
 
   @override
   String get errorDispenserCountUnreliable =>

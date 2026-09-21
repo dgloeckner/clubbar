@@ -288,6 +288,8 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         return l10n.dispenserUnavailableHopperError(health.faultCode);
       case DispenserUnavailableReason.unspecifiedFault:
         return l10n.dispenserUnavailableFault;
+      case DispenserUnavailableReason.signingKeyRejected:
+        return l10n.dispenserUnavailableKeyRejected;
       case null:
         return '';
     }
@@ -303,6 +305,8 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
         return l10n.dispenserOfflineInstruction;
       case DispenserUnavailableReason.protocolMismatch:
         return l10n.dispenserProtocolInstruction;
+      case DispenserUnavailableReason.signingKeyRejected:
+        return l10n.dispenserKeyInstruction;
       case DispenserUnavailableReason.jam:
       case DispenserUnavailableReason.hopperError:
       case DispenserUnavailableReason.unspecifiedFault:
