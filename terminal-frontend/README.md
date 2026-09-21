@@ -61,7 +61,7 @@ Create `config.json` at the platform-specific path:
   "dispenser": {
     "enabled": false,
     "baseUrl": "http://192.168.1.100",
-    "apiKey": "<dispenser-api-key>"
+    "signingKey": "<dispenser-signing-key>"
   }
 }
 ```
@@ -89,7 +89,7 @@ export TERMINAL_SEED_TEST_DATA="false"
 export TERMINAL_DEMO_MODE="false"
 export DISPENSER_ENABLED="false"
 export DISPENSER_BASE_URL="http://192.168.1.100"
-export DISPENSER_API_KEY="<dispenser-api-key>"
+export DISPENSER_SIGNING_KEY="<dispenser-signing-key>"
 ```
 
 Note: `fontSizes` cannot be set via environment variables.
@@ -121,6 +121,20 @@ flutter test                                                       # unit tests
 xvfb-run flutter test integration_test/ --exclude-tags=walkthrough # needs a display
 flutter run                                                        # the app
 ```
+
+The dispenser flow suite is separate, because it needs a binary from another
+repository — the Go mock beside the firmware in
+`dgloeckner/remote-token-dispenser`:
+
+```bash
+scripts/flow-test.sh                                    # sibling checkout of the mock repo
+DISPENSER_REPO=~/src/remote-token-dispenser scripts/flow-test.sh
+```
+
+It buys tokens against that mock over real HTTP and asserts on the rows the
+terminal writes — what the member is billed, and what is left to reconcile.
+CI runs it in `build-terminal` against a pinned commit of the mock.
+`flow_test/README.md` explains the harness and why some scenarios are skipped.
 
 `scripts/reset-db.sh` reloads the backend with mock data;
 `scripts/run-tests.sh` is the same test run with a bounded timeout, which is

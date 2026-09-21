@@ -411,6 +411,30 @@ converges on the same shape. `date_of_birth` on `members_cache`, `min_age` on
 `products_cache` and `credit_limit_cents` on `members_cache` arrived that way — an
 existing kiosk gains them as nullable columns and fills them on its next sync.
 
+### `dispenser_operations` carries the purchase, not just the request (schema 15)
+
+A dispense is billed by whoever gets there first — the checkout dialog, or the
+reconciliation tick sixty seconds later, or the recovery pass after a crash —
+and until [#945](https://github.com/dgloeckner/clubbar/issues/945) those paths
+wrote different rows: recovery's carried no session, no unit price, and the
+time *recovery ran* rather than the time the member bought. Schema 15 adds two
+columns to `dispenser_operations`, both written locally and neither synced:
+
+| Column | Meaning |
+|---|---|
+| `session_id` | The terminal session the purchase belongs to, written when the tracking row is created. It is what lets a dispense billed days later carry the session the member actually bought in. |
+| `acknowledged` | Whether the dispenser has ever answered for this `dispenser_tx_id` — a **latch**, set on the first device response (POST or poll, from the dialog or from a reconciliation tick) and never cleared. It separates "the request never arrived" from "the device lost a transaction it accepted" when a later `GET` answers 404: the first is deleted unbilled once the row is older than two minutes, the second is flagged `not_found` and kept for a human ([#947](https://github.com/dgloeckner/clubbar/issues/947)). |
+
+The invariant those columns serve, and which anything touching this table must
+keep: **transaction *i* of a dispense has the id
+`uuidV5(<namespace>, "<dispenser_tx_id>:<i>")`** (`CartService
+.dispenserTransactionId`). Billing therefore means "make sure rows `0..n-1`
+exist", not "insert `n - already_created` rows": it is idempotent, it is
+written inside one database transaction together with `transactions_created`,
+and `transactions_created` is a **high-water mark** of what has been billed,
+never a report of the last device reading — it is raised, never lowered, and
+never written outside `CartService.billDispensedTokens`.
+
 ---
 
 ## Related Documentation

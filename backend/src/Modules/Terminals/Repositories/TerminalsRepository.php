@@ -207,6 +207,11 @@ class TerminalsRepository
             'name', 'device_id', 'api_token_hash', 'is_active', 'last_sync_at',
             'token_issued_at', 'token_expires_at',
             'pending_token_hash', 'pending_token_issued_at', 'pending_token_expires_at',
+            // The warning tier of the hopper estimate (#955). A setting, so it
+            // rides the ordinary terminal update rather than the refill route:
+            // recording a refill is a fact about the machine, changing when to
+            // warn is a preference about it, and they are not one act.
+            'dispenser_low_threshold',
         ];
         [$set, $values] = SafeQuery::buildUpdate($data, $allowed);
         $values[] = date('Y-m-d H:i:s');
@@ -251,6 +256,135 @@ class TerminalsRepository
               WHERE id = ?'
         );
         return $stmt->execute([$now, $version, $now, $blockedVersion, $now, $id]);
+    }
+
+    /**
+     * The dispenser document this terminal last filed, decoded — or null when
+     * it has never filed one (ADR-0057).
+     *
+     * Its own read rather than a field of `findById()`: the only caller is the
+     * write below, on a route that runs on the sync cadence, and it needs one
+     * column rather than the row plus its transactions subquery. A document
+     * that will not decode reads as *never reported*, which is what it is: a
+     * column nothing else can write, holding something this backend did not
+     * produce, is not a value to carry a `state_since` forward from.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function findDispenserStatus(string $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT dispenser_status FROM terminals WHERE id = ?');
+        $stmt->execute([$id]);
+        $json = $stmt->fetchColumn();
+
+        if (!is_string($json) || $json === '') {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Last write wins (ADR-0057). Both columns move together: a stored document
+     * with no receipt stamp beside it is a status nobody can age, and an age is
+     * the first thing an admin reads.
+     *
+     * The statement names neither `updated_at` nor `last_sync_at` — but do not
+     * read that as "a report leaves the row's own stamps alone". The column
+     * carries `ON UPDATE CURRENT_TIMESTAMP`, so MariaDB moves `updated_at` for
+     * every write here whatever this statement says, exactly as it does for
+     * `updateLastSync()` on every authenticated request. `dispenser_status_at`
+     * is the stamp that means *this report*, and it is the one the panel reads.
+     */
+    public function updateDispenserStatus(string $id, string $document, string $receivedAt): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE terminals SET dispenser_status = ?, dispenser_status_at = ? WHERE id = ?'
+        );
+
+        return $stmt->execute([$document, $receivedAt, $id]);
+    }
+
+    /**
+     * Record a counted refill (#955): the anchor the estimate is measured from.
+     *
+     * Two columns and nothing else — in particular no "tokens sold" counter is
+     * reset here, because there is none. The sales are the `transactions` rows
+     * themselves, and moving the anchor forward is what excludes the old load's
+     * sales from the new one's count.
+     */
+    public function recordDispenserRefill(string $id, int $tokens, string $refilledAt): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE terminals SET dispenser_refilled_at = ?, dispenser_refill_tokens = ? WHERE id = ?'
+        );
+
+        return $stmt->execute([$refilledAt, $tokens, $id]);
+    }
+
+    /**
+     * Tokens each terminal has sold since its own last refill (#955).
+     *
+     * One grouped read for the whole page rather than a query per row, the way
+     * `openCountsByTerminal()` is — and a terminal with no sales since its
+     * refill is simply absent from the result, which the caller reads as zero
+     * *because it did ask*. That is the one place a missing key legitimately
+     * becomes a zero in this feature.
+     *
+     * Four clauses, each excluding something that would otherwise be counted as
+     * a token leaving this hopper:
+     *
+     * - `COUNT(*)`, never `SUM(dispenser_actual)`. One row **is** one token
+     *   (`CartService.billDispensedTokens` inserts one per token); the
+     *   `dispenser_requested`/`dispenser_actual` columns carry the whole
+     *   operation's totals on every one of its rows, so summing them would
+     *   multiply a five-token dispense into twenty-five.
+     * - `transaction_type = 'purchase'` leaves out stornos. A reversed booking
+     *   is money returned to a member, not a token returned to the hopper — the
+     *   token is in somebody's pocket, and a storno that put one back would
+     *   make the estimate drift upward exactly when a mistake was corrected.
+     * - `p.requires_dispenser = 1`: a beer sold at the same terminal is not a
+     *   token.
+     * - `tx.occurred_at >= t.dispenser_refilled_at` counts by **when the bar
+     *   sold it**, not when the row synced. An offline terminal uploading
+     *   yesterday's sales after today's refill must not subtract them from
+     *   today's load.
+     *
+     * @param string|null $terminalId narrow to one terminal; null reads them all
+     * @return array<string, int> terminal id → tokens sold since its refill
+     */
+    public function countTokensSoldSinceRefill(?string $terminalId = null): array
+    {
+        $sql = "SELECT t.id AS terminal_id, COUNT(*) AS tokens
+                  FROM terminals t
+                  JOIN transactions tx
+                    ON tx.created_by_terminal_id = t.id
+                   AND tx.transaction_type = 'purchase'
+                   AND tx.occurred_at >= t.dispenser_refilled_at
+                  JOIN products p
+                    ON p.id = tx.product_id
+                   AND p.requires_dispenser = 1
+                 WHERE t.dispenser_refilled_at IS NOT NULL";
+
+        $params = [];
+        if ($terminalId !== null) {
+            $sql .= ' AND t.id = ?';
+            $params[] = $terminalId;
+        }
+
+        $sql .= ' GROUP BY t.id';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+
+        $counts = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $counts[(string) $row['terminal_id']] = (int) $row['tokens'];
+        }
+
+        return $counts;
     }
 
     public function listPaginated(int $limit, int $offset, ?bool $isActive = null): array

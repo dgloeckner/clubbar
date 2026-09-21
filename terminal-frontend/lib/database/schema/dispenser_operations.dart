@@ -29,6 +29,26 @@ class DispenserOperations extends Table {
   /// When this operation was started
   TextColumn get createdAt => text()();
 
+  /// The terminal session the purchase belongs to (ADR-0027).
+  ///
+  /// Written when the tracking row is created, so that a row billed by the
+  /// recovery service days later still carries the session the member bought
+  /// in — recovery has no session of its own, and inventing one (or leaving it
+  /// null) made recovery rows second-class next to checkout's (#945).
+  ///
+  /// Nullable because every row written before schema 15 has none.
+  TextColumn get sessionId => text().nullable()();
+
+  /// Whether the dispenser has ever answered for this `dispenser_tx_id`
+  /// (1=yes, 0=not yet).
+  ///
+  /// Added here with `session_id` because both belong to one migration
+  /// (confirmed by the owner, 2026-09-20). **#947 owns its semantics**: it is
+  /// what separates "the POST never arrived, nothing was dispensed" from "the
+  /// device lost a transaction it had accepted" when a later `GET` answers
+  /// 404. Until #947 lands, nothing reads it.
+  IntColumn get acknowledged => integer().withDefault(const Constant(0))();
+
   // ========== RECONCILIATION FIELDS ==========
 
   /// How many transactions we've already created for this operation

@@ -37,6 +37,34 @@ enum TerminalErrorKey {
   dispenserUnavailable,
   dispenserNoTokensDispensed,
 
+  /// The cart holds two different products that both need the dispenser
+  /// (#949). One dispenser dispenses one kind of token: the device is told a
+  /// count, not a product, so such a cart has no single price to bill. It is
+  /// refused rather than billed at whichever product came first.
+  dispenserMixedProducts,
+
+  /// The device refused the dispense because it has a fault: a jam, an empty
+  /// hopper or a hopper error (#948). Only a power cycle clears it, so there
+  /// is nothing for the member to retry — the copy names the bar team and the
+  /// workaround instead.
+  dispenserFaulted,
+
+  /// The dispenser refused the terminal's signature (#951): the signing key
+  /// configured here is not the one the device was flashed with, or there is
+  /// none. A configuration fault, not a machine fault and not an outage —
+  /// nothing came out, nothing is billed, and no amount of retrying helps.
+  /// The copy therefore sends the member to the bar team rather than telling
+  /// them to try again.
+  dispenserKeyRejected,
+
+  /// The dispense ended without the dispenser being able to say how many
+  /// tokens came out (#947). A device that lost its tally across a reset
+  /// reports a **lower bound** and marks the count as not exact; when that
+  /// lower bound is zero there is nothing to bill, but "nothing came out" is
+  /// a claim nobody can make. The member is charged nothing and the tracking
+  /// record is kept, so the bar can settle the difference by hand.
+  dispenserCountUnreliable,
+
   // Products
   productsRefreshFailed,
 

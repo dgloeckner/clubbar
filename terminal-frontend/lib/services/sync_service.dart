@@ -11,6 +11,7 @@ import '../models/credit_limit.dart';
 import '../repository/sync_repository.dart';
 import 'config_service.dart';
 import 'network_service.dart';
+import 'terminal_status_reporter.dart';
 import 'updater_handshake.dart';
 
 /// Result of a sync operation
@@ -59,6 +60,13 @@ class SyncService {
   /// setup with no updater watching — a null simply means nothing is written.
   final TerminalStatusFile? _statusFile;
 
+  /// What tells the backend about this terminal's dispenser (ADR-0057, #953).
+  ///
+  /// Optional, and never load bearing for a sync: a null reports nothing, and
+  /// a reporter that fails reports nothing. The cycle's outcome is the same
+  /// either way — see [_reportPeripheralStatus].
+  final TerminalStatusReporter? _statusReporter;
+
   bool _isSyncing = false;
   DateTime? _lastSyncTime;
   DateTime? _lastTransactionSyncTime;
@@ -84,6 +92,7 @@ class SyncService {
     Logger? logger,
     String? failedTransactionsPath,
     TerminalStatusFile? statusFile,
+    TerminalStatusReporter? statusReporter,
   })  : _networkService = networkService,
         _membersRepo = membersRepo,
         _productsRepo = productsRepo,
@@ -92,7 +101,8 @@ class SyncService {
         _configService = configService,
         _logger = logger ?? Logger(),
         _failedTransactionsPath = failedTransactionsPath,
-        _statusFile = statusFile;
+        _statusFile = statusFile,
+        _statusReporter = statusReporter;
 
   /// Check if sync is currently in progress
   bool get isSyncing => _isSyncing;
@@ -221,6 +231,7 @@ class SyncService {
     } finally {
       _isSyncing = false;
       await _writeHeartbeat();
+      await _reportPeripheralStatus();
     }
   }
 
@@ -248,6 +259,28 @@ class SyncService {
       );
     } catch (e) {
       _logger.w('Could not write the terminal status file: $e');
+    }
+  }
+
+  /// Tell the backend what this terminal's dispenser is doing (ADR-0057).
+  ///
+  /// In the `finally` beside the heartbeat, and for the same reason: the cycle
+  /// that failed is the one whose dispenser status is most worth having, since
+  /// a terminal whose backend is unreachable is exactly the terminal nobody
+  /// can see.
+  ///
+  /// **This cannot fail a sync.** [TerminalStatusReporter.reportNow] swallows
+  /// its own failures, and the `catch` here is the second lock on the same
+  /// door: telemetry must never cost a sale, so even a reporter that throws —
+  /// a future version, a mock in a test — loses only its own report.
+  Future<void> _reportPeripheralStatus() async {
+    final reporter = _statusReporter;
+    if (reporter == null) return;
+
+    try {
+      await reporter.reportNow();
+    } catch (e) {
+      _logger.w('Could not report the dispenser status: $e');
     }
   }
 

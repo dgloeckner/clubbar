@@ -48,10 +48,16 @@ class TerminalsService
         // (ADR-0041 §4).
         $anomalyCounts = $this->anomaliesRepository->openCountsByTerminal();
         $backendVersion = $this->appVersion->current();
+        // The same shape for the hopper estimate (#955): one grouped read for
+        // the page, not a query per row. A terminal missing from the map has
+        // sold nothing since its refill — a zero we *asked* for, which is what
+        // separates it from the null a code path that never counted passes.
+        $tokensSold = $this->terminalsRepository->countTokensSoldSinceRefill();
         $items = array_map(
             fn($row) => TerminalDto::fromRow(
                 $row + ['open_anomaly_count' => $anomalyCounts[$row['id']] ?? 0],
                 $backendVersion,
+                $tokensSold[$row['id']] ?? 0,
             )->toArray(),
             $result['items'],
         );
@@ -69,6 +75,7 @@ class TerminalsService
         return TerminalDto::fromRow(
             $terminal + ['open_anomaly_count' => $anomalyCounts[$terminal['id']] ?? 0],
             $this->appVersion->current(),
+            $this->terminalsRepository->countTokensSoldSinceRefill($terminalId)[$terminalId] ?? 0,
         );
     }
 
@@ -128,11 +135,24 @@ class TerminalsService
         ];
     }
 
-    public function updateTerminal(string $terminalId, ?string $name = null, ?bool $isActive = null, ?string $adminUserId = null): TerminalDto
+    /**
+     * @param int|null $dispenserLowThreshold when to warn about the hopper
+     *        estimate (#955). A setting, so it rides the ordinary update rather
+     *        than the refill route: recording a refill is a fact about the
+     *        machine, and changing when to warn is a preference about it.
+     */
+    public function updateTerminal(
+        string $terminalId,
+        ?string $name = null,
+        ?bool $isActive = null,
+        ?string $adminUserId = null,
+        ?int $dispenserLowThreshold = null,
+    ): TerminalDto
     {
         $data = [];
         if ($name !== null) $data['name'] = $name;
         if ($isActive !== null) $data['is_active'] = $isActive ? 1 : 0;
+        if ($dispenserLowThreshold !== null) $data['dispenser_low_threshold'] = $dispenserLowThreshold;
 
         $terminal = $this->terminalsRepository->updateById($terminalId, $data);
         if (!$terminal) throw NotFoundException::forResource('Terminal', $terminalId);
@@ -145,7 +165,11 @@ class TerminalsService
             adminUserId: $adminUserId,
         );
 
-        return TerminalDto::fromRow($terminal);
+        return TerminalDto::fromRow(
+            $terminal,
+            null,
+            $this->terminalsRepository->countTokensSoldSinceRefill($terminalId)[$terminalId] ?? 0,
+        );
     }
 
     public function deleteTerminal(string $terminalId, ?string $adminUserId = null): void

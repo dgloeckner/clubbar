@@ -558,6 +558,59 @@ class AppLocalizationsDe extends AppLocalizations {
   String get dispenserStateUnknown => 'Unbekannt';
 
   @override
+  String get dispenserStateFault => 'Störung';
+
+  @override
+  String get dispenserProtocol => 'Protokoll';
+
+  @override
+  String get dispenserUnavailableShort => 'Nicht verfügbar';
+
+  @override
+  String get dispenserReason => 'Grund';
+
+  @override
+  String get dispenserUnavailableOffline => 'Nicht erreichbar';
+
+  @override
+  String get dispenserUnavailableJam => 'Stau oder leer';
+
+  @override
+  String dispenserUnavailableHopperError(int code) {
+    return 'Hopper-Fehler $code';
+  }
+
+  @override
+  String get dispenserUnavailableFault => 'Störung';
+
+  @override
+  String get dispenserUnavailableProtocol => 'Protokoll passt nicht';
+
+  @override
+  String dispenserProtocolDetail(int reported, int expected) {
+    return 'Gerät: Protokoll $reported · erwartet: $expected';
+  }
+
+  @override
+  String get dispenserFaultInstruction =>
+      'Stau beseitigen, bei Bedarf nachfüllen, dann das Gerät 5 Sekunden vom Strom trennen.';
+
+  @override
+  String get dispenserOfflineInstruction =>
+      'Strom und WLAN des Ausgabegeräts prüfen.';
+
+  @override
+  String get dispenserProtocolInstruction =>
+      'Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – bitte einem Admin melden.';
+
+  @override
+  String get dispenserUnavailableKeyRejected => 'Zugangsschlüssel abgelehnt';
+
+  @override
+  String get dispenserKeyInstruction =>
+      'Dieses Terminal und das Ausgabegerät haben nicht denselben Zugangsschlüssel – bitte einem Admin melden.';
+
+  @override
   String get tabOverview => 'Übersicht';
 
   @override
@@ -666,6 +719,22 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get errorDispenserNoTokensDispensed =>
       'Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.';
+
+  @override
+  String get errorDispenserMixedProducts =>
+      'Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.';
+
+  @override
+  String get errorDispenserFaulted =>
+      'Der Token-Automat hat eine Störung und gibt gerade keine Token aus – bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.';
+
+  @override
+  String get errorDispenserKeyRejected =>
+      'Der Token-Automat nimmt dieses Terminal nicht an – es ist nicht richtig eingerichtet. Dir wurde nichts berechnet; bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.';
+
+  @override
+  String get errorDispenserCountUnreliable =>
+      'Der Automat konnte nicht sicher zählen, wie viele Token herausgekommen sind. Dir wurde nichts berechnet – bitte beim Bar-Team melden.';
 
   @override
   String get errorBackendUnreachable =>

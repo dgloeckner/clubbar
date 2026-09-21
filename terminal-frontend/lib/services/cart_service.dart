@@ -98,6 +98,26 @@ class CartService {
       return (false, TerminalErrorKey.ageRestricted);
     }
 
+    // One dispenser, one dispensable product (#949). The device is told a
+    // *count*, never a product, and `CartProvider.checkout` therefore bills
+    // the whole dispense at one line's price. Two different dispensable
+    // products in one cart have no such price, so the cart is refused here —
+    // before a tracking row exists and before the device is asked for
+    // anything — rather than billed at whichever line came first.
+    //
+    // Deliberately **after** Jugendschutz, which outranks everything, and
+    // **before** the credit limit: paying something off would not make this
+    // cart dispensable, so it must not be reported as a money problem. What
+    // the member can do about it — buy the two separately — is what the copy
+    // says.
+    //
+    // Per-product dispensing is not built and is not planned; this guard is
+    // what keeps the unsupported configuration loud instead of silently
+    // mispriced.
+    if (mixesDispenserProducts(items)) {
+      return (false, TerminalErrorKey.dispenserMixedProducts);
+    }
+
     // Credit limit (UC-T11 E3, UC-T12). The cart screen already disables the
     // button above the limit; this is the authority, not a duplicate of it —
     // the tab can move under the member's feet (a sync landing mid-session)
@@ -146,6 +166,24 @@ class CartService {
     return blocking;
   }
 
+  /// Whether [items] would ask the dispenser for two different products
+  /// (#949).
+  ///
+  /// Distinct **products**, not lines: the same token twice is one dispense of
+  /// a larger count, which is exactly what the device does. Non-dispensable
+  /// lines are none of this rule's business — a cart of tokens and a Pils is
+  /// ordinary.
+  ///
+  /// Synchronous and pure, like [requiredAgeBlocking], so the cart screen may
+  /// ask it too.
+  bool mixesDispenserProducts(List<CartItem> items) =>
+      items
+          .where((item) => item.requiresDispenser)
+          .map((item) => item.productId)
+          .toSet()
+          .length >
+      1;
+
   /// Where [items] would leave [member] relative to **their** credit ceiling.
   ///
   /// Reads the effective tab (including unsynced transactions) so the verdict
@@ -180,6 +218,7 @@ class CartService {
     required String productId,
     required int priceCents,
     required int requestedQty,
+    required String sessionId,
   }) async {
     try {
       final now = DateTime.now().toUtc().toIso8601String();
@@ -191,6 +230,7 @@ class CartService {
         priceCents: Value(priceCents),
         requestedQty: Value(requestedQty),
         createdAt: Value(now),
+        sessionId: Value(sessionId),
       );
 
       await _db.into(_db.dispenserOperations).insert(operation);
@@ -202,61 +242,157 @@ class CartService {
     }
   }
 
-  /// Create transactions from dispense result AFTER dispensing completes.
+  /// The id transaction [index] of dispense [dispenserTxId] has — always, on
+  /// every terminal, in every process that ever bills it.
   ///
-  /// Creates one transaction per actually dispensed token. All transactions share
-  /// the same dispenserTxId for grouping.
+  /// UUID v5 over [dispenserIdNamespace], so the name `"<tx>:<i>"` maps to one
+  /// id and back. That is the whole of the idempotency: the second writer of
+  /// token 3 of a dispense writes the row that is already there instead of a
+  /// new one with a fresh `v4()` — locally, and on the backend too, because
+  /// the client-generated id is what the sync keys on (ADR-0004, ADR-0033).
+  static String dispenserTransactionId(String dispenserTxId, int index) =>
+      _uuid.v5(dispenserIdNamespace, '$dispenserTxId:$index');
+
+  /// The namespace the ids above live in. A random v4, fixed forever: change
+  /// it and every dispense in flight is billed a second time.
+  static const String dispenserIdNamespace =
+      '0d9a1f3c-6c2e-4d8b-9a47-7f2c1b4e8d10';
+
+  /// Bill the first [upTo] tokens of [op] — the **one** way a dispensed token
+  /// becomes money, for checkout and for the recovery service alike (#945).
   ///
-  /// Returns tuple: (firstTransactionId, errorKey)
-  Future<(String?, TerminalErrorKey?)> createTransactionsFromDispenseResult({
+  /// Idempotent and atomic, which are two separate promises:
+  ///
+  /// * **Idempotent**, because row *i* carries [dispenserTransactionId] and is
+  ///   inserted with [InsertMode.insertOrIgnore]. Two callers racing, a POST
+  ///   retried on the same `tx_id`, a reconciliation tick meeting a live
+  ///   dialog, a crash between the inserts and the counter — all of them
+  ///   converge on the same `upTo` rows. Before this, each path minted
+  ///   `uuid.v4()` and the backend's idempotent sync dutifully accepted both
+  ///   sets: 20 tokens dispensed, 40 rows billed.
+  /// * **Atomic**, because the inserts and the counter share one
+  ///   `_db.transaction`. A crash halfway leaves neither — and even if it
+  ///   somehow left the rows without the counter, the next caller would insert
+  ///   nothing new.
+  ///
+  /// `transactionsCreated` is raised to `max(current, upTo)` and never lowered:
+  /// it is a high-water mark of what has been billed, not a report of the last
+  /// device reading. The rows themselves are the truth; the counter is a
+  /// shortcut for reading it.
+  ///
+  /// The row is written from [op] — `memberId`, `productId`, `priceCents`,
+  /// `sessionId` and above all `createdAt`, **the moment of the purchase**,
+  /// not the moment of billing. A recovery run days later must not date the
+  /// member's drink to the day the dispenser came back.
+  ///
+  /// Returns tuple: (firstTransactionId, errorKey). The first id is
+  /// deterministic too, so a caller that bills again gets the same one back.
+  Future<(String?, TerminalErrorKey?)> billDispensedTokens(
+    DispenserOperation op, {
+    required int upTo,
+  }) async {
+    if (upTo <= 0) return (null, null);
+
+    try {
+      await _db.transaction(() async {
+        for (int i = 0; i < upTo; i++) {
+          await _db.into(_db.transactionsLocal).insert(
+                TransactionsLocalCompanion(
+                  id: Value(dispenserTransactionId(op.dispenserTxId, i)),
+                  memberId: Value(op.memberId),
+                  productId: Value(op.productId),
+                  amountCents: Value(op.priceCents), // one token's price
+                  transactionType: const Value('purchase'),
+                  // No note naming the writer: with one shared row per token,
+                  // "created by recovery" would be a claim about whichever
+                  // path happened to win the race, and wrong half the time.
+                  notes: const Value(null),
+                  createdAt: Value(op.createdAt),
+                  synced: const Value(0),
+                  dispenserTxId: Value(op.dispenserTxId),
+                  dispenserRequested: Value(op.requestedQty),
+                  dispenserActual: Value(upTo),
+                  sessionId: Value(op.sessionId),
+                  unitPriceCents: Value(op.priceCents),
+                ),
+                mode: InsertMode.insertOrIgnore,
+              );
+        }
+
+        final current = await (_db.select(_db.dispenserOperations)
+              ..where((t) => t.dispenserTxId.equals(op.dispenserTxId)))
+            .getSingleOrNull();
+        if (current != null && current.transactionsCreated >= upTo) return;
+
+        await (_db.update(_db.dispenserOperations)
+              ..where((t) => t.dispenserTxId.equals(op.dispenserTxId)))
+            .write(DispenserOperationsCompanion(
+          transactionsCreated: Value(upTo),
+        ));
+      });
+
+      return (dispenserTransactionId(op.dispenserTxId, 0), null);
+    } catch (e, stackTrace) {
+      AppLog.instance.e('Billing dispensed tokens failed',
+          error: e, stackTrace: stackTrace);
+      return (null, TerminalErrorKey.transactionCreateFailed);
+    }
+  }
+
+  /// A description of a dispense that is not (or no longer) in the tracking
+  /// table, for [billDispensedTokens] to bill from.
+  ///
+  /// Checkout needs this because the row can legitimately be gone by the time
+  /// it bills: a reconciliation tick that met a live dialog bills the tokens
+  /// and closes the row. The bill must still be written — it will simply write
+  /// the rows the tick already wrote, since the ids come from the dispense and
+  /// not from the row.
+  static DispenserOperation describeDispense({
     required String dispenserTxId,
     required String memberId,
     required String productId,
     required int priceCents,
     required int requestedQty,
-    required int actualDispensed,
-    required String sessionId,
-  }) async {
-    try {
-      final now = DateTime.now().toUtc().toIso8601String();
-      String? firstTxnId;
+    required String createdAt,
+    String? sessionId,
+  }) {
+    return DispenserOperation(
+      dispenserTxId: dispenserTxId,
+      memberId: memberId,
+      productId: productId,
+      priceCents: priceCents,
+      requestedQty: requestedQty,
+      createdAt: createdAt,
+      sessionId: sessionId,
+      transactionsCreated: 0,
+      lastKnownDispensed: 0,
+      pollingActive: 0,
+      acknowledged: 0,
+    );
+  }
 
-      // Create one transaction per dispensed token
-      for (int i = 0; i < actualDispensed; i++) {
-        final txnId = _uuid.v4();
-        firstTxnId ??= txnId;
-
-        final transaction = TransactionsLocalCompanion(
-          id: Value(txnId),
-          memberId: Value(memberId),
-          productId: Value(productId),
-          amountCents: Value(priceCents), // One token's price
-          transactionType: Value('purchase'),
-          notes: Value(null),
-          createdAt: Value(now),
-          synced: Value(0),
-          dispenserTxId: Value(dispenserTxId),
-          dispenserRequested: Value(requestedQty),
-          dispenserActual: Value(actualDispensed),
-          sessionId: Value(sessionId),
-          unitPriceCents: Value(priceCents),
-        );
-
-        await _db.into(_db.transactionsLocal).insert(transaction);
-      }
-
-      return (firstTxnId, null);
-    } catch (e, stackTrace) {
-      AppLog.instance.e('Transaction creation from dispense result failed',
-          error: e, stackTrace: stackTrace);
-      return (null, TerminalErrorKey.transactionCreateFailed);
-    }
+  /// The tracking row for [dispenserTxId], or null when it is already closed.
+  Future<DispenserOperation?> dispenserOperation(String dispenserTxId) {
+    return (_db.select(_db.dispenserOperations)
+          ..where((t) => t.dispenserTxId.equals(dispenserTxId)))
+        .getSingleOrNull();
   }
 
   /// Update dispenser operation state without cleaning up.
   ///
   /// Used after creating transactions to track reconciliation status, and during
   /// polling to update ESP8266 state for recovery service monitoring.
+  ///
+  /// **[state] is the device's own word and nothing else** (#947). Every caller
+  /// that passes it has just read it out of a [DispenseResult]; the terminal's
+  /// own idea of how the checkout ended is not written here, because a local
+  /// `'cancelled'` over the device's last state erases the one fact that tells
+  /// "the request never arrived" from "the device lost a transaction it
+  /// accepted".
+  ///
+  /// [acknowledged] is a **latch**: passing true sets it, and nothing ever
+  /// clears it. It is set from a device *response*, not from a request having
+  /// been sent — a POST that died in the network acknowledges nothing.
   ///
   /// Returns tuple: (success, errorKey)
   Future<(bool, TerminalErrorKey?)> updateDispenserOperationState({
@@ -266,10 +402,12 @@ class CartService {
     int? lastKnownDispensed,
     int? pollingActive,
     String? lastPolledAt,
+    bool acknowledged = false,
   }) async {
     try {
       final companion = DispenserOperationsCompanion(
         lastKnownState: state != null ? Value(state) : Value.absent(),
+        acknowledged: acknowledged ? const Value(1) : const Value.absent(),
         transactionsCreated: transactionsCreated != null
             ? Value(transactionsCreated)
             : Value.absent(),

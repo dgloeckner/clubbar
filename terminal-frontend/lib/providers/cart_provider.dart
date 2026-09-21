@@ -16,6 +16,16 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
   final ConfigService _config;
   final SoundService _soundService;
 
+  /// The app's one [DispenserClient], or null when there is no dispenser
+  /// configured (or building it failed at boot).
+  ///
+  /// Injected rather than built here: an ESP8266 has a handful of TCP slots
+  /// and no page should be able to mint another pool of connections to it.
+  /// Checkout needs it for two things — the transaction id and the dialog it
+  /// hands the client to — and both used to construct one of their own, which
+  /// was never closed (#946).
+  final DispenserClient? _dispenserClient;
+
   List<CartItem> _items = [];
   bool _isLoading = false;
 
@@ -37,9 +47,11 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
     required CartService service,
     required ConfigService config,
     required SoundService soundService,
+    DispenserClient? dispenserClient,
   })  : _service = service,
         _config = config,
-        _soundService = soundService;
+        _soundService = soundService,
+        _dispenserClient = dispenserClient;
 
   List<CartItem> get items => _items;
   int get itemCount => _items.fold(0, (sum, item) => sum + item.quantity);
@@ -184,14 +196,28 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           return;
         }
 
+        final dispenserClient = _dispenserClient;
+        if (dispenserClient == null) {
+          // Configured, but the client could not be built at boot. Treat it
+          // like a dispenser that is not there rather than building a second
+          // one here, which is how the extra connection pools got in (#946).
+          emitError(TerminalErrorKey.dispenserNotConfigured);
+          _isLoading = false;
+          notifyListeners();
+          return;
+        }
+
         // Generate dispenserTxId for crash recovery tracking
-        final dispenserClient = DispenserClient(
-          baseUrl: _config.dispenserBaseUrl!,
-          apiKey: _config.dispenserApiKey!,
-        );
         final dispenserTxId = dispenserClient.generateTxId();
 
-        // Get token product details for tracking
+        // Get token product details for tracking.
+        //
+        // `.first` is safe because the cart has been checked: a cart mixing
+        // two dispensable products is refused by
+        // `CartService.validateCartBeforeCheckout` above (#949), so every
+        // token line here names the same product and the same price. Without
+        // that guard this line silently billed the whole dispense at
+        // whichever product happened to come first.
         final tokenProduct = tokenProducts.first;
         final requestedQty = tokenProducts.fold(0, (sum, item) => sum + item.quantity);
 
@@ -203,6 +229,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           productId: tokenProduct.productId,
           priceCents: tokenProduct.priceCents,
           requestedQty: requestedQty,
+          sessionId: sessionId,
         );
 
         if (!trackingSuccess) {
@@ -220,13 +247,24 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
         );
 
         if (result == null) {
-          // Dialog was cancelled or error occurred
-          // Update tracking state but DON'T cleanup (recovery service will handle)
-          await _service.updateDispenserOperationState(
-            dispenserTxId: dispenserTxId,
-            state: 'cancelled',
-            transactionsCreated: 0,
-          );
+          // The dialog gave up — cancelled, timed out, or the dispenser never
+          // answered. The tracking row stays for the recovery service, and
+          // **nothing is written to it here** (#947).
+          //
+          // It used to be written `'cancelled'`, over `last_known_state`. That
+          // erased the device's last word, and with it the one fact that tells
+          // the two meanings of a later 404 apart: a dispenser that never
+          // acknowledged this tx_id never got the request, while one that did
+          // and has since forgotten it lost tokens a human must chase. The
+          // terminal's own idea of how the checkout ended is not a device
+          // state and does not belong in that column (see
+          // `CartService.updateDispenserOperationState`).
+          //
+          // `transactionsCreated` was never written back to 0 here either: it
+          // is a high-water mark of what has been billed, raised only inside
+          // billDispensedTokens' transaction. A reconciliation tick may
+          // already have billed tokens for this dispense, and zeroing the
+          // counter behind it is how the two used to drift (#945).
 
           // Check if error was handled (user made choice to skip tokens)
           if (_errorType is DispenserBusyException ||
@@ -244,17 +282,32 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           final actualQuantity = result.dispensed;
 
           if (actualQuantity > 0) {
-            // Create transactions from dispense result (one per token)
+            // Bill the tokens that came out — through the same method the
+            // recovery service uses, on ids derived from the dispense, so a
+            // reconciliation tick that got there first has already written
+            // exactly these rows and this call writes none (#945).
+            //
+            // The tracking row is re-read rather than reconstructed from the
+            // cart: it carries the purchase's own `createdAt` and session, and
+            // it is the single description of this dispense that both billing
+            // paths agree on.
+            //
+            // It can be gone: a reconciliation tick that met this dialog bills
+            // the tokens and closes the row. That is not a failed checkout —
+            // the same rows are written either way — so the dispense is
+            // described from what checkout knows and billed anyway.
+            final op = await _service.dispenserOperation(dispenserTxId) ??
+                CartService.describeDispense(
+                  dispenserTxId: dispenserTxId,
+                  memberId: member.id,
+                  productId: tokenProduct.productId,
+                  priceCents: tokenProduct.priceCents,
+                  requestedQty: requestedQty,
+                  createdAt: DateTime.now().toUtc().toIso8601String(),
+                  sessionId: sessionId,
+                );
             final (tokenTxnId, tokenError) =
-                await _service.createTransactionsFromDispenseResult(
-              dispenserTxId: dispenserTxId,
-              memberId: member.id,
-              productId: tokenProduct.productId,
-              priceCents: tokenProduct.priceCents,
-              requestedQty: requestedQty,
-              actualDispensed: actualQuantity,
-              sessionId: sessionId,
-            );
+                await _service.billDispensedTokens(op, upTo: actualQuantity);
 
             if (tokenTxnId == null) {
               emitError(
@@ -268,30 +321,50 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
             // Only the tokens that came out are charged for.
             billedCents += actualQuantity * tokenProduct.priceCents;
 
-            // Update tracking state with created count
+            // `transactionsCreated` is not written here: billDispensedTokens
+            // raised it inside the same transaction as the rows it counts.
             await _service.updateDispenserOperationState(
               dispenserTxId: dispenserTxId,
               state: result.state,
-              transactionsCreated: actualQuantity,
               lastKnownDispensed: actualQuantity,
             );
 
-            // CONDITIONAL CLEANUP: Only if state is final
-            if (result.state == 'done') {
+            // CONDITIONAL CLEANUP: Only if the *device* called it final.
+            //
+            // `result.state` is now always something the dispenser actually
+            // said. A polling timeout arrives here as `dispensing` and keeps
+            // the row, where it used to arrive as a fabricated `done` and
+            // delete it while the hopper was still turning (#946).
+            //
+            // `countReliable == false` is a device that dispensed an unknown
+            // number of tokens — final state or not, that is a row for
+            // reconciliation, not a settled dispense.
+            if (result.state == 'done' && result.countReliable != false) {
               // ESP8266 completed successfully - safe to cleanup
               await _service.cleanupDispenserOperation(dispenserTxId);
-            } else if (result.state == 'error' || result.state == 'dispensing') {
+            } else {
               // Keep tracking record for reconciliation to verify
               // Recovery service will query ESP8266 and clean up after verification
               AppLog.instance.i(
                   'Keeping tracking record for reconciliation (state=${result.state})');
             }
+          } else if (result.countReliable == false) {
+            // Zero tokens, and the device says its count is only a lower
+            // bound: it reset mid-dispense and lost its tally (#947). Nothing
+            // is billed — a lower bound of zero is no purchase — but the
+            // tracking record **stays**, because "nothing came out" is
+            // precisely what nobody knows. It is the bar's question now, and
+            // it is listed at the terminal until a human closes it.
+            emitError(TerminalErrorKey.dispenserCountUnreliable);
+            _soundService.play(SoundEvent.checkoutError);
+            return;
           } else {
-            // Nothing came out of the dispenser. There is no purchase to
-            // record, so this is a failed checkout, not a €0.00 success:
-            // release the tracking record, keep the cart so the member can
-            // retry, and say why. Falling through here would clear the cart
-            // and show the green confirmation screen for nothing (#15).
+            // Nothing came out of the dispenser, and the device vouches for
+            // that. There is no purchase to record, so this is a failed
+            // checkout, not a €0.00 success: release the tracking record, keep
+            // the cart so the member can retry, and say why. Falling through
+            // here would clear the cart and show the green confirmation screen
+            // for nothing (#15).
             // `finally` below clears _isLoading and notifies.
             await _service.cleanupDispenserOperation(dispenserTxId);
             emitError(TerminalErrorKey.dispenserNoTokensDispensed);
@@ -359,6 +432,7 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           dispenserTxId: dispenserTxId,
           tokenProducts: tokenProducts,
           cartService: _service,
+          client: _dispenserClient!,
           onComplete: (dispenseResult) {
             result = dispenseResult;
           },
@@ -393,6 +467,20 @@ class CartProvider extends ChangeNotifier with ErrorSignal {
           emitError(TerminalErrorKey.checkoutCancelled);
           return null;
         }
+      } else if (errorException is DispenserSignatureException) {
+        // The device refused our signature. Nothing was dispensed, nothing is
+        // billed, and there is nothing for the member to retry: the key on
+        // this terminal is wrong or missing and only somebody with the right
+        // one can fix it (#951).
+        emitError(TerminalErrorKey.dispenserKeyRejected,
+            cause: errorException);
+        return null;
+      } else if (errorException is DispenserFaultException) {
+        // The device has a jam or a hopper error and refused the dispense
+        // (#948). Nothing was dispensed and nothing is billed; the member is
+        // told what it is, because "unavailable" sends nobody to fix it.
+        emitError(TerminalErrorKey.dispenserFaulted, cause: errorException);
+        return null;
       } else {
         // Other dispenser errors — the raw message stays in the log.
         emitError(TerminalErrorKey.dispenserUnavailable,

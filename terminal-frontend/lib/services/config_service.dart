@@ -24,7 +24,7 @@ class ConfigParseException implements Exception {
 /// - Windows: %APPDATA%\de.clubbar.clubbar_terminal\config.json
 ///
 /// `config.json` holds this terminal's credentials — the bearer token and the
-/// dispenser API key — and this service never writes it; an operator (or a
+/// dispenser signing key — and this service never writes it; an operator (or a
 /// provisioning script) does, once, and is expected to leave it `chmod 600`
 /// (see INSTALL.md). `load()` checks that on every start and tightens it
 /// back up if it finds the file group- or world-readable (issue #885). The
@@ -40,7 +40,7 @@ class ConfigParseException implements Exception {
 /// - TERMINAL_SOUNDS_ENABLED
 /// - DISPENSER_ENABLED
 /// - DISPENSER_BASE_URL
-/// - DISPENSER_API_KEY
+/// - DISPENSER_SIGNING_KEY
 /// - RFID_READER_MONITOR
 /// - RFID_READER_VENDOR_ID
 /// - RFID_READER_PRODUCT_ID
@@ -53,7 +53,7 @@ class ConfigService {
   /// Sibling file for the synced credit policy (ADR-0047, issue #885).
   ///
   /// Kept out of `config.json` so the file holding this terminal's
-  /// credentials — the bearer token, the dispenser API key — is written once,
+  /// credentials — the bearer token, the dispenser signing key — is written once,
   /// at provisioning, and never touched again by the running app. That is
   /// what removes the file-mode-loss path this file used to have: every
   /// rewrite of `config.json` risked recreating it with a umask-default mode
@@ -71,9 +71,16 @@ class ConfigService {
   bool _demoMode = false;
   bool _dispenserEnabled = false;
   String? _dispenserBaseUrl;
-  String? _dispenserApiKey;
+  String? _dispenserSigningKey;
   int _dispenserTimeoutMs = 3000;
-  int _dispenserPollIntervalMs = 250;
+  /// The gap between the answer to one status poll and the next request.
+  ///
+  /// 500 ms since #946, where polling became serial: it used to be the period
+  /// of a `Timer.periodic` that fired whether or not the previous request had
+  /// come back, so it was a rate at which connections were opened rather than
+  /// a gap between them. As a gap, 250 ms bought two extra requests a second
+  /// out of an ESP8266's handful of TCP slots for no visible difference.
+  int _dispenserPollIntervalMs = 500;
   bool _fullscreen = false;
   bool _screenBlankingEnabled = false;
   int _screenBlankingTimeoutSeconds = 300;
@@ -126,7 +133,13 @@ class ConfigService {
   bool get demoMode => _demoMode;
   bool get dispenserEnabled => _dispenserEnabled;
   String? get dispenserBaseUrl => _dispenserBaseUrl;
-  String? get dispenserApiKey => _dispenserApiKey;
+  /// The shared secret the terminal signs dispenser requests with (#951).
+  ///
+  /// Never transmitted: it keys the HMAC and nothing else. There is no
+  /// default and no fallback — without it [DispenserClient] is not built at
+  /// all and the kiosk names the configuration error, which is the failure
+  /// mode `X-API-Key` used to hide behind.
+  String? get dispenserSigningKey => _dispenserSigningKey;
   int get dispenserTimeoutMs => _dispenserTimeoutMs;
   int get dispenserPollIntervalMs => _dispenserPollIntervalMs;
   bool get fullscreen => _fullscreen;
@@ -397,9 +410,9 @@ class ConfigService {
         if (dispenser != null) {
           _dispenserEnabled = dispenser['enabled'] as bool? ?? false;
           _dispenserBaseUrl = dispenser['baseUrl'] as String?;
-          _dispenserApiKey = dispenser['apiKey'] as String?;
+          _dispenserSigningKey = dispenser['signingKey'] as String?;
           _dispenserTimeoutMs = dispenser['timeoutMs'] as int? ?? 3000;
-          _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 250;
+          _dispenserPollIntervalMs = dispenser['pollIntervalMs'] as int? ?? 500;
         }
 
         // Screen blanking (#763)
@@ -500,8 +513,8 @@ class ConfigService {
     if (env.containsKey('DISPENSER_BASE_URL')) {
       _dispenserBaseUrl = env['DISPENSER_BASE_URL'];
     }
-    if (env.containsKey('DISPENSER_API_KEY')) {
-      _dispenserApiKey = env['DISPENSER_API_KEY'];
+    if (env.containsKey('DISPENSER_SIGNING_KEY')) {
+      _dispenserSigningKey = env['DISPENSER_SIGNING_KEY'];
     }
     if (env.containsKey('RFID_READER_MONITOR')) {
       _rfidReaderMonitor = env['RFID_READER_MONITOR']?.toLowerCase() == 'true';
@@ -543,9 +556,9 @@ class ConfigService {
     _demoMode = false;
     _dispenserEnabled = false;
     _dispenserBaseUrl = null;
-    _dispenserApiKey = null;
+    _dispenserSigningKey = null;
     _dispenserTimeoutMs = 3000;
-    _dispenserPollIntervalMs = 250;
+    _dispenserPollIntervalMs = 500;
     _fullscreen = false;
     _screenBlankingEnabled = false;
     _screenBlankingTimeoutSeconds = 300;

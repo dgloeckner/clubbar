@@ -35,16 +35,11 @@ class MainLayout extends StatelessWidget {
       return backendStatus;
     }
 
-    // Backend is online - check dispenser
-    if (dispenserHealth != null) {
-      final isDispenserOffline =
-          dispenserHealth.dispenser == 'offline' ||
-          dispenserHealth.status == 'error';
-
-      if (isDispenserOffline) {
-        // Show warning when backend is online but dispenser is offline
-        return ConnectionStatus.error;
-      }
+    // Backend is online - check dispenser. Unreachable, faulted or speaking
+    // the wrong protocol all raise the pill; which of them it is belongs in
+    // the modal behind it, not in a three-state pill (#948).
+    if (dispenserHealth != null && dispenserHealth.isUnavailable) {
+      return ConnectionStatus.error;
     }
 
     // Everything is good

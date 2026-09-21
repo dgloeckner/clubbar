@@ -6,7 +6,9 @@ namespace Tests\Unit\Modules\Terminals\Controllers;
 
 use App\Modules\Auth\Services\StepUpAuthService;
 use App\Modules\Terminals\Controllers\AdminController;
+use App\Modules\Terminals\Services\DispenserFillService;
 use App\Modules\Terminals\Services\TerminalsService;
+use App\Modules\Terminals\DTOs\DispenserFillDto;
 use App\Modules\Terminals\DTOs\TerminalDto;
 use App\Modules\Terminals\DTOs\TerminalWithTokenDto;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -28,16 +30,19 @@ class AdminControllerTest extends TestCase
 
     private TerminalsService $service;
     private StepUpAuthService $stepUp;
+    private DispenserFillService $dispenserFill;
     private AdminController $controller;
 
     protected function setUp(): void
     {
         $this->service = $this->createMock(TerminalsService::class);
         $this->stepUp = $this->createMock(StepUpAuthService::class);
+        $this->dispenserFill = $this->createMock(DispenserFillService::class);
         $this->controller = new AdminController(
             $this->service,
             new Validator($this->createMock(\PDO::class)),
             $this->stepUp,
+            $this->dispenserFill,
         );
     }
 
@@ -406,5 +411,99 @@ class AdminControllerTest extends TestCase
             new Response(),
             ['id' => 'terminal-1', 'anomalyId' => 'anomaly-1'],
         );
+    }
+
+    /**
+     * The hopper refill (#955). An exact count, an audit row, and nothing that
+     * commands the machine.
+     */
+    public function test_a_refill_records_the_count_it_was_given(): void
+    {
+        $this->dispenserFill->expects($this->once())
+            ->method('recordRefill')
+            ->with('terminal-1', 500, 'admin-1')
+            ->willReturn(new DispenserFillDto('2026-09-21 09:30:00', 500, 0, 20));
+
+        $response = $this->controller->recordDispenserRefill(
+            $this->post('/api/admin/terminals/terminal-1/dispenser-refill', ['tokens' => 500]),
+            new Response(),
+            ['id' => 'terminal-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $fill = $this->decode($response)['dispenser_fill'];
+        $this->assertSame(500, $fill['refill_tokens']);
+        $this->assertSame(0, $fill['sold_since']);
+        $this->assertSame(500, $fill['estimated_left']);
+        $this->assertSame(20, $fill['low_threshold']);
+    }
+
+    /**
+     * A count is a whole number of tokens, and a negative one is not a hopper
+     * state anybody can be in. Pattern 001: refused before the service.
+     */
+    public function test_a_refill_refuses_a_count_that_is_not_a_whole_number_of_tokens(): void
+    {
+        $this->dispenserFill->expects($this->never())->method('recordRefill');
+
+        foreach ([['tokens' => -1], ['tokens' => 'viele'], ['tokens' => 12.5], []] as $body) {
+            $response = $this->controller->recordDispenserRefill(
+                $this->post('/api/admin/terminals/terminal-1/dispenser-refill', $body),
+                new Response(),
+                ['id' => 'terminal-1'],
+            );
+
+            $this->assertSame(422, $response->getStatusCode());
+            $this->assertArrayHasKey('tokens', $this->decode($response)['messages']);
+        }
+    }
+
+    /** It mints no credential and reveals nothing, so it carries no step-up. */
+    public function test_a_refill_needs_no_step_up(): void
+    {
+        $this->stepUp->expects($this->never())->method('verify');
+        $this->dispenserFill->method('recordRefill')
+            ->willReturn(new DispenserFillDto('2026-09-21 09:30:00', 400, 0, 20));
+
+        $this->controller->recordDispenserRefill(
+            $this->post('/api/admin/terminals/terminal-1/dispenser-refill', ['tokens' => 400]),
+            new Response(),
+            ['id' => 'terminal-1'],
+        );
+    }
+
+    /**
+     * The warning tier is a setting, so it rides the ordinary update rather
+     * than the refill route — recording a refill is a fact about the machine,
+     * changing when to warn is a preference about it.
+     */
+    public function test_update_carries_the_low_threshold_through(): void
+    {
+        $this->service->expects($this->once())
+            ->method('updateTerminal')
+            ->with('terminal-1', null, null, 'admin-1', 35)
+            ->willReturn(TerminalDto::fromRow($this->terminalRow()));
+
+        $response = $this->controller->update(
+            $this->post('/api/admin/terminals/terminal-1', ['dispenser_low_threshold' => 35]),
+            new Response(),
+            ['id' => 'terminal-1'],
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_update_refuses_a_negative_low_threshold(): void
+    {
+        $this->service->expects($this->never())->method('updateTerminal');
+
+        $response = $this->controller->update(
+            $this->post('/api/admin/terminals/terminal-1', ['dispenser_low_threshold' => -5]),
+            new Response(),
+            ['id' => 'terminal-1'],
+        );
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertArrayHasKey('dispenser_low_threshold', $this->decode($response)['messages']);
     }
 }

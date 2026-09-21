@@ -107,6 +107,8 @@ use App\Modules\Notifications\Services\CreditLimitDigestNotifier;
 use App\Modules\Notifications\Services\CreditLimitDigestService;
 use App\Modules\Notifications\Services\BackupHealthMailBuilder;
 use App\Modules\Notifications\Services\BackupHealthNotifier;
+use App\Modules\Notifications\Services\DispenserAttentionMailBuilder;
+use App\Modules\Notifications\Services\DispenserAttentionNotifier;
 use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\MemberLifecycleMailBuilder;
 use App\Modules\Notifications\Services\NotificationsService;
@@ -164,7 +166,10 @@ use App\Modules\Notifications\Controllers\MailConfigController;
 use App\Modules\Notifications\Controllers\NotificationsController;
 use App\Modules\Notifications\Controllers\SchedulerController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Terminals\Controllers\DispenserStatusController;
 use App\Modules\Terminals\Controllers\PairingController;
+use App\Modules\Terminals\Services\DispenserStatusService;
+use App\Modules\Terminals\Services\DispenserFillService;
 use App\Modules\Terminals\Services\PairingService;
 use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
@@ -246,6 +251,7 @@ class ServiceFactory implements ContainerInterface
         // Terminals
         TerminalsAdminController::class => 'getTerminalsAdminController',
         PairingController::class => 'getPairingController',
+        DispenserStatusController::class => 'getDispenserStatusController',
 
         // Dashboard
         DashboardAdminController::class => 'getDashboardAdminController',
@@ -900,6 +906,7 @@ class ServiceFactory implements ContainerInterface
             $this->getEncryptionKeyEventMailBuilder(),
             $this->getCreditLimitDigestMailBuilder(),
             $this->getBackupHealthMailBuilder(),
+            $this->getDispenserAttentionMailBuilder(),
             $this->getMemberLifecycleMailBuilder(),
             $this->getRegistrationLinkMailBuilder(),
         ));
@@ -947,6 +954,42 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(BackupHealthNotifier::class, fn() => new BackupHealthNotifier(
             $this->getBackupStatusCheck(),
             $this->getBackupSchedule(),
+            $this->getAdminNotifier(),
+            $this->getMailConfigService(),
+            $this->logger,
+        ));
+    }
+
+    /**
+     * #956. Like the two builders above, the queue row carries no content: the
+     * terminal is in `subject_id`, the occasion in `dedup_key`, and everything
+     * the reader sees is read from the terminal row at send time — so a jam
+     * cleared between the scan and the drain renders as good news rather than
+     * as a claim that is no longer true.
+     */
+    public function getDispenserAttentionMailBuilder(): DispenserAttentionMailBuilder
+    {
+        return $this->resolve(DispenserAttentionMailBuilder::class, fn() => new DispenserAttentionMailBuilder(
+            $this->getTerminalsRepository(),
+            $this->getDispenserFillService(),
+            $this->getAdminUsersRepository(),
+            $this->config->appUrl,
+        ));
+    }
+
+    /**
+     * The scan that queues it, riding the mail tick (#956).
+     *
+     * Not the request that received the report: a status report must never cost
+     * a sale (ADR-0057), and the condition worth mailing about is one that has
+     * *held* — which only a later pass can know. See
+     * {@see DispenserAttentionNotifier}.
+     */
+    public function getDispenserAttentionNotifier(): DispenserAttentionNotifier
+    {
+        return $this->resolve(DispenserAttentionNotifier::class, fn() => new DispenserAttentionNotifier(
+            $this->getTerminalsRepository(),
+            $this->getDispenserFillService(),
             $this->getAdminNotifier(),
             $this->getMailConfigService(),
             $this->logger,
@@ -1889,7 +1932,44 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsService(),
             $this->getValidator(),
             $this->getStepUpAuthService(),
+            $this->getDispenserFillService(),
         ));
+    }
+
+    public function getDispenserStatusController(): DispenserStatusController
+    {
+        return $this->resolve(
+            DispenserStatusController::class,
+            fn() => new DispenserStatusController($this->getDispenserStatusService()),
+        );
+    }
+
+    /**
+     * ADR-0057. The repository and a logger and nothing else: recording
+     * telemetry must not be able to fail for a reason the caller would have to
+     * handle, so it has no collaborator that can refuse.
+     */
+    public function getDispenserStatusService(): DispenserStatusService
+    {
+        return $this->resolve(
+            DispenserStatusService::class,
+            fn() => new DispenserStatusService($this->getTerminalsRepository(), $this->logger),
+        );
+    }
+
+    /**
+     * The hopper's fill estimate and the refill that resets it (#955,
+     * ADR-0058). The repository and the audit service: the estimate is computed
+     * from rows this backend already has, and the one write it makes is worth
+     * an entry because it is the only record of the drift between the
+     * arithmetic and a counted hopper.
+     */
+    public function getDispenserFillService(): DispenserFillService
+    {
+        return $this->resolve(
+            DispenserFillService::class,
+            fn() => new DispenserFillService($this->getTerminalsRepository(), $this->getAuditService()),
+        );
     }
 
     public function getPairingController(): PairingController

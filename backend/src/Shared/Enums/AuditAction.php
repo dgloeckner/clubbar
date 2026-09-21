@@ -167,6 +167,19 @@ enum AuditAction: string
     /** An admin marked a terminal anomaly as seen, clearing it from the panel. */
     case TERMINAL_ANOMALY_ACKNOWLEDGED = 'terminal_anomaly_acknowledged';
     /**
+     * An admin counted a hopper and recorded what is in it (#955).
+     *
+     * A fact about the machine, never an acknowledgement: nothing on any
+     * surface clears a dispenser fault, and this entry must not be read as
+     * somebody having done so. It carries the estimate as it stood just before
+     * the refill beside the number counted in, because the difference between
+     * the two is the drift the arithmetic could not see — tokens that coasted
+     * out after a motor stop, a dispense billed while the count was unreliable,
+     * a hopper topped up by somebody who told nobody. This is the only place
+     * that difference is ever written down.
+     */
+    case TERMINAL_DISPENSER_REFILLED = 'terminal_dispenser_refilled';
+    /**
      * An admin generated a new URL-trigger secret from the panel (#473).
      *
      * Carries no secret material — only that a rotation happened, who did it,

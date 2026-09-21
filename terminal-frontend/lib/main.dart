@@ -31,6 +31,7 @@ import 'package:clubbar_terminal/services/sound_service.dart';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 import 'package:clubbar_terminal/services/dispenser_recovery_service.dart';
 import 'package:clubbar_terminal/services/dispenser_health_service.dart';
+import 'package:clubbar_terminal/services/terminal_status_reporter.dart';
 import 'package:clubbar_terminal/services/error_file_output.dart';
 import 'package:clubbar_terminal/services/rfid_reader_health_service.dart';
 import 'package:clubbar_terminal/services/rfid_reader_probe.dart';
@@ -293,36 +294,6 @@ void main() async {
     await _seedMockData(database);
   }
 
-  // Dispenser integration: recovery and health monitoring
-  DispenserHealthService? dispenserHealthService;
-  DispenserRecoveryService? dispenserRecoveryService;
-  if (configService.dispenserEnabled) {
-    try {
-      final dispenserClient = DispenserClient(
-        baseUrl: configService.dispenserBaseUrl!,
-        apiKey: configService.dispenserApiKey!,
-        timeoutMs: configService.dispenserTimeoutMs,
-      );
-
-      // Crash recovery: recover incomplete transactions and start periodic reconciliation
-      dispenserRecoveryService = DispenserRecoveryService(
-        database: database,
-        client: dispenserClient,
-        logger: logger,
-      );
-      await dispenserRecoveryService.recoverIncompleteDispenses();
-      dispenserRecoveryService.startPeriodicReconciliation();
-
-      // Start health monitoring (60-second interval)
-      dispenserHealthService = DispenserHealthService(client: dispenserClient);
-      dispenserHealthService.startMonitoring();
-    } catch (e) {
-      // Dispenser offline or error - log and continue
-      // App will function normally, recovery will retry on next boot
-      logger.w('Dispenser setup failed: $e');
-    }
-  }
-
   // RFID reader presence monitoring (issue #35). Only for a terminal that was
   // told what its reader looks like — see INSTALL.md; elsewhere the reader
   // status simply stays unknown and no UI mentions it.
@@ -376,8 +347,81 @@ void main() async {
     repository: transactionsRepo,
     configService: configService,
   );
+
+  // Dispenser integration is wired after [cartService]: recovery bills through
+  // it, so that a token recovered days later becomes the same row checkout
+  // would have written (#945).
+  // Dispenser integration: recovery and health monitoring
+  DispenserHealthService? dispenserHealthService;
+  DispenserRecoveryService? dispenserRecoveryService;
+  // The app's one client to the device. Checkout's dialog talks through this
+  // same instance: an ESP8266 has a handful of TCP slots, and every extra
+  // client was another pool of connections to them (#946).
+  DispenserClient? dispenserClient;
+  if (configService.dispenserEnabled) {
+    try {
+      // The signing key has no default and no fallback (#951): without it
+      // every request would be refused, so the client is not built at all and
+      // the kiosk says *not set up* instead of *not responding*. Named here
+      // rather than left to a `!` so the log says which half is missing.
+      final signingKey = configService.dispenserSigningKey;
+      if (signingKey == null || signingKey.isEmpty) {
+        throw StateError(
+            'dispenser.signingKey is missing from config.json — the terminal '
+            'signs every dispenser request and cannot talk to the device '
+            'without it');
+      }
+
+      dispenserClient = DispenserClient(
+        baseUrl: configService.dispenserBaseUrl!,
+        signingKey: signingKey,
+        timeoutMs: configService.dispenserTimeoutMs,
+      );
+
+      // Crash recovery: bill whatever a killed app left unbilled, then keep
+      // reconciling every 60 s. Only the first pass clears `pollingActive` —
+      // the tick must not disarm a live dialog's flag (#945).
+      dispenserRecoveryService = DispenserRecoveryService(
+        database: database,
+        client: dispenserClient,
+        cartService: cartService,
+        logger: logger,
+      );
+      await dispenserRecoveryService.recoverAtStartup();
+      dispenserRecoveryService.startPeriodicReconciliation();
+
+      // Start health monitoring (60-second interval)
+      dispenserHealthService = DispenserHealthService(client: dispenserClient);
+      dispenserHealthService.startMonitoring();
+    } catch (e) {
+      // Dispenser offline or error - log and continue
+      // App will function normally, recovery will retry on next boot
+      logger.w('Dispenser setup failed: $e');
+    }
+  }
+
+  // What the admin office sees about the machine at the bar (ADR-0057, #953).
+  // It is created whether or not a dispenser is configured: `configured:
+  // false` is a report, and it is what lets the panel show *no dispenser*
+  // rather than *unknown*.
+  final statusReporter = TerminalStatusReporter(
+    network: networkService,
+    dispenserHealth: dispenserHealthService,
+    // Not `dispenserHealthService != null`: a configured dispenser whose
+    // client failed to start above is a machine nobody is reaching, not a
+    // terminal that has none.
+    dispenserConfigured: configService.dispenserEnabled,
+    counts: dispenserOperationCounts(database),
+    logger: logger,
+  );
+  // Listens to the health service's own 15-second poll, so a fault reaches the
+  // panel without waiting out the sync interval. No second timer, and nothing
+  // extra talking to the device.
+  statusReporter.start();
+
   final syncService = SyncService(
     networkService: networkService,
+    statusReporter: statusReporter,
     membersRepo: membersRepo,
     productsRepo: productsRepo,
     transactionsRepo: transactionsRepo,
@@ -406,6 +450,7 @@ void main() async {
     service: cartService,
     config: configService,
     soundService: soundService,
+    dispenserClient: dispenserClient,
   );
   // Session lifecycle owner (ADR-0027): all session ends go through this.
   final sessionController = SessionController(
