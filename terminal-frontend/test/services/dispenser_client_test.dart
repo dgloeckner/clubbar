@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
 import 'package:clubbar_terminal/services/dispenser_client.dart';
 
 class MockHttpClient extends Mock implements http.Client {}
@@ -17,17 +18,68 @@ void main() {
     late MockHttpClient mockHttpClient;
     late DispenserClient client;
     const baseUrl = 'http://localhost:8081';
-    const apiKey = 'test-api-key';
+    const signingKey = 'test-signing-key';
+
+    /// The nonce the stubbed `GET /nonce` hands out, and how long it says it
+    /// lives. A test that wants a second, different nonce changes these
+    /// between calls.
+    late String issuedNonce;
+    late int issuedTtl;
+    late int nonceRequests;
+
+    /// What a GET that is *not* `/nonce` answers. Set per test instead of
+    /// stubbing `http.Client.get` directly: every signed request is preceded
+    /// by a nonce fetch through the same client, so the stub has to route by
+    /// path rather than answer everything the same way.
+    late http.Response Function(Uri uri) getHandler;
 
     setUp(() {
       mockHttpClient = MockHttpClient();
+      issuedNonce = '0123456789abcdef0123456789abcdef';
+      issuedTtl = 30;
+      nonceRequests = 0;
+      getHandler = (uri) => http.Response('no stub for $uri', 404);
+
+      when(() => mockHttpClient.get(any(), headers: any(named: 'headers')))
+          .thenAnswer((invocation) async {
+        final uri = invocation.positionalArguments[0] as Uri;
+        if (uri.path == '/nonce') {
+          nonceRequests++;
+          return http.Response(
+            jsonEncode({'nonce': issuedNonce, 'ttl': issuedTtl}),
+            200,
+          );
+        }
+        return getHandler(uri);
+      });
+
       client = DispenserClient(
         baseUrl: baseUrl,
-        apiKey: apiKey,
+        signingKey: signingKey,
         httpClient: mockHttpClient,
         timeoutMs: 3000,
       );
     });
+
+    /// Answers every non-nonce GET with [response].
+    void answersGet(http.Response response) {
+      getHandler = (_) => response;
+    }
+
+    /// The `[uri, headers]` pairs of every GET that was not a nonce fetch.
+    List<List<Object?>> capturedGets() {
+      final captured = verify(() => mockHttpClient.get(
+            captureAny(),
+            headers: captureAny(named: 'headers'),
+          )).captured;
+      final pairs = <List<Object?>>[];
+      for (var i = 0; i < captured.length; i += 2) {
+        final uri = captured[i] as Uri;
+        if (uri.path == '/nonce') continue;
+        pairs.add([uri, captured[i + 1]]);
+      }
+      return pairs;
+    }
 
     group('generateTxId', () {
       test('returns unique IDs on each call', () {
@@ -87,7 +139,18 @@ void main() {
 
         expect(uri.toString(), equals('$baseUrl/dispense'));
         expect(headers['Content-Type'], equals('application/json'));
-        expect(headers['X-API-Key'], equals(apiKey));
+        expect(headers['X-Nonce'], equals(issuedNonce));
+        expect(
+          headers['X-Signature'],
+          equals(signDispenserRequest(
+            key: signingKey,
+            method: 'POST',
+            path: '/dispense',
+            // Over the body that was actually sent, byte for byte.
+            body: body,
+            nonce: issuedNonce,
+          )),
+        );
 
         final bodyJson = jsonDecode(body) as Map<String, dynamic>;
         expect(bodyJson['tx_id'], equals(txId));
@@ -230,54 +293,53 @@ void main() {
       test('sends correct GET request with headers', () async {
         const txId = 'abc12345';
 
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              jsonEncode({
-                'tx_id': txId,
-                'state': 'done',
-                'quantity': 3,
-                'dispensed': 3,
-              'count_reliable': true,
-              'error_code': 0,
-              'error_type': 'NONE',
-              }),
-              200,
-            ));
+        answersGet(http.Response(
+          jsonEncode({
+            'tx_id': txId,
+            'state': 'done',
+            'quantity': 3,
+            'dispensed': 3,
+            'count_reliable': true,
+            'error_code': 0,
+            'error_type': 'NONE',
+          }),
+          200,
+        ));
 
         await client.getStatus(txId);
 
-        final captured = verify(() => mockHttpClient.get(
-              captureAny(),
-              headers: captureAny(named: 'headers'),
-            )).captured;
-
-        final uri = captured[0] as Uri;
-        final headers = captured[1] as Map<String, String>;
+        final [uri as Uri, headers as Map<String, String>] =
+            capturedGets().single;
 
         expect(uri.toString(), equals('$baseUrl/dispense/$txId'));
-        expect(headers['X-API-Key'], equals(apiKey));
+        expect(headers['X-Nonce'], equals(issuedNonce));
+        expect(
+          headers['X-Signature'],
+          equals(signDispenserRequest(
+            key: signingKey,
+            method: 'GET',
+            path: '/dispense/$txId',
+            body: '',
+            nonce: issuedNonce,
+          )),
+        );
       });
 
       test('parses status response correctly', () async {
         const txId = 'abc12345';
 
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              jsonEncode({
-                'tx_id': txId,
-                'state': 'done',
-                'quantity': 3,
-                'dispensed': 3,
-              'count_reliable': true,
-              'error_code': 0,
-              'error_type': 'NONE',
-              }),
-              200,
-            ));
+        answersGet(http.Response(
+          jsonEncode({
+            'tx_id': txId,
+            'state': 'done',
+            'quantity': 3,
+            'dispensed': 3,
+            'count_reliable': true,
+            'error_code': 0,
+            'error_type': 'NONE',
+          }),
+          200,
+        ));
 
         final result = await client.getStatus(txId);
 
@@ -288,13 +350,10 @@ void main() {
       });
 
       test('throws DispenserNotFoundException on 404', () async {
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              jsonEncode({'error': 'Transaction not found'}),
-              404,
-            ));
+        answersGet(http.Response(
+          jsonEncode({'error': 'Transaction not found'}),
+          404,
+        ));
 
         expect(
           () => client.getStatus('unknown-id'),
@@ -314,6 +373,7 @@ void main() {
           {
             'protocol': protocol,
             'state': state,
+            'authenticated': true,
             'fault': fault,
             'fault_code': faultCode,
             'uptime': 84230,
@@ -338,13 +398,10 @@ void main() {
           };
 
       void answers(Object body, {int status = 200}) {
-        when(() => mockHttpClient.get(
-              any(),
-              headers: any(named: 'headers'),
-            )).thenAnswer((_) async => http.Response(
-              body is String ? body : jsonEncode(body),
-              status,
-            ));
+        answersGet(http.Response(
+          body is String ? body : jsonEncode(body),
+          status,
+        ));
       }
 
       test('health parses the protocol 2 document', () async {
@@ -432,6 +489,7 @@ void main() {
           'no fault': healthDocument()..remove('fault'),
           'no fault_code': healthDocument()..remove('fault_code'),
           'no metrics': healthDocument()..remove('metrics'),
+          'no authenticated': healthDocument()..remove('authenticated'),
           'unknown state': healthDocument(state: 'wobbling'),
           'unknown fault': healthDocument(fault: 'gremlins'),
         };
@@ -457,16 +515,366 @@ void main() {
 
         await client.getHealth();
 
-        final captured = verify(() => mockHttpClient.get(
-              captureAny(),
-              headers: captureAny(named: 'headers'),
-            )).captured;
-
-        final uri = captured[0] as Uri;
-        final headers = captured[1] as Map<String, String>;
+        final [uri as Uri, headers as Map<String, String>] =
+            capturedGets().single;
 
         expect(uri.toString(), equals('$baseUrl/health'));
-        expect(headers['X-API-Key'], equals(apiKey));
+        expect(
+          headers['X-Signature'],
+          equals(signDispenserRequest(
+            key: signingKey,
+            method: 'GET',
+            path: '/health',
+            body: '',
+            nonce: issuedNonce,
+          )),
+        );
+      });
+    });
+
+    group('request signing (#951)', () {
+      /// The two worked examples from `dispenser-protocol.md`, with the
+      /// signatures computed by an implementation that is not this one. They
+      /// are the interoperability contract: the firmware
+      /// (`request_signer.cpp`) and the Go mock (`signing.go`) build the very
+      /// same string from the very same pieces, and a client that agrees with
+      /// itself but not with them dispenses nothing.
+      const exampleKey = 's3cr3t';
+      const exampleNonce = '0123456789abcdef0123456789abcdef';
+
+      test('the canonical string is METHOD, PATH, BODY, NONCE on single LFs',
+          () {
+        expect(
+          dispenserCanonicalString(
+            method: 'POST',
+            path: '/dispense',
+            body: '{"tx_id":"abc123","quantity":3}',
+            nonce: exampleNonce,
+          ),
+          equals('POST\n/dispense\n{"tx_id":"abc123","quantity":3}\n'
+              '$exampleNonce'),
+        );
+
+        // A GET signs the *empty* body — the empty line between two LFs.
+        expect(
+          dispenserCanonicalString(
+            method: 'GET',
+            path: '/dispense/abc123',
+            body: '',
+            nonce: exampleNonce,
+          ),
+          equals('GET\n/dispense/abc123\n\n$exampleNonce'),
+        );
+      });
+
+      test('the signature matches the protocol document, in lower-case hex',
+          () {
+        final post = signDispenserRequest(
+          key: exampleKey,
+          method: 'POST',
+          path: '/dispense',
+          body: '{"tx_id":"abc123","quantity":3}',
+          nonce: exampleNonce,
+        );
+        expect(
+          post,
+          equals(
+              'e7c496b031252c2518538f95392be888fe2087574de7d66b676385ba6e7b0188'),
+        );
+        expect(post.length, equals(64));
+        expect(post, equals(post.toLowerCase()),
+            reason: 'upper-case hex is rejected by the device');
+
+        expect(
+          signDispenserRequest(
+            key: exampleKey,
+            method: 'GET',
+            path: '/dispense/abc123',
+            body: '',
+            nonce: exampleNonce,
+          ),
+          equals(
+              'aaa0c4869bf8d7313c4d5531a3f810b63c456c3be04ab0e930c6c0fb0cb0e008'),
+        );
+      });
+
+      test('the key never travels on any request', () async {
+        answersGet(http.Response(
+          jsonEncode({
+            'tx_id': 'abc12345',
+            'state': 'done',
+            'quantity': 1,
+            'dispensed': 1,
+            'count_reliable': true,
+            'error_code': 0,
+            'error_type': 'NONE',
+          }),
+          200,
+        ));
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async => http.Response(
+              jsonEncode({
+                'tx_id': 'abc12345',
+                'state': 'dispensing',
+                'quantity': 1,
+                'dispensed': 0,
+                'count_reliable': true,
+                'error_code': 0,
+                'error_type': 'NONE',
+              }),
+              200,
+            ));
+
+        await client.dispenseTokens(txId: 'abc12345', quantity: 1);
+        await client.getStatus('abc12345');
+
+        final sent = <Map<String, String>>[
+          ...verify(() => mockHttpClient.get(
+                any(),
+                headers: captureAny(named: 'headers'),
+              )).captured.whereType<Map<String, String>>(),
+          ...verify(() => mockHttpClient.post(
+                any(),
+                headers: captureAny(named: 'headers'),
+                body: any(named: 'body'),
+              )).captured.whereType<Map<String, String>>(),
+        ];
+
+        expect(sent, isNotEmpty);
+        for (final headers in sent) {
+          expect(headers.keys.map((k) => k.toLowerCase()),
+              isNot(contains('x-api-key')),
+              reason: 'protocol 1 is gone; there is no fallback header');
+          expect(headers.values, isNot(contains(signingKey)),
+              reason: 'the secret keys the HMAC and never leaves the process');
+        }
+      });
+
+      test('one dispense costs one nonce, however many polls follow it',
+          () async {
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async => http.Response(
+              jsonEncode({
+                'tx_id': 'abc12345',
+                'state': 'dispensing',
+                'quantity': 2,
+                'dispensed': 0,
+                'count_reliable': true,
+                'error_code': 0,
+                'error_type': 'NONE',
+              }),
+              200,
+            ));
+        answersGet(http.Response(
+          jsonEncode({
+            'tx_id': 'abc12345',
+            'state': 'done',
+            'quantity': 2,
+            'dispensed': 2,
+            'count_reliable': true,
+            'error_code': 0,
+            'error_type': 'NONE',
+          }),
+          200,
+        ));
+
+        await client.dispenseTokens(txId: 'abc12345', quantity: 2);
+        // The POST spent the nonce, so the first poll fetches one. The polls
+        // behind it are read-only and reuse it.
+        await client.getStatus('abc12345');
+        await client.getStatus('abc12345');
+        await client.getStatus('abc12345');
+
+        expect(nonceRequests, equals(2),
+            reason: 'one for the POST, one for the polls behind it');
+      });
+
+      test('a nonce that has passed its stated TTL is replaced', () async {
+        issuedTtl = 1; // shorter than the 5 s safety margin: usable once, now
+        answersGet(http.Response(
+          jsonEncode({
+            'tx_id': 'abc12345',
+            'state': 'done',
+            'quantity': 1,
+            'dispensed': 1,
+            'count_reliable': true,
+            'error_code': 0,
+            'error_type': 'NONE',
+          }),
+          200,
+        ));
+
+        await client.getStatus('abc12345');
+        await Future<void>.delayed(const Duration(milliseconds: 1100));
+        await client.getStatus('abc12345');
+
+        expect(nonceRequests, equals(2),
+            reason: 'the TTL comes off the wire and is not assumed to be 30 s');
+      });
+
+      test('a 401 naming the nonce is retried exactly once, with a fresh one',
+          () async {
+        var posts = 0;
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async {
+          posts++;
+          if (posts == 1) {
+            return http.Response(
+              jsonEncode({'error': 'unauthorized', 'reason': 'nonce'}),
+              401,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'tx_id': 'abc12345',
+              'state': 'dispensing',
+              'quantity': 1,
+              'dispensed': 0,
+              'count_reliable': true,
+              'error_code': 0,
+              'error_type': 'NONE',
+            }),
+            200,
+          );
+        });
+
+        final result =
+            await client.dispenseTokens(txId: 'abc12345', quantity: 1);
+
+        expect(result.state, equals('dispensing'));
+        expect(posts, equals(2), reason: 'retried once, not more');
+        expect(nonceRequests, equals(2));
+      });
+
+      test('a 401 naming the signature stops, and says it is configuration',
+          () async {
+        var posts = 0;
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async {
+          posts++;
+          return http.Response(
+            jsonEncode({'error': 'unauthorized', 'reason': 'signature'}),
+            401,
+          );
+        });
+
+        await expectLater(
+          client.dispenseTokens(txId: 'abc12345', quantity: 1),
+          throwsA(isA<DispenserSignatureException>()),
+        );
+        expect(posts, equals(1),
+            reason: 'a retry with the same wrong key changes nothing');
+      });
+
+      test('a 401 the client cannot read is treated as the signature',
+          () async {
+        var posts = 0;
+        when(() => mockHttpClient.post(
+              any(),
+              headers: any(named: 'headers'),
+              body: any(named: 'body'),
+            )).thenAnswer((_) async {
+          posts++;
+          return http.Response('<html>go away</html>', 401);
+        });
+
+        await expectLater(
+          client.dispenseTokens(txId: 'abc12345', quantity: 1),
+          throwsA(isA<DispenserSignatureException>()),
+        );
+        expect(posts, equals(1),
+            reason: 'an unreadable body is not evidence that a retry helps');
+      });
+
+      test('the unauthenticated minimal document means our key is wrong',
+          () async {
+        // `/health` is the one endpoint that answers an unverified caller
+        // with `200` instead of `401` — the four-field document, so a monitor
+        // can still tell a live machine from a dead one. This terminal signs
+        // every poll, so `authenticated: false` says the signature did not
+        // verify, and reading it as a malformed document would report a
+        // wrong key as a protocol mismatch.
+        answersGet(http.Response(
+          jsonEncode({
+            'protocol': 2,
+            'state': 'idle',
+            'fault': 'none',
+            'authenticated': false,
+          }),
+          200,
+        ));
+
+        await expectLater(
+          client.getHealth(),
+          throwsA(isA<DispenserSignatureException>()),
+        );
+      });
+
+      test('a health poll the device refuses is a signature failure',
+          () async {
+        answersGet(http.Response(
+          jsonEncode({'error': 'unauthorized', 'reason': 'signature'}),
+          401,
+        ));
+
+        await expectLater(
+          client.getHealth(),
+          throwsA(isA<DispenserSignatureException>()),
+        );
+      });
+
+      test('a nonce fetch that fails is a dispenser exception, not a crash',
+          () async {
+        when(() => mockHttpClient.get(any(), headers: any(named: 'headers')))
+            .thenThrow(const SocketException('no route to host'));
+
+        await expectLater(
+          client.dispenseTokens(txId: 'abc12345', quantity: 1),
+          throwsA(isA<DispenserException>()),
+        );
+        await expectLater(
+          client.getStatus('abc12345'),
+          throwsA(isA<DispenserException>()),
+        );
+        await expectLater(
+          client.getHealth(),
+          throwsA(isA<DispenserException>()),
+        );
+      });
+
+      test('a nonce that is not 32 hex characters is a protocol error',
+          () async {
+        issuedNonce = 'NOT-HEX';
+
+        await expectLater(
+          client.getHealth(),
+          throwsA(isA<DispenserProtocolException>()),
+        );
+      });
+    });
+
+    group('DispenserHealth.signingKeyRejected', () {
+      test('is unavailable for its own reason, and never reads as offline',
+          () {
+        final health = DispenserHealth.signingKeyRejected();
+
+        expect(health.isUnavailable, isTrue);
+        expect(health.unavailableReason,
+            equals(DispenserUnavailableReason.signingKeyRejected));
+        expect(health.needsAttendance, isFalse,
+            reason: 'nobody has to open the machine for a wrong key');
       });
     });
 

@@ -181,6 +181,14 @@ class DispenseSession extends ChangeNotifier {
         // A device speaking a protocol this terminal does not: no number of
         // retries makes a schema match.
         return _fail(e);
+      } on DispenserSignatureException catch (e) {
+        // The device refused our signature: the signing key here is not the
+        // one it was flashed with (#951). The protocol's retry contract is
+        // explicit that this is the branch that must *not* be retried — the
+        // client has already decided it is not a stale nonce, and three more
+        // identical refusals only delay the configuration error the kiosk has
+        // to show.
+        return _fail(e);
       } on DispenserException catch (e) {
         if (attempt >= maxRetries || deadline.passed) {
           return _fail(DispenserException(
@@ -248,6 +256,10 @@ class DispenseSession extends ChangeNotifier {
       } on DispenserNotFoundException catch (e) {
         return _fail(e);
       } on DispenserProtocolException catch (e) {
+        return _fail(e);
+      } on DispenserSignatureException catch (e) {
+        // Same as above, and worse here: a poll that can never be signed
+        // would keep opening connections until the deadline for nothing.
         return _fail(e);
       } on DispenserException catch (e) {
         // Network trouble mid-poll: keep trying until the deadline. The next

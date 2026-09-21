@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -59,6 +60,63 @@ class DispenserProtocolException extends DispenserException {
   final int? reportedProtocol;
 
   DispenserProtocolException(super.message, {this.reportedProtocol});
+}
+
+/// The device refused the request because the signature did not verify —
+/// `401 {"error":"unauthorized","reason":"signature"}`.
+///
+/// This is a **configuration** fault, not a network one: the signing key on
+/// this terminal is not the one the device was flashed with, or there is none
+/// at all. The protocol's retry contract is explicit that a retry changes
+/// nothing (`dispenser-protocol.md`, *Request signing*), so nothing here
+/// retries — the terminal says so, in words for the person standing at the
+/// kiosk, and somebody with the key fixes it.
+///
+/// A `reason: "nonce"` never reaches this class: that one *is* retryable, and
+/// [DispenserClient] has already fetched a fresh nonce and sent the request a
+/// second time before giving up.
+class DispenserSignatureException extends DispenserException {
+  DispenserSignatureException([String detail = ''])
+      : super('Dispenser rejected the signature'
+            '${detail.isEmpty ? '' : ': $detail'}');
+}
+
+/// The string both ends compute the signature over — the one detail that has
+/// to be byte-identical in three implementations (this one, the firmware's
+/// `request_signer.cpp` and the mock's `signing.go`):
+///
+///     METHOD \n PATH \n BODY \n NONCE
+///
+/// Single LF separators, **none at the end**. [path] carries no query string
+/// and no host; [body] is the empty string for every GET and otherwise the
+/// bytes that are actually sent.
+String dispenserCanonicalString({
+  required String method,
+  required String path,
+  required String body,
+  required String nonce,
+}) =>
+    '$method\n$path\n$body\n$nonce';
+
+/// `X-Signature`: HMAC-SHA256 over [dispenserCanonicalString], keyed with the
+/// raw UTF-8 bytes of the shared secret, hex-encoded **lower case** (64
+/// characters — upper case is rejected by the device).
+String signDispenserRequest({
+  required String key,
+  required String method,
+  required String path,
+  required String body,
+  required String nonce,
+}) {
+  final mac = Hmac(sha256, utf8.encode(key));
+  return mac
+      .convert(utf8.encode(dispenserCanonicalString(
+        method: method,
+        path: path,
+        body: body,
+        nonce: nonce,
+      )))
+      .toString();
 }
 
 /// The device-level condition, independent of any transaction
@@ -130,6 +188,13 @@ enum DispenserUnavailableReason {
   /// `state: fault` without a fault naming it. Not producible by a conforming
   /// device; kept so an unavailable dispenser is never rendered as available.
   unspecifiedFault,
+
+  /// The device answered and refused us: the signing key this terminal holds
+  /// is not the one it was flashed with, or there is none (#951). The machine
+  /// itself may be perfectly fine — which is why this is not [offline], the
+  /// reading that sends somebody to look for a network fault that is not
+  /// there.
+  signingKeyRejected,
 }
 
 /// Result of a dispense operation
@@ -253,6 +318,17 @@ class DispenserHealth {
   /// How the terminal came by this report.
   final DispenserContact contact;
 
+  /// The device refused our signature (#951).
+  ///
+  /// Kept beside [contact] rather than as a fourth [DispenserContact]: the
+  /// contact value travels to the backend as `dispenser_status.contact`, whose
+  /// wire enum has three members and is shared with the admin panel (#953).
+  /// Widening it is a change to the API, the backend and the panel at once;
+  /// this flag keeps the misconfiguration nameable on the terminal's own
+  /// screen without it. The backend sees `unreachable`, which is true of the
+  /// dispenser as this terminal can use it.
+  final bool signingKeyRejected;
+
   /// What the device claimed as its protocol version — `null` when it never
   /// answered or never said.
   final int? protocol;
@@ -301,6 +377,7 @@ class DispenserHealth {
 
   DispenserHealth({
     this.contact = DispenserContact.reported,
+    this.signingKeyRejected = false,
     this.protocol,
     this.state,
     this.fault = DispenserFault.none,
@@ -341,6 +418,23 @@ class DispenserHealth {
         '$dispenserProtocolVersion',
         reportedProtocol: protocol,
       );
+    }
+
+    // `authenticated` is required in **both** documents protocol 2 serves at
+    // this URL (#951). This terminal signs every `/health`, so `false` is not
+    // a liveness probe answering — it is the device handing an unverified
+    // caller the four-field minimal document, with `200` rather than `401` so
+    // that a monitor can still tell "the machine is there" from "the machine
+    // is gone". For us it means one thing: our key is not its key.
+    final authenticated = json['authenticated'];
+    if (authenticated is! bool) {
+      throw DispenserProtocolException(
+          'health document does not say whether the request was authenticated',
+          reportedProtocol: protocol);
+    }
+    if (!authenticated) {
+      throw DispenserSignatureException(
+          '/health answered the unauthenticated minimal document');
     }
 
     final state = DispenserDeviceState.fromWire(json['state']);
@@ -435,6 +529,11 @@ class DispenserHealth {
   /// **not** unavailable: it is mid-checkout for someone else and will be
   /// free again in seconds.
   DispenserUnavailableReason? get unavailableReason {
+    // Asked before [contact], because a terminal whose key the device refuses
+    // learns nothing else about it: there is no state and no fault to read.
+    if (signingKeyRejected) {
+      return DispenserUnavailableReason.signingKeyRejected;
+    }
     switch (contact) {
       case DispenserContact.unreachable:
         return DispenserUnavailableReason.offline;
@@ -468,6 +567,20 @@ class DispenserHealth {
   factory DispenserHealth.offline() {
     return DispenserHealth(
       contact: DispenserContact.unreachable,
+      totalDispenses: 0,
+      successful: 0,
+      jams: 0,
+      successRate: 0.0,
+    );
+  }
+
+  /// Something answered and refused this terminal's signature: the key here
+  /// is not the key there (#951). Somebody has to put the right one in
+  /// `config.json`; nothing the kiosk or the member can do changes it.
+  factory DispenserHealth.signingKeyRejected() {
+    return DispenserHealth(
+      contact: DispenserContact.unreachable,
+      signingKeyRejected: true,
       totalDispenses: 0,
       successful: 0,
       jams: 0,
@@ -526,17 +639,53 @@ int? _optionalInt(Map<String, dynamic> json, String field) {
   return value is int ? value : null;
 }
 
-/// HTTP client for ESP8266 token dispenser API
+/// HTTP client for ESP8266 token dispenser API.
+///
+/// Every request is **signed**, and the key itself never leaves this process
+/// (#951). Until protocol 2 the shared secret travelled as `X-API-Key` on
+/// every request over the clubhouse WLAN, where reading it once was enough to
+/// dispense tokens at will; HTTPS on an ESP8266 was evaluated and rejected in
+/// favour of signing (dgloeckner/remote-token-dispenser#8). There is no
+/// fallback header and no compatibility switch — signing is part of what
+/// protocol 2 *is*, and a device speaking anything else is a mismatch, not a
+/// reason to shout the secret.
 class DispenserClient {
   final String baseUrl;
-  final String apiKey;
+
+  /// The shared secret, used to key the HMAC and **never transmitted**.
+  final String signingKey;
+
   final http.Client _httpClient;
   final int timeoutMs;
   final Uuid _uuid = const Uuid();
 
+  /// How long before a nonce's stated TTL this client stops using it.
+  ///
+  /// A nonce that expires between signing it and the device checking it costs
+  /// a round trip for nothing, and a WLAN never takes five seconds. Matches
+  /// the reference client's margin (`dispenser-client-tui/signing.go`).
+  static const Duration nonceSafetyMargin = Duration(seconds: 5);
+
+  /// The TTL to assume when the device answers `/nonce` without a usable one.
+  /// The value on the wire is what counts — this is only the floor under a
+  /// malformed answer, never a substitute for reading `ttl`.
+  static const Duration nonceFallbackTtl = Duration(seconds: 30);
+
+  /// The one nonce this client is currently working with, and when it stops
+  /// being usable.
+  ///
+  /// Cached rather than fetched per request because a **read-only** request
+  /// does not spend its nonce: one `GET /nonce` covers the `POST /dispense`
+  /// and every status poll behind it until the TTL runs out. A mutating
+  /// request spends it on the device the moment the signature verifies, so it
+  /// is dropped here at the same moment — keeping it would buy one guaranteed
+  /// 401 on the next call.
+  String? _nonce;
+  DateTime? _nonceExpires;
+
   DispenserClient({
     required this.baseUrl,
-    required this.apiKey,
+    required this.signingKey,
     http.Client? httpClient,
     this.timeoutMs = 3000,
   }) : _httpClient = httpClient ?? http.Client();
@@ -562,20 +711,25 @@ class DispenserClient {
     required String txId,
     required int quantity,
   }) async {
-    final uri = Uri.parse('$baseUrl/dispense');
-    final headers = {
-      'Content-Type': 'application/json',
-      'X-API-Key': apiKey,
-    };
+    // Serialised exactly once. These are the bytes that get signed *and* the
+    // bytes that get sent: building the JSON a second time between the two —
+    // a re-`jsonEncode`, a differently ordered map, a body the HTTP layer is
+    // allowed to re-encode — changes the canonical string and the device
+    // answers 401. It is the single easiest way to break request signing.
     final body = jsonEncode({
       'tx_id': txId,
       'quantity': quantity,
     });
 
     try {
-      final response = await _httpClient
-          .post(uri, headers: headers, body: body)
-          .timeout(Duration(milliseconds: timeoutMs));
+      final response = await _signed(
+        method: 'POST',
+        path: '/dispense',
+        body: body,
+        // A POST spends its nonce on the device — that is the replay defence.
+        mutating: true,
+        headers: const {'Content-Type': 'application/json'},
+      );
 
       if (response.statusCode == 409) {
         throw _conflict(response.body);
@@ -605,15 +759,15 @@ class DispenserClient {
   /// - [DispenserNotFoundException] if the transaction ID is not found.
   /// - [DispenserException] for other HTTP errors or network failures.
   Future<DispenseResult> getStatus(String txId) async {
-    final uri = Uri.parse('$baseUrl/dispense/$txId');
-    final headers = {
-      'X-API-Key': apiKey,
-    };
-
     try {
-      final response = await _httpClient
-          .get(uri, headers: headers)
-          .timeout(Duration(milliseconds: timeoutMs));
+      final response = await _signed(
+        method: 'GET',
+        path: '/dispense/$txId',
+        // A read-only request does not spend its nonce, so a whole dispense —
+        // the POST and every poll behind it — costs one `GET /nonce` until
+        // the TTL runs out.
+        mutating: false,
+      );
 
       if (response.statusCode == 404) {
         throw DispenserNotFoundException();
@@ -642,15 +796,16 @@ class DispenserClient {
   /// Throws:
   /// - [DispenserException] for HTTP errors or network failures.
   Future<DispenserHealth> getHealth() async {
-    final uri = Uri.parse('$baseUrl/health');
-    final headers = {
-      'X-API-Key': apiKey,
-    };
-
     try {
-      final response = await _httpClient
-          .get(uri, headers: headers)
-          .timeout(Duration(milliseconds: timeoutMs));
+      // Signed although `/health` would answer an unsigned request too: the
+      // unsigned answer is the four-field minimal document, and the metrics,
+      // the wifi block and the error history this terminal reports onward
+      // (#953) are only in the signed one.
+      final response = await _signed(
+        method: 'GET',
+        path: '/health',
+        mutating: false,
+      );
 
       if (response.statusCode != 200) {
         throw DispenserException(
@@ -663,6 +818,138 @@ class DispenserClient {
     } catch (e) {
       throw DispenserException('Request failed: $e');
     }
+  }
+
+  /// Sends a signed request, and on a `401` that names the *nonce* as the
+  /// reason fetches a fresh one and sends it exactly once more.
+  ///
+  /// That one retry is the whole of the protocol's retry contract
+  /// (`dispenser-protocol.md`, *Request signing*):
+  ///
+  /// * `reason: "nonce"` — unknown, expired or already spent. Retryable, and
+  ///   safe to retry: every mutating request is idempotent by `tx_id`.
+  /// * `reason: "signature"` — wrong key, missing or malformed headers. A
+  ///   retry changes nothing, so this stops and raises
+  ///   [DispenserSignatureException].
+  ///
+  /// Retrying blindly is what the distinction exists to prevent: a client
+  /// that ignores it either loops forever against a misconfigured key or
+  /// gives up on a nonce that had merely expired.
+  Future<http.Response> _signed({
+    required String method,
+    required String path,
+    required bool mutating,
+    String? body,
+    Map<String, String> headers = const {},
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final nonce = await _obtainNonce(force: attempt > 0);
+      final signed = <String, String>{
+        ...headers,
+        'X-Nonce': nonce,
+        'X-Signature': signDispenserRequest(
+          key: signingKey,
+          method: method,
+          // The path as the device sees it, never the configured base URL and
+          // never a query string.
+          path: uri.path,
+          // The empty string for every GET.
+          body: body ?? '',
+          nonce: nonce,
+        ),
+      };
+
+      if (mutating) {
+        // The device marks it spent the moment the signature verifies, so
+        // this copy is worthless either way.
+        _forgetNonce();
+      }
+
+      final response = await (body == null
+              ? _httpClient.get(uri, headers: signed)
+              // The very bytes that were signed above.
+              : _httpClient.post(uri, headers: signed, body: body))
+          .timeout(Duration(milliseconds: timeoutMs));
+
+      if (response.statusCode == 401) {
+        _forgetNonce();
+        if (attempt == 0 && _rejectedTheNonce(response.body)) continue;
+        throw DispenserSignatureException(response.body.trim());
+      }
+      return response;
+    }
+    // Unreachable: the loop either returns or throws.
+    throw DispenserException('Request failed: signing gave up');
+  }
+
+  /// Whether a `401` body says the **nonce** was the problem, and not the
+  /// signature. Anything unreadable counts as the signature: a body this
+  /// client cannot parse is not evidence that a retry would help.
+  bool _rejectedTheNonce(String body) {
+    try {
+      final json = jsonDecode(body);
+      return json is Map<String, dynamic> && json['reason'] == 'nonce';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// A usable nonce — the cached one while it lasts, a fresh one otherwise.
+  Future<String> _obtainNonce({bool force = false}) async {
+    if (!force) {
+      final cached = _nonce;
+      final expires = _nonceExpires;
+      if (cached != null &&
+          expires != null &&
+          DateTime.now().isBefore(expires)) {
+        return cached;
+      }
+    }
+    return _fetchNonce();
+  }
+
+  /// `GET /nonce` — unauthenticated, and it has to be: the terminal holds
+  /// nothing it could sign with until it has one.
+  Future<String> _fetchNonce() async {
+    _forgetNonce();
+    final response = await _httpClient
+        .get(Uri.parse('$baseUrl/nonce'))
+        .timeout(Duration(milliseconds: timeoutMs));
+
+    if (response.statusCode != 200) {
+      throw DispenserException(
+          'GET /nonce: HTTP ${response.statusCode}: ${response.body}');
+    }
+
+    final json = _document(response.body);
+    final nonce = json['nonce'];
+    if (nonce is! String || !_isNonce(nonce)) {
+      throw DispenserProtocolException(
+          'GET /nonce did not hand out 32 hex characters');
+    }
+
+    // The device states its own TTL and this client reads it. Hard-coding 30
+    // seconds here would silently outlive a firmware that shortened it, and
+    // every request after that would cost a wasted round trip.
+    final ttl = json['ttl'];
+    final lifetime =
+        ttl is int && ttl > 0 ? Duration(seconds: ttl) : nonceFallbackTtl;
+    final usable =
+        lifetime > nonceSafetyMargin ? lifetime - nonceSafetyMargin : lifetime;
+
+    _nonce = nonce;
+    _nonceExpires = DateTime.now().add(usable);
+    return nonce;
+  }
+
+  static final RegExp _nonceShape = RegExp(r'^[0-9a-f]{32}$');
+
+  bool _isNonce(String value) => _nonceShape.hasMatch(value);
+
+  void _forgetNonce() {
+    _nonce = null;
+    _nonceExpires = null;
   }
 
   /// A 409 is two different answers: another transaction is running ("busy",

@@ -20,6 +20,10 @@ dependencies:
   http: ^1.6.0
   chopper: ^8.5.1
 
+  # Request signing for the token dispenser (#951): HMAC-SHA256 over the
+  # canonical request, so the shared secret never travels on the WLAN.
+  crypto: ^3.0.6
+
   # JSON serialization
   json_annotation: ^4.12.0
 

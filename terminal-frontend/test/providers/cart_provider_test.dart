@@ -22,7 +22,7 @@ class MockSoundService extends Mock implements SoundService {}
 /// them overrides `showDispensingDialog` — so a client pointed at nowhere is
 /// enough; checkout uses it only to mint the transaction id.
 DispenserClient _testDispenserClient() =>
-    DispenserClient(baseUrl: 'http://dispenser.test', apiKey: 'test-key');
+    DispenserClient(baseUrl: 'http://dispenser.test', signingKey: 'test-key');
 
 /// Drives the dispense branch of [CartProvider.checkout] without a widget tree:
 /// the real implementation puts a dialog on screen, which a unit test has no
@@ -416,7 +416,7 @@ void main() {
 
       when(() => mockConfig.dispenserEnabled).thenReturn(true);
       when(() => mockConfig.dispenserBaseUrl).thenReturn('http://dispenser');
-      when(() => mockConfig.dispenserApiKey).thenReturn('key');
+      when(() => mockConfig.dispenserSigningKey).thenReturn('key');
       when(() => mockSoundService.play(any())).thenAnswer((_) async {});
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (true, null));
@@ -655,7 +655,7 @@ void main() {
 
       when(() => mockConfig.dispenserEnabled).thenReturn(true);
       when(() => mockConfig.dispenserBaseUrl).thenReturn('http://dispenser');
-      when(() => mockConfig.dispenserApiKey).thenReturn('key');
+      when(() => mockConfig.dispenserSigningKey).thenReturn('key');
       when(() => mockSoundService.play(any())).thenAnswer((_) async {});
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (true, null));
