@@ -205,6 +205,8 @@ erDiagram
         varchar_64 reported_version "Last X-Terminal-Version the terminal sent"
         datetime reported_version_at "When that version was last seen"
         varchar_64 blocked_version "Tag whose update failed there, never retried"
+        json dispenser_status "Last dispenser status this terminal reported"
+        datetime dispenser_status_at "When that report was received"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -813,6 +815,11 @@ Registered POS terminals with API authentication.
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Terminal enabled for API access |
 | last_sync_at | DATETIME | NULL | Timestamp of last successful sync |
 | last_sync_ip | VARCHAR(45) | NULL | IP address of last sync (IPv4 or IPv6) |
+| reported_version | VARCHAR(64) | NULL | Last `X-Terminal-Version` the terminal sent ([ADR-0054](../adr/0054-terminal-runs-its-backends-version.md)). NULL while nothing parseable has arrived — the header is fail-open |
+| reported_version_at | DATETIME | NULL | When that version was last seen. Not `last_sync_at`: a terminal can keep syncing while reporting nothing |
+| blocked_version | VARCHAR(64) | NULL | Tag whose update failed on this terminal; its updater will never retry it |
+| dispenser_status | JSON | NULL | The terminal's last report about its token dispenser ([ADR-0057](../adr/0057-terminals-report-peripheral-status.md)), with the backend's derived `available`, `unavailable_reason` and `state_since` stamped in. NULL = **never reported**, which is not the same as a report of `configured: false` (= no dispenser attached) |
+| dispenser_status_at | DATETIME | NULL | When that report was received (UTC). Separate from `last_sync_at` for the reason `reported_version_at` is: reporting is fail-open, so a terminal can sync perfectly while reporting nothing |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
@@ -828,6 +835,18 @@ Registered POS terminals with API authentication.
 credential cryptoperiod of ADR-0036) after it was issued. The check is
 fail-closed: a row carrying a token hash with no `token_expires_at` does not
 authenticate.
+
+**Dispenser status (#952, [ADR-0057](../adr/0057-terminals-report-peripheral-status.md))**:
+written only by `PUT /api/sync/terminal-status`, last write wins, no history
+table. The stored document carries `configured`, `contact`
+(`reported` / `unreachable` / `protocol_mismatch`), `state`
+(`idle` / `dispensing` / `fault`), `fault` (`none` / `jam` / `hopper_error`)
+with `fault_code`, `firmware`, `protocol`, `rssi`, `uptime_s`, `reset_reason`,
+a cumulative `lifetime` counter object, `pending_reconciliations`,
+`manual_reconciliations`, the device's own `observed_at`, and three fields the
+backend derives: `available`, `unavailable_reason` and `state_since`. Read back
+on `GET /api/admin/terminals` and `GET /api/admin/terminals/{id}`, both
+`ADMIN_ONLY` — dispenser state is the admin office's alone.
 
 **Overlap rotation (#395)**: rotating does not touch the active columns. It
 writes the `pending_*` triple instead, so both tokens authenticate until the
