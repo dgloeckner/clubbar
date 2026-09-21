@@ -24,7 +24,13 @@
  *    device is dark.
  * 4. **Nothing here commands the machine.** No clear, no reset, no
  *    acknowledge — only the remedy sentence and a close button. The device has
- *    no reset route, and a jam is cleared by a power cycle.
+ *    no reset route, and a jam is cleared by a power cycle. Recording a refill
+ *    is a fact about the hopper rather than an answer to an alert, so it lives
+ *    on the row's actions and not in this panel: the one button here closes it.
+ * 5. **The fill estimate names itself as an estimate** (#955). It is a counted
+ *    refill minus what has been billed since — no sensor is involved — and the
+ *    line under it says so, because a number in a panel full of measured
+ *    counters reads as measured unless it denies it.
  */
 
 import { useTranslation } from 'react-i18next'
@@ -32,7 +38,7 @@ import { theme, formatDateTime } from '../../styles/design-system'
 import { useModalDialog } from '../../hooks/useModalDialog'
 import { TerminalDispenserCell, type DispenserTerminal } from './TerminalDispenserCell'
 import { useDispenserAgeText } from '../../hooks/useDispenserAgeText'
-import { dispenserDisplay, durationParts, hasCounter } from '../../utils/dispenserStatus'
+import { dispenserDisplay, dispenserFill, durationParts, hasCounter } from '../../utils/dispenserStatus'
 
 /** What to do about it. A protocol mismatch is a deployment errand, not a hopper one. */
 const REMEDY_KEY: Record<string, string> = {
@@ -78,7 +84,8 @@ export function TerminalDispenserPanel({ isOpen, terminalName, terminal, onClose
   if (!isOpen || !terminal) return null
 
   const status = terminal.dispenser_status
-  const display = dispenserDisplay(status)
+  const display = dispenserDisplay(status, terminal.dispenser_fill)
+  const fill = dispenserFill(terminal.dispenser_fill)
   const lifetime = status?.lifetime ?? {}
   const remedy = display.reason ? REMEDY_KEY[display.reason] : undefined
 
@@ -202,6 +209,56 @@ export function TerminalDispenserPanel({ isOpen, terminalName, terminal, onClose
             value={status?.reset_reason ?? ABSENT}
           />
         </div>
+
+        <h3
+          style={{
+            margin: `${theme.spacing.lg} 0 ${theme.spacing.sm}`,
+            fontSize: theme.typography.fontSize.sm,
+            fontWeight: theme.typography.fontWeight.semibold,
+            color: theme.colors.text.primary,
+          }}
+        >
+          {t('settings.terminalDispenserFill')}
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: theme.spacing.sm }}>
+          <Row
+            label={t('settings.terminalDispenserRefilledAt')}
+            testId="terminal-dispenser-detail-refilled"
+            value={terminal.dispenser_fill?.refilled_at ? formatDateTime(terminal.dispenser_fill.refilled_at) : ABSENT}
+          />
+          <Row
+            label={t('settings.terminalDispenserRefillTokens')}
+            testId="terminal-dispenser-detail-refill-tokens"
+            value={hasCounter(terminal.dispenser_fill?.refill_tokens) ? String(terminal.dispenser_fill!.refill_tokens) : ABSENT}
+          />
+          <Row
+            label={t('settings.terminalDispenserSoldSince')}
+            testId="terminal-dispenser-detail-sold-since"
+            value={hasCounter(terminal.dispenser_fill?.sold_since) ? String(terminal.dispenser_fill!.sold_since) : ABSENT}
+          />
+          {/* An estimate nobody can compute is an em dash, never a zero: "no
+              refill recorded" and "the hopper is empty" are opposite errands. */}
+          <Row
+            label={t('settings.terminalDispenserEstimatedLeft')}
+            testId="terminal-dispenser-detail-estimated-left"
+            value={fill.estimatedLeft === null ? ABSENT : String(fill.estimatedLeft)}
+            highlight={fill.state === 'low' || fill.state === 'exhausted'}
+          />
+          <Row
+            label={t('settings.terminalDispenserLowThreshold')}
+            testId="terminal-dispenser-detail-low-threshold"
+            value={fill.threshold === null ? ABSENT : String(fill.threshold)}
+          />
+        </div>
+        {/* The estimate must never be read as a measurement. The machine has no
+            empty sensor; this is a counted refill minus what has been billed
+            since, and it cannot see a token that coasted out of the motor. */}
+        <p
+          data-testid="terminal-dispenser-panel-fill-note"
+          style={{ marginTop: theme.spacing.sm, marginBottom: 0, color: theme.colors.text.muted }}
+        >
+          {t(fill.state === 'unknown' ? 'settings.terminalDispenserFillNone' : 'settings.terminalDispenserFillNote')}
+        </p>
 
         <h3
           style={{

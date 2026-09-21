@@ -1239,6 +1239,9 @@ export function SettingsPage() {
           onDeactivateTerminal={handleDeactivateTerminal}
           onReactivateTerminal={handleReactivateTerminal}
           onAnomalyAcknowledged={loadTerminals}
+          // The estimate is computed on read, so the new reading only exists
+          // once the list is fetched again (#955).
+          onRefillRecorded={loadTerminals}
         />
       )}
 

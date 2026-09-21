@@ -34,12 +34,20 @@
  */
 
 import type {
+  TerminalDispenserFill,
   TerminalDispenserStatus,
   TerminalDispenserStatusUnavailableReason,
 } from '../api/generated/model'
 
-/** What the cell renders. Four states, all distinguishable from the two fields. */
-export type DispenserDisplayState = 'unknown' | 'none' | 'available' | 'unavailable'
+/**
+ * What the cell renders.
+ *
+ * Four of the five come from the report alone. The fifth, `low`, is the
+ * hopper's fill estimate (#955) showing through a dispenser the backend calls
+ * available: the machine is working and will stop soon, which is neither
+ * *ready* nor *unavailable* and is the whole point of warning before it jams.
+ */
+export type DispenserDisplayState = 'unknown' | 'none' | 'available' | 'low' | 'unavailable'
 
 export interface DispenserDisplay {
   state: DispenserDisplayState
@@ -58,6 +66,7 @@ export interface DispenserDisplay {
  */
 export function dispenserDisplay(
   status: TerminalDispenserStatus | null | undefined,
+  fillDocument?: TerminalDispenserFill | null,
 ): DispenserDisplay {
   if (status === null || status === undefined) {
     return { state: 'unknown', reason: null, faultCode: null }
@@ -68,7 +77,19 @@ export function dispenserDisplay(
   }
 
   if (status.available === true) {
-    return { state: 'available', reason: null, faultCode: null }
+    // The estimate is allowed to warn about a working machine — and that is
+    // all it may do. It never *unsets* availability: `available` is derived by
+    // the backend so the kiosk and the panel cannot describe one machine
+    // differently, and an estimate contradicting it would be a second verdict
+    // computed from different facts. A hopper this arithmetic believes is
+    // empty may hold fifty tokens somebody poured in without saying so.
+    const fill = dispenserFill(fillDocument)
+
+    return {
+      state: fill.state === 'low' || fill.state === 'exhausted' ? 'low' : 'available',
+      reason: null,
+      faultCode: null,
+    }
   }
 
   const reason = status.unavailable_reason ?? 'unspecified_fault'
@@ -78,6 +99,51 @@ export function dispenserDisplay(
     reason,
     faultCode: reason === 'hopper_error' && typeof status.fault_code === 'number' ? status.fault_code : null,
   }
+}
+
+/** What the fill estimate says, if it says anything. */
+export type DispenserFillState = 'unknown' | 'ok' | 'low' | 'exhausted'
+
+export interface DispenserFill {
+  state: DispenserFillState
+  /** Tokens probably left. Null exactly when `state` is `unknown`. */
+  estimatedLeft: number | null
+  /** The warning tier, where the row carried one. */
+  threshold: number | null
+}
+
+/**
+ * How full the hopper probably is (#955, ADR-0058).
+ *
+ * **Arithmetic, not a sensor, and the reading has to keep saying so.** The
+ * machine's *empty* switch is a factory option this unit does not have, so
+ * nothing here is a measurement: it is a counted refill minus the tokens sold
+ * since, and it cannot see a token that coasted out after the motor stopped or
+ * a hopper somebody topped up without recording it.
+ *
+ * Which is why `unknown` is its own state rather than a zero. No refill
+ * recorded, or a row that carried no count, means *nobody knows* — and
+ * `undefined ?? 0` there would print a confident "0 Token übrig" for a hopper
+ * nobody has ever looked into. {@link hasCounter} is the guard, the same one
+ * the detail panel uses on the device's counters and for the same reason.
+ *
+ * `exhausted` is the low state at its end, not a separate condition: the
+ * backend floors the estimate at zero, because a negative number would be
+ * false precision about a drift nobody measured.
+ */
+export function dispenserFill(fill: TerminalDispenserFill | null | undefined): DispenserFill {
+  const threshold = hasCounter(fill?.low_threshold) ? fill!.low_threshold! : null
+
+  if (!hasCounter(fill?.estimated_left)) {
+    return { state: 'unknown', estimatedLeft: null, threshold }
+  }
+
+  const left = fill!.estimated_left!
+
+  if (left <= 0) return { state: 'exhausted', estimatedLeft: left, threshold }
+  if (threshold !== null && left <= threshold) return { state: 'low', estimatedLeft: left, threshold }
+
+  return { state: 'ok', estimatedLeft: left, threshold }
 }
 
 /**

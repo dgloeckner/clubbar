@@ -1546,6 +1546,36 @@ export class SettingsPage {
     return (await this.page.getByTestId(`terminal-dispenser-detail-${field}`).textContent())?.trim() ?? null
   }
 
+  /**
+   * Open the refill dialog for a terminal (#955).
+   *
+   * It hangs off the row's actions rather than the dispenser detail, and that
+   * placement is the point: recording a refill is a fact about the hopper, not
+   * an answer to an alert, and the detail panel has exactly one button — the
+   * one that closes it.
+   */
+  async openTerminalRefill(name: string): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    await this.page.getByTestId(`settings-terminal-refill-button-${terminalId}`).click()
+    await expect(this.page.getByTestId('terminal-refill-dialog-content')).toBeVisible()
+  }
+
+  /** What the refill dialog offers for the warning tier, as it stands. */
+  async getRefillThresholdValue(): Promise<string> {
+    return await this.page.getByTestId('terminal-refill-threshold-input').inputValue()
+  }
+
+  /** Record a counted refill, optionally moving the warning tier with it. */
+  async recordTerminalRefill(tokens: number, threshold?: number): Promise<void> {
+    await this.page.getByTestId('terminal-refill-tokens-input').fill(String(tokens))
+    if (threshold !== undefined) {
+      await this.page.getByTestId('terminal-refill-threshold-input').fill(String(threshold))
+    }
+    await this.page.getByTestId('terminal-refill-dialog-save').click()
+    await expect(this.page.getByTestId('terminal-refill-dialog-content')).toHaveCount(0)
+  }
+
   async closeTerminalDispenserDetails(): Promise<void> {
     await this.page.getByTestId('terminal-dispenser-panel-close').click()
     await expect(this.page.getByTestId('terminal-dispenser-panel-content')).toHaveCount(0)

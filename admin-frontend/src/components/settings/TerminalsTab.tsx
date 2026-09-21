@@ -14,6 +14,7 @@ import { TerminalAnomalyPanel } from './TerminalAnomalyPanel'
 import { TerminalVersionCell } from './TerminalVersionCell'
 import { TerminalDispenserCell } from './TerminalDispenserCell'
 import { TerminalDispenserPanel } from './TerminalDispenserPanel'
+import { TerminalRefillDialog } from './TerminalRefillDialog'
 import { useBreakpoint } from '../../hooks/useBreakpoint'
 import type { Terminal as GeneratedTerminal } from '../../api/generated/model'
 
@@ -31,6 +32,8 @@ export interface TerminalsTabProps {
   onReactivateTerminal: (id: string) => void
   /** Fired after an anomaly is acknowledged, so the caller can refresh its counts (ADR-0041 §4). */
   onAnomalyAcknowledged?: () => void
+  /** Fired after a hopper refill is recorded, so the caller can refresh the estimate (#955). */
+  onRefillRecorded?: () => void
 }
 
 function EditIcon() {
@@ -46,6 +49,21 @@ function RotateTokenIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+    </svg>
+  )
+}
+
+/**
+ * A hopper being filled (#955). Deliberately not a checkmark or a bell: this
+ * records a fact about the machine, not an answer to an alert — nothing on any
+ * surface clears a dispenser fault.
+ */
+function RefillIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 4h16l-3 8H7L4 4z" />
+      <path d="M12 12v4" />
+      <circle cx="12" cy="19" r="2.5" />
     </svg>
   )
 }
@@ -185,6 +203,7 @@ export function TerminalsTab({
   onDeactivateTerminal,
   onReactivateTerminal,
   onAnomalyAcknowledged,
+  onRefillRecorded,
 }: TerminalsTabProps) {
   const { t } = useTranslation()
   const breakpoint = useBreakpoint()
@@ -194,6 +213,9 @@ export function TerminalsTab({
   // list already carries the whole document (ADR-0057), so opening it costs no
   // request and the Data Fetching Pattern is untouched.
   const [dispenserTerminal, setDispenserTerminal] = useState<Terminal | null>(null)
+  // Recording a refill is a write, so unlike the detail above it owns a dialog
+  // of its own rather than reading out of the row (#955).
+  const [refillTerminal, setRefillTerminal] = useState<Terminal | null>(null)
 
   if (loading) {
     return (
@@ -362,6 +384,18 @@ export function TerminalsTab({
                   }}
                 >
                   <EditIcon />
+                </button>
+                <button
+                  data-testid={`settings-terminal-refill-button-${terminal.id}`}
+                  onClick={() => setRefillTerminal(terminal)}
+                  aria-label={t('settings.terminalDispenserRefillAction')}
+                  style={{
+                    ...actionButtonStyle,
+                    background: theme.badges.warning.bg,
+                    color: theme.colors.semantic.warning,
+                  }}
+                >
+                  <RefillIcon />
                 </button>
                 <button
                   data-testid={`settings-terminal-rotate-token-button-${terminal.id}`}
@@ -624,6 +658,27 @@ export function TerminalsTab({
                         </button>
                       </Tooltip>
 
+                      {/* Record a hopper refill (#955). Not a "clear fault"
+                          button — there is no such thing, here or anywhere. */}
+                      <Tooltip content={t('settings.terminalDispenserRefillAction')} position="top">
+                        <button
+                          data-testid={`settings-terminal-refill-button-${terminal.id}`}
+                          onClick={() => setRefillTerminal(terminal)}
+                          aria-label={t('settings.terminalDispenserRefillAction')}
+                          style={actionButtonStyle}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = theme.badges.warning.bg
+                            e.currentTarget.style.color = theme.colors.semantic.warning
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent'
+                            e.currentTarget.style.color = theme.colors.text.secondary
+                          }}
+                        >
+                          <RefillIcon />
+                        </button>
+                      </Tooltip>
+
                       {/* Rotate Token Button */}
                       <Tooltip content={t('settings.rotateToken')} position="top">
                         <button
@@ -676,6 +731,13 @@ export function TerminalsTab({
         terminalName={dispenserTerminal?.name ?? ''}
         terminal={dispenserTerminal}
         onClose={() => setDispenserTerminal(null)}
+      />
+
+      <TerminalRefillDialog
+        isOpen={refillTerminal !== null}
+        terminal={refillTerminal}
+        onClose={() => setRefillTerminal(null)}
+        onSaved={() => onRefillRecorded?.()}
       />
 
       <TerminalAnomalyPanel
