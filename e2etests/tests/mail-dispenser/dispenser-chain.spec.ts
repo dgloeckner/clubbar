@@ -111,9 +111,15 @@ test.describe('a dispenser that needs a human reaches the admin office', () => {
     authenticatedRequest: APIRequestContext,
     label: string,
   ): Promise<{ id: string; name: string; token: string }> {
-    const name = `Dispenser ${label} ${suffix}`
+    // A fresh tag per call rather than the file's `suffix` alone: CI retries
+    // a failed test in the same worker, `suffix` is computed once when the file
+    // loads, and a second `POST /terminals` with a `device_id` that already
+    // exists is refused — so the retry would fail on a duplicate instead of on
+    // whatever it was retrying (Pattern 001).
+    const tag = `${label}-${Math.random().toString(36).slice(2, 8)}`
+    const name = `Dispenser ${tag} ${suffix}`
     const response = await authenticatedRequest.post(TERMINALS, {
-      data: { ...stepUp(), name, device_id: `device-mail-${label}-${suffix}` },
+      data: { ...stepUp(), name, device_id: `device-mail-${tag}-${suffix}` },
     })
     expect(response.status(), await response.text()).toBe(201)
     const created = await response.json()
