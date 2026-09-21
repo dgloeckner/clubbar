@@ -167,6 +167,7 @@ use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminControlle
 use App\Modules\Terminals\Controllers\DispenserStatusController;
 use App\Modules\Terminals\Controllers\PairingController;
 use App\Modules\Terminals\Services\DispenserStatusService;
+use App\Modules\Terminals\Services\DispenserFillService;
 use App\Modules\Terminals\Services\PairingService;
 use App\Modules\Transactions\Controllers\AdminController as TransactionsAdminController;
 use App\Modules\Transactions\Controllers\SyncController as TransactionsSyncController;
@@ -1892,6 +1893,7 @@ class ServiceFactory implements ContainerInterface
             $this->getTerminalsService(),
             $this->getValidator(),
             $this->getStepUpAuthService(),
+            $this->getDispenserFillService(),
         ));
     }
 
@@ -1913,6 +1915,21 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(
             DispenserStatusService::class,
             fn() => new DispenserStatusService($this->getTerminalsRepository(), $this->logger),
+        );
+    }
+
+    /**
+     * The hopper's fill estimate and the refill that resets it (#955,
+     * ADR-0058). The repository and the audit service: the estimate is computed
+     * from rows this backend already has, and the one write it makes is worth
+     * an entry because it is the only record of the drift between the
+     * arithmetic and a counted hopper.
+     */
+    public function getDispenserFillService(): DispenserFillService
+    {
+        return $this->resolve(
+            DispenserFillService::class,
+            fn() => new DispenserFillService($this->getTerminalsRepository(), $this->getAuditService()),
         );
     }
 

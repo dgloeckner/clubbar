@@ -213,4 +213,55 @@ class TerminalDtoTest extends TestCase
 
         $this->assertNull($array['dispenser_status']);
     }
+
+    /**
+     * The hopper estimate rides the same row (#955), beside the report rather
+     * than inside it: the report is what the terminal said about the machine,
+     * this is what the backend worked out from its own books.
+     */
+    public function test_it_serves_the_fill_estimate_beside_the_report(): void
+    {
+        $array = TerminalDto::fromRow($this->row([
+            'dispenser_refilled_at' => '2026-09-20 18:00:00',
+            'dispenser_refill_tokens' => 400,
+            'dispenser_low_threshold' => 25,
+        ]), null, 137)->toArray();
+
+        $this->assertSame('2026-09-20T18:00:00Z', $array['dispenser_fill']['refilled_at']);
+        $this->assertSame(400, $array['dispenser_fill']['refill_tokens']);
+        $this->assertSame(137, $array['dispenser_fill']['sold_since']);
+        $this->assertSame(263, $array['dispenser_fill']['estimated_left']);
+        $this->assertSame(25, $array['dispenser_fill']['low_threshold']);
+    }
+
+    /**
+     * No refill recorded is *no estimate* — never "0 tokens left", which would
+     * send somebody to a full hopper with a bag of tokens. The threshold
+     * survives it, because it is a stored setting rather than a reading.
+     */
+    public function test_a_terminal_that_was_never_refilled_has_no_estimate(): void
+    {
+        $array = TerminalDto::fromRow($this->row(), null, 137)->toArray();
+
+        $this->assertNull($array['dispenser_fill']['refilled_at']);
+        $this->assertNull($array['dispenser_fill']['estimated_left']);
+        $this->assertNull($array['dispenser_fill']['sold_since']);
+        $this->assertSame(20, $array['dispenser_fill']['low_threshold']);
+    }
+
+    /**
+     * A code path that did not count the sales says so. `?? 0` there would be
+     * a full hopper claimed on the strength of a query nobody ran.
+     */
+    public function test_an_uncounted_row_reports_no_estimate_rather_than_a_full_hopper(): void
+    {
+        $array = TerminalDto::fromRow($this->row([
+            'dispenser_refilled_at' => '2026-09-20 18:00:00',
+            'dispenser_refill_tokens' => 400,
+        ]))->toArray();
+
+        $this->assertNull($array['dispenser_fill']['sold_since']);
+        $this->assertNull($array['dispenser_fill']['estimated_left']);
+        $this->assertSame(400, $array['dispenser_fill']['refill_tokens']);
+    }
 }
