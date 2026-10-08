@@ -57,6 +57,7 @@ class CronScriptTest extends DatabaseTestCase
         }
 
         foreach ($this->createdMembers as $memberId) {
+            $this->db->prepare('DELETE FROM transactions WHERE member_id = ?')->execute([$memberId]);
             $this->db->prepare('DELETE FROM members WHERE id = ?')->execute([$memberId]);
         }
         $this->createdMembers = [];
@@ -98,6 +99,13 @@ class CronScriptTest extends DatabaseTestCase
             'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active)
              VALUES (?, ?, ?, ?, ?, 1)'
         )->execute([$id, 'Cron', 'Statement', $id . '@example.com', 'de']);
+
+        // A clear tab is out of scope (ADR-0039 decision 3), so the member owes
+        // something from long before whatever boundary the run stands at.
+        $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, amount_cents, transaction_type, occurred_at, received_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$this->generateUuid(), $id, 350, 'purchase', '2020-01-15 19:00:00', '2020-01-15 19:00:00']);
 
         return $id;
     }

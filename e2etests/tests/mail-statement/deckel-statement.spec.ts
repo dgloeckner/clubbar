@@ -391,24 +391,26 @@ test.describe('Deckelauszug — cadence, cron, delivered statement', () => {
   })
 
   /**
-   * The scope ruling that looks like a mistake and is not: a member who owes
-   * nothing gets one anyway. A statement that only arrives when you owe
-   * something is a nudge wearing a statement's clothes.
+   * A clear tab is not mailed (ADR-0039 decision 3, as amended). A statement
+   * that can only say "nothing is open" is noise to the member it reaches.
+   *
+   * An absence proves nothing on its own — a drain that never ran also
+   * delivers nothing. So a member who owes is seeded beside the clear one, and
+   * their statement arriving is what shows the run happened before the clear
+   * member's empty mailbox is read.
    */
-  test('a member with a clear tab receives a statement that says so', async ({
+  test('a member with a clear tab receives no statement', async ({
     authenticatedRequest,
     authenticatedTerminalRequest,
   }) => {
-    const member = await seedMember(authenticatedRequest, authenticatedTerminalRequest, [])
+    const clear = await seedMember(authenticatedRequest, authenticatedTerminalRequest, [])
+    const owing = await seedMember(authenticatedRequest, authenticatedTerminalRequest, [210])
 
     drainMailQueue({ period, budgetSeconds: BUDGET_SECONDS })
 
-    const { html, text } = parts(await mail.waitForMessage(member.email))
-
-    for (const part of [html, text]) {
-      expect(part).toContain(germanMoney(0))
-      expect(part, 'a sentence, not an empty table').toContain('keine offenen Buchungen')
-    }
+    await mail.waitForMessage(owing.email)
+    await mail.expectNothingFor(clear.email)
+    expect(await statementRows(authenticatedRequest, clear.id), 'nothing is even queued').toEqual([])
   })
 
   /**

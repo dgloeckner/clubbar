@@ -1095,7 +1095,7 @@
         "monthly": "Monthly",
         "quarterly": "Quarterly"
       },
-      "statementCadenceHint": "A periodic statement of a member’s tab — sent to every active member whatever they owe, announcing nothing and collecting nothing. \"Off\" is the only way to stop it: there is no per-member opt-out. It goes out on the first day of the period and states the tab as it stood on that day.",
+      "statementCadenceHint": "A periodic statement of a member’s tab — sent to every member with something open or a credit at the boundary. A member whose tab is clear receives nothing. It announces nothing and collects nothing. \"Off\" is the only way to stop it: there is no per-member opt-out. It goes out on the first day of the period and states the tab as it stood on that day.",
       "digestCadence": "Near-limit digest",
       "digestCadences": {
         "off": "Off",
