@@ -8,6 +8,7 @@ use App\Modules\Notifications\Controllers\CronController;
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Repositories\CronHeartbeatRepository;
 use App\Modules\Notifications\Services\CronSecret;
+use App\Shared\Utils\Uuid;
 use Tests\Feature\HttpTestCase;
 
 /**
@@ -29,6 +30,11 @@ class CronDrainHttpTest extends HttpTestCase
 
     private CronHeartbeatRepository $heartbeat;
 
+    /** @var list<string> */
+    private array $createdMembers = [];
+
+    private ?string $originalCadence = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -42,6 +48,20 @@ class CronDrainHttpTest extends HttpTestCase
         $this->db->prepare(
             'UPDATE cron_heartbeat SET last_run_at = NOW(), source = ?, sent = 0, failed = 0 WHERE id = 1'
         )->execute([DrainSource::CLI->value]);
+
+        // A run with the cadence switched on scans every member, so the switch
+        // and the rows it produced both go back.
+        if ($this->originalCadence !== null) {
+            $this->db->exec("DELETE FROM mail_outbox WHERE kind = 'deckel_statement'");
+            $this->db->prepare('UPDATE mail_config SET statement_cadence = ? WHERE id = 1')
+                ->execute([$this->originalCadence]);
+            $this->originalCadence = null;
+        }
+
+        foreach ($this->createdMembers as $memberId) {
+            $this->db->prepare('DELETE FROM members WHERE id = ?')->execute([$memberId]);
+        }
+        $this->createdMembers = [];
 
         parent::tearDown();
     }
@@ -64,6 +84,46 @@ class CronDrainHttpTest extends HttpTestCase
         $row = $this->heartbeat->get();
         $this->assertNotNull($row['last_run_at']);
         $this->assertSame(DrainSource::URL->value, $row['source'], 'the run must record how it was triggered');
+    }
+
+    /**
+     * The URL trigger does a whole tick, not just the drain (#975).
+     *
+     * Until #975 this route ran the anomaly scan and the drain and nothing
+     * else, so an installation scheduled by URL never queued a Deckelauszug —
+     * with no error anywhere and a green heartbeat, because the drain itself
+     * was fine and simply had nothing to send. The statement is the step a
+     * club notices first; the others share the same list
+     * ({@see \App\Modules\Notifications\Services\PreDrainTasks}), so pinning
+     * one through the route pins that the route runs the list.
+     */
+    public function test_a_url_triggered_tick_queues_the_due_deckel_statement(): void
+    {
+        $this->originalCadence = (string) $this->db
+            ->query('SELECT statement_cadence FROM mail_config WHERE id = 1')
+            ->fetchColumn();
+        $this->db->exec("UPDATE mail_config SET statement_cadence = 'monthly' WHERE id = 1");
+
+        $memberId = Uuid::v4();
+        $this->createdMembers[] = $memberId;
+        $this->db->prepare(
+            'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active)
+             VALUES (?, ?, ?, ?, ?, 1)'
+        )->execute([$memberId, 'Url', 'Trigger', $memberId . '@example.com', 'de']);
+
+        $response = $this->request('POST', '/api/cron/drain', headers: [CronController::HEADER => self::SECRET]);
+        $this->assertSame(204, $response->getStatusCode());
+
+        $stmt = $this->db->prepare(
+            "SELECT dedup_key FROM mail_outbox WHERE kind = 'deckel_statement' AND subject_id = ?"
+        );
+        $stmt->execute([$memberId]);
+
+        $this->assertSame(
+            [gmdate('Y-m')],
+            $stmt->fetchAll(\PDO::FETCH_COLUMN),
+            'a URL-triggered tick must queue the current period\'s statement, exactly as bin/cron.php does',
+        );
     }
 
     public function test_a_get_works_too_because_panels_differ(): void

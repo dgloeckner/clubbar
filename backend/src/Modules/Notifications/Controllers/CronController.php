@@ -7,7 +7,7 @@ namespace App\Modules\Notifications\Controllers;
 use App\Modules\Notifications\Enums\DrainSource;
 use App\Modules\Notifications\Services\DrainService;
 use App\Modules\Notifications\Services\MailConfigService;
-use App\Modules\Terminals\Services\TerminalAnomalyDetector;
+use App\Modules\Notifications\Services\PreDrainTasks;
 use App\Shared\Config\AppConfig;
 use App\Shared\Logging\Logger;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -18,9 +18,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * (ADR-0038 rule 3).
  *
  * `bin/cron.php` is the preferred trigger and this is not a second sending
- * path: both call the same `DrainService`, and this one exists because some
- * panels can only schedule "fetch a URL", and because an external scheduler
- * calling it is what keeps the supported hosting set from narrowing.
+ * path: both call the same {@see PreDrainTasks} and the same `DrainService`,
+ * so a tick does the same work whichever one fired it (#975). This one exists
+ * because some panels can only schedule "fetch a URL", and because an external
+ * scheduler calling it is what keeps the supported hosting set from narrowing.
  *
  * ### The secret
  *
@@ -69,7 +70,7 @@ class CronController
         private DrainService $drainService,
         private AppConfig $config,
         private Logger $logger,
-        private TerminalAnomalyDetector $anomalyDetector,
+        private PreDrainTasks $preDrainTasks,
         private MailConfigService $mailConfigService,
     ) {}
 
@@ -119,10 +120,13 @@ class CronController
                 return $response->withStatus(204);
             }
 
-            // ADR-0041, before the drain for the same reason the CLI entrypoint
-            // does it in that order: a warning this raises is queued into the
-            // outbox, and the drain that follows is what sends it.
-            $this->anomalyDetector->run();
+            // The same list `bin/cron.php` runs, and before the drain for the
+            // same reason: mail these steps queue leaves on this tick. Until
+            // #975 this route ran only the anomaly scan, so an installation
+            // scheduled by URL never queued a single Deckelauszug. A failing
+            // step is logged by the service itself; the results are for a
+            // terminal, and a scheduler has none.
+            $this->preDrainTasks->run(new \DateTimeImmutable('now'));
 
             $this->drainService->run(DrainSource::URL);
         } catch (\Throwable $e) {

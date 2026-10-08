@@ -111,6 +111,7 @@ use App\Modules\Notifications\Services\MailContentRegistry;
 use App\Modules\Notifications\Services\MemberLifecycleMailBuilder;
 use App\Modules\Notifications\Services\NotificationsService;
 use App\Modules\Notifications\Services\PeriodicEnqueueService;
+use App\Modules\Notifications\Services\PreDrainTasks;
 use App\Modules\Notifications\Services\TestMailService;
 use App\Modules\Notifications\Services\SchedulerStatusService;
 use App\Modules\Notifications\Services\SettlementMailBuilder;
@@ -1146,6 +1147,28 @@ class ServiceFactory implements ContainerInterface
     }
 
     /**
+     * Everything a scheduler tick does before the drain (#975). Shared by
+     * `bin/cron.php` and the URL route for the same reason the drain is: two
+     * triggers holding two lists is how the URL trigger came to skip every
+     * statement, digest and warning without anybody noticing.
+     */
+    public function getPreDrainTasks(): PreDrainTasks
+    {
+        return $this->resolve(PreDrainTasks::class, fn() => new PreDrainTasks(
+            $this->getLoginAttemptsRepository(),
+            $this->getTerminalAuthAttemptsRepository(),
+            $this->getRegistrationsService(),
+            $this->getRegistrationAttemptsRepository(),
+            $this->getTerminalAnomalyDetector(),
+            $this->getPeriodicEnqueueService(),
+            $this->getCreditLimitDigestNotifier(),
+            $this->getCredentialExpiryNotifier(),
+            $this->getBackupHealthNotifier(),
+            $this->getLogger(),
+        ));
+    }
+
+    /**
      * The only sender (ADR-0038 rule 3). Reached by `bin/cron.php` and by the
      * URL fallback route, which is why it is wired here rather than assembled
      * in the CLI entrypoint — the two triggers cannot drift apart.
@@ -1857,7 +1880,7 @@ class ServiceFactory implements ContainerInterface
             $this->getDrainService(),
             $this->config,
             $this->getLogger(),
-            $this->getTerminalAnomalyDetector(),
+            $this->getPreDrainTasks(),
             $this->getMailConfigService(),
         ));
     }
