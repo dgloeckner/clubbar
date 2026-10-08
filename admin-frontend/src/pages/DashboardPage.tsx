@@ -56,7 +56,7 @@ export function DashboardPage() {
       setData(response)
       setLastUpdatedAt(new Date())
       setError(null)
-    } catch (err) {
+    } catch {
       if (signal.aborted) return
       setError(t('errors.generic'))
     } finally {
