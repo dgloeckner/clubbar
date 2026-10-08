@@ -16,10 +16,9 @@ use PDO;
  *
  * | Case | Ruling | Why |
  * |---|---|---|
- * | Active, owes money | **Send** | The point |
- * | Active, owes nothing | **Send** | A statement that arrives only when you owe something is a nudge wearing a statement's clothes. Boring and predictable is the product |
- * | Active, in credit | **Send** | Stated as a credit, promising no Payout — that is a separate act |
- * | Inactive or deleted, tab is zero | Skip | Nothing to say, and nobody expecting to hear it |
+ * | Owes money | **Send** | The point |
+ * | In credit | **Send** | Stated as a credit, promising no Payout — that is a separate act |
+ * | Tab is zero | Skip | A statement that can only say "nothing is open" is noise to the member it reaches (ADR-0039 decision 3, as amended) |
  * | Inactive or deleted, tab is **not** zero | **Send** | Deactivating a member does not cancel what they owe, and going dark on a debt you will still collect is the one case where silence is wrong |
  * | No email address | **Skip, silently** | In practice an anonymised member (ADR-0029 clears `email`). There is nobody to write to and nothing an admin could fix |
  *
@@ -30,9 +29,9 @@ use PDO;
  *
  * The tab is evaluated **at the period boundary**, not now, using
  * {@see UnsettledTransactions::balanceAsOf()} — the same instant the statement
- * will state. Scope and content therefore cannot disagree: an inactive member
- * who is in this list is exactly an inactive member whose statement will have
- * something on it.
+ * will state. Scope and content therefore cannot disagree: every member in this
+ * list is a member whose statement will have something on it. Whether the
+ * member is active no longer decides anything — the tab does.
  */
 class StatementRecipientsRepository
 {
@@ -65,7 +64,7 @@ class StatementRecipientsRepository
             'SELECT m.id, m.email, m.preferred_language
                FROM members m
               WHERE m.email IS NOT NULL AND TRIM(m.email) <> \'\'
-                AND ((m.is_active = 1 AND m.deleted_at IS NULL) OR ' . $balance . ' <> 0)
+                AND ' . $balance . ' <> 0
               ORDER BY m.id ASC'
         );
         $stmt->execute($params);

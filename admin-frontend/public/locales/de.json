@@ -1095,7 +1095,7 @@
         "monthly": "Monatlich",
         "quarterly": "Vierteljährlich"
       },
-      "statementCadenceHint": "Ein periodischer Auszug über den Deckel — an jedes aktive Mitglied, unabhängig davon, was offen ist, angekündigt wird damit nichts und eingezogen auch nicht. „Aus\" ist die einzige Abschaltmöglichkeit: ein Abbestellen durch einzelne Mitglieder gibt es nicht. Der Auszug geht am ersten Tag der Periode heraus und nennt den Stand von genau diesem Tag.",
+      "statementCadenceHint": "Ein periodischer Auszug über den Deckel — an jedes Mitglied, bei dem zum Stichtag etwas offen ist oder ein Guthaben besteht. Wer einen ausgeglichenen Deckel hat, bekommt keine Mail. Angekündigt wird damit nichts und eingezogen auch nicht. „Aus\" ist die einzige Abschaltmöglichkeit: ein Abbestellen durch einzelne Mitglieder gibt es nicht. Der Auszug geht am ersten Tag der Periode heraus und nennt den Stand von genau diesem Tag.",
       "digestCadence": "Deckel-Übersicht für den Vorstand",
       "digestCadences": {
         "off": "Aus",

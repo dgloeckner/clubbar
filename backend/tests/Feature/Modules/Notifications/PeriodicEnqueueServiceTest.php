@@ -255,6 +255,15 @@ class PeriodicEnqueueServiceTest extends DatabaseTestCase
              VALUES (?, ?, ?, ?, ?, 1)'
         )->execute([$id, 'Periodic', 'Enqueue', $email === 'default' ? $id . '@example.com' : $email, $language]);
 
+        // Something open before every boundary these tests stand at, because a
+        // member with a clear tab is not in scope at all (ADR-0039 decision 3).
+        $txId = $this->generateUuid();
+        $this->created[] = ['table' => 'transactions', 'id' => $txId];
+        $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, amount_cents, transaction_type, occurred_at, received_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([$txId, $id, 350, 'purchase', '2026-06-15 19:00:00', '2026-06-15 19:00:00']);
+
         return $id;
     }
 

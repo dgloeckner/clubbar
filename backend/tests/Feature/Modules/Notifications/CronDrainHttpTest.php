@@ -59,6 +59,7 @@ class CronDrainHttpTest extends HttpTestCase
         }
 
         foreach ($this->createdMembers as $memberId) {
+            $this->db->prepare('DELETE FROM transactions WHERE member_id = ?')->execute([$memberId]);
             $this->db->prepare('DELETE FROM members WHERE id = ?')->execute([$memberId]);
         }
         $this->createdMembers = [];
@@ -110,6 +111,11 @@ class CronDrainHttpTest extends HttpTestCase
             'INSERT INTO members (id, first_name, last_name, email, preferred_language, is_active)
              VALUES (?, ?, ?, ?, ?, 1)'
         )->execute([$memberId, 'Url', 'Trigger', $memberId . '@example.com', 'de']);
+        // Something open, because a clear tab is not mailed (ADR-0039 decision 3).
+        $this->db->prepare(
+            'INSERT INTO transactions (id, member_id, amount_cents, transaction_type, occurred_at, received_at)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([Uuid::v4(), $memberId, 350, 'purchase', '2020-01-15 19:00:00', '2020-01-15 19:00:00']);
 
         $response = $this->request('POST', '/api/cron/drain', headers: [CronController::HEADER => self::SECRET]);
         $this->assertSame(204, $response->getStatusCode());

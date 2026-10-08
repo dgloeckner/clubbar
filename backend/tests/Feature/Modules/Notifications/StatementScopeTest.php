@@ -12,13 +12,11 @@ use Tests\Feature\DatabaseTestCase;
 /**
  * Who gets a Deckelauszug (ADR-0039 decision 3, #462 step 11.6).
  *
- * One case per ruling, and the two that matter most are the ones that look like
- * mistakes: a member who owes nothing is **in**, and a member who has been
- * deactivated but still owes is **in**. The first is what stops a statement
- * from becoming a nudge — if it only ever arrives when you owe something, its
- * arrival *is* the message. The second is the one case where silence is wrong:
- * deactivating somebody does not cancel what they owe, and the club will still
- * collect it.
+ * One case per ruling. The rule is the tab at the boundary: a member whose
+ * tab is not zero — owing or in credit — is **in**, whether active or not, and
+ * a member whose tab is zero is **out**. The case that looks like a mistake is
+ * the deactivated member who still owes: deactivating somebody does not cancel
+ * what they owe, and the club will still collect it.
  */
 class StatementScopeTest extends DatabaseTestCase
 {
@@ -47,11 +45,15 @@ class StatementScopeTest extends DatabaseTestCase
         parent::tearDown();
     }
 
-    public function test_an_active_member_who_owes_nothing_still_receives_one(): void
+    /**
+     * A clear tab is not mailed (ADR-0039 decision 3, as amended). A statement
+     * that only says "nothing is open" is noise to the member it reaches.
+     */
+    public function test_an_active_member_who_owes_nothing_is_skipped(): void
     {
         $member = $this->member(active: true);
 
-        $this->assertContains($member, $this->inScope(), 'a zero balance is a statement, not a reason to skip');
+        $this->assertNotContains($member, $this->inScope(), 'a zero balance has nothing to state');
     }
 
     public function test_an_active_member_in_credit_receives_one(): void
@@ -157,6 +159,7 @@ class StatementScopeTest extends DatabaseTestCase
     public function test_a_recipient_carries_the_address_and_the_language(): void
     {
         $member = $this->member(active: true, language: 'en');
+        $this->transaction($member, 450);
 
         $row = $this->rowFor($member);
 

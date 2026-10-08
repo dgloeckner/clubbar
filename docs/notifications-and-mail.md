@@ -214,7 +214,7 @@ sequenceDiagram
     participant D as DrainService
 
     Cron->>PE: Is a period due (monthly/quarterly) and not yet enqueued?
-    PE->>PE: Scan members in scope\n(active, or inactive with a nonzero balance)
+    PE->>PE: Scan members in scope\n(nonzero balance at the boundary)
     PE->>Q: INSERT deckel_statement per member\n(dedup_key = period, e.g. "2026-08")
     Cron->>D: Drain as usual
     D->>D: Render balance "as of the period boundary"\n(a dated snapshot, not live-at-send)

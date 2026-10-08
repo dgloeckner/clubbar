@@ -893,10 +893,11 @@ somebody has to make. There is deliberately **no per-member opt-out**: this
 system has no member login, so the club-wide switch is the only off-ramp
 (ADR-0039 decision 3).
 
-**Who gets one.** Every member with an address, whatever they owe — including a
-zero balance and a credit. An inactive member who still owes gets one too;
-deactivating somebody does not cancel their tab. A member with no address is
-skipped silently (in practice an anonymised one).
+**Who gets one.** Every member with an address whose tab is not zero at the
+boundary — owing or in credit. A member whose tab is clear gets nothing. An
+inactive member who still owes gets one too; deactivating somebody does not
+cancel their tab. A member with no address is skipped silently (in practice an
+anonymised one).
 
 **Nothing extra to schedule.** `bin/cron.php` queues whatever period has become
 due before it drains, so the statements go out on the tick that queued them.

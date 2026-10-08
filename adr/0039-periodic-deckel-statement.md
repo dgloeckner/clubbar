@@ -29,7 +29,7 @@ Designed in a grilling session on 2026-08-15; the alternatives below were argued
 
 ## Decision
 
-**A Deckelauszug is a periodic statement of a member's Deckel — sent to every active member on a fixed calendar boundary regardless of what they owe, itemised and netted, announcing nothing and collecting nothing.** It rides ADR-0038's outbox as a new `kind`.
+**A Deckelauszug is a periodic statement of a member's Deckel — sent on a fixed calendar boundary to every member whose Deckel is not zero at that boundary, itemised and netted, announcing nothing and collecting nothing.** It rides ADR-0038's outbox as a new `kind`.
 
 `CONTEXT.md` carries the term, and **Vorabankündigung** alongside it. The glossary had no notification vocabulary at all, and the Deckelauszug is only definable next to the thing it must not be mistaken for.
 
@@ -63,14 +63,15 @@ This is answerable only because of a decision made for another reason entirely. 
 
 The cost is a **second definition of settled money**, in the class whose docblock reads *"what 'unsettled' means, in one place"* and which exists because that definition had been copy-pasted six times and drifted ([#119](https://github.com/dgloeckner/clubbar/issues/119)). This is accepted rather than dismissed, under two conditions: the dated predicate lives **inside** `UnsettledTransactions` as a named sibling of the live one — #119's failure was a duplicated *answer*, not a second named *question* — and a test pins the two to agree at `t = now`.
 
-### 3. Everyone, always, with no individual opt-out
+### 3. Everyone with something on the Deckel, with no individual opt-out
+
+> **Amended 2026-10-08.** This section originally ruled *Deckel = 0 → Send*: "a statement that arrives only when you owe something is a nudge wearing a statement's clothes. Boring and predictable is the product." Production use reversed it. A monthly mail to every member with a clear tab says only "nothing is open", and to the member who receives it that is noise — the very effect that teaches people to file club mail unread, which costs the statements that *do* carry a number. A credit still counts as something on the Deckel. Whether the member is active no longer decides anything; the Deckel at the boundary does.
 
 | Case | Ruling | Why |
 |---|---|---|
 | Deckel > 0 | Send | The point |
-| Deckel = 0 | **Send** | A statement that arrives only when you owe something is a nudge wearing a statement's clothes. Boring and predictable is the product |
+| Deckel = 0 | **Skip** | There is nothing to state. Applies to active and inactive members alike (amended 2026-10-08, see above) |
 | Deckel < 0 (credit) | **Send**, stated as a credit | Without implying a Payout is coming — that is a separate act (`CONTEXT.md`) |
-| Inactive / deleted, Deckel = 0 | Skip | |
 | Inactive / deleted, Deckel ≠ 0 | **Send** | Deactivating a member does not cancel what they owe, and going dark on a debt you will still collect is the one case where silence is wrong |
 | No email address | **Skip silently** | In practice an anonymised member (ADR-0029 clears `email`). There is nobody to write to and nothing to fix |
 
