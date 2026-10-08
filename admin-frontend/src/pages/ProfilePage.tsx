@@ -87,7 +87,7 @@ export function ProfilePage() {
       setEmail(data.email ?? '')
       setDisplayName(data.display_name ?? '')
       setLocale((data.locale as 'de' | 'en') ?? 'de')
-    } catch (err) {
+    } catch {
       if (!isMountedRef.current) return
       setError(t('errors.generic'))
     } finally {
