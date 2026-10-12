@@ -18,7 +18,7 @@ dependencies:
 
   # Networking
   http: ^1.6.0
-  chopper: ^8.5.1
+  chopper: ^8.7.1
 
   # JSON serialization
   json_annotation: ^4.12.0
@@ -61,7 +61,7 @@ dev_dependencies:
 
   # Code Generation
   drift_dev: ^2.35.0
-  build_runner: ^2.16.1
+  build_runner: ^2.16.2
   swagger_dart_code_generator: 4.1.1
   json_serializable: ^6.13.1
   chopper_generator: ^8.0.0
