@@ -205,6 +205,11 @@ erDiagram
         varchar_64 reported_version "Last X-Terminal-Version the terminal sent"
         datetime reported_version_at "When that version was last seen"
         varchar_64 blocked_version "Tag whose update failed there, never retried"
+        json dispenser_status "Last dispenser status this terminal reported"
+        datetime dispenser_status_at "When that report was received"
+        datetime dispenser_refilled_at "When the hopper was last refilled"
+        int dispenser_refill_tokens "Tokens counted in at that refill"
+        int dispenser_low_threshold "Warn at or below this estimate"
         datetime created_at "Record creation"
         datetime updated_at "Last modification"
     }
@@ -739,9 +744,9 @@ The same rule has a second payoff for the aggregate and infrastructure kinds. A 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | CHAR(36) | PK | UUID |
-| kind | ENUM | NOT NULL | What the message is. `MailKind` is the authority and decides four things that are therefore not columns — the subject type, whether it is addressed to a member, which offices it is for, and how long a delivered copy is kept. Settlement mail: `sepa_prenotification` · `cancellation_notice`. Credentials: `key_expiry_warning` · `terminal_token_expiry_warning` · `backup_secret_expiry_warning` · `backup_health_warning` · `terminal_anomaly_warning` · `terminal_token_issued` · `encryption_key_registered` · `encryption_key_activated` · `encryption_key_revoked`. Admin lifecycle: `admin_email_changed` · `admin_account_created` · `admin_role_changed`. Periodic and reporting: `deckel_statement` · `jugendschutz_violation` · `credit_limit_digest`. A `payment_request` value existed until migration `036` removed it — see CONTEXT.md, **Settlement method** |
+| kind | ENUM | NOT NULL | What the message is. `MailKind` is the authority and decides four things that are therefore not columns — the subject type, whether it is addressed to a member, which offices it is for, and how long a delivered copy is kept. Settlement mail: `sepa_prenotification` · `cancellation_notice`. Credentials: `key_expiry_warning` · `terminal_token_expiry_warning` · `backup_secret_expiry_warning` · `backup_health_warning` · `terminal_anomaly_warning` · `terminal_token_issued` · `encryption_key_registered` · `encryption_key_activated` · `encryption_key_revoked`. Admin lifecycle: `admin_email_changed` · `admin_account_created` · `admin_role_changed`. Periodic and reporting: `deckel_statement` · `jugendschutz_violation` · `credit_limit_digest`. Peripherals: `dispenser_attention` (#956) — one kind for the four conditions a token dispenser can be in, filed under the *terminal* the machine is bolted next to, because the dispenser has no row of its own ([ADR-0057](../adr/0057-terminals-report-peripheral-status.md) stores its status in two columns on `terminals`). A `payment_request` value existed until migration `036` removed it — see CONTEXT.md, **Settlement method** |
 | subject_id | CHAR(36) | NOT NULL, no FK | What the message is about; which table it points at is decided by `kind`. Polymorphic, so no foreign key is possible — stated rather than hidden |
-| dedup_key | VARCHAR(64) | NOT NULL | The rest of a message's identity: the member for settlement mail, the warning tier for an expiry warning, the period for a Deckelauszug, `<window>:<adminUserId>` for the near-limit digest. An admin id is 36 of the 64 characters, which is what bounds every occasion prefix |
+| dedup_key | VARCHAR(64) | NOT NULL | The rest of a message's identity: the member for settlement mail, the warning tier for an expiry warning, the period for a Deckelauszug, `<window>:<adminUserId>` for the near-limit digest. A `dispenser_attention` row carries the occasion **and its episode** — `fault:<state_since>` for a condition the terminal reported, `low:<dispenser_refilled_at>` for the hopper estimate, because a draining hopper moves nothing the report's `state_since` follows. An admin id is 36 of the 64 characters, which is what bounds every occasion prefix |
 | member_id | CHAR(36) | FK → members.id (CASCADE), NULL | The member written to, when there is one. The FK is how erasure finds this table |
 | admin_user_id | CHAR(36) | FK → admin_users.id (CASCADE), NULL | The admin written to, for operational warnings |
 | recipient | VARCHAR(255) | NOT NULL | **Snapshot** of the address at enqueue — the proof of who was announced to, and the one field not reproducible later. Cleared to `''` on erasure |
@@ -813,6 +818,14 @@ Registered POS terminals with API authentication.
 | is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Terminal enabled for API access |
 | last_sync_at | DATETIME | NULL | Timestamp of last successful sync |
 | last_sync_ip | VARCHAR(45) | NULL | IP address of last sync (IPv4 or IPv6) |
+| reported_version | VARCHAR(64) | NULL | Last `X-Terminal-Version` the terminal sent ([ADR-0054](../adr/0054-terminal-runs-its-backends-version.md)). NULL while nothing parseable has arrived — the header is fail-open |
+| reported_version_at | DATETIME | NULL | When that version was last seen. Not `last_sync_at`: a terminal can keep syncing while reporting nothing |
+| blocked_version | VARCHAR(64) | NULL | Tag whose update failed on this terminal; its updater will never retry it |
+| dispenser_status | JSON | NULL | The terminal's last report about its token dispenser ([ADR-0057](../adr/0057-terminals-report-peripheral-status.md)), with the backend's derived `available`, `unavailable_reason` and `state_since` stamped in. NULL = **never reported**, which is not the same as a report of `configured: false` (= no dispenser attached) |
+| dispenser_status_at | DATETIME | NULL | When that report was received (UTC). Separate from `last_sync_at` for the reason `reported_version_at` is: reporting is fail-open, so a terminal can sync perfectly while reporting nothing |
+| dispenser_refilled_at | DATETIME | NULL | When the hopper was last refilled ([ADR-0058](../adr/0058-hopper-fill-is-estimated-from-sales.md)). The anchor the fill estimate counts from; NULL = never recorded, which means **no estimate** and is not "0 tokens left" |
+| dispenser_refill_tokens | INT | NULL | Tokens counted into the hopper at that moment. A counted number that *replaces* the estimate — never an increment |
+| dispenser_low_threshold | INT | NOT NULL, DEFAULT 20 | Warn once the estimate is at or below this. Per terminal, because hopper size and turnover belong to the bar |
 | created_at | DATETIME | NOT NULL | Record creation timestamp |
 | updated_at | DATETIME | NOT NULL | Last modification timestamp |
 
@@ -828,6 +841,18 @@ Registered POS terminals with API authentication.
 credential cryptoperiod of ADR-0036) after it was issued. The check is
 fail-closed: a row carrying a token hash with no `token_expires_at` does not
 authenticate.
+
+**Dispenser status (#952, [ADR-0057](../adr/0057-terminals-report-peripheral-status.md))**:
+written only by `PUT /api/sync/terminal-status`, last write wins, no history
+table. The stored document carries `configured`, `contact`
+(`reported` / `unreachable` / `protocol_mismatch`), `state`
+(`idle` / `dispensing` / `fault`), `fault` (`none` / `jam` / `hopper_error`)
+with `fault_code`, `firmware`, `protocol`, `rssi`, `uptime_s`, `reset_reason`,
+a cumulative `lifetime` counter object, `pending_reconciliations`,
+`manual_reconciliations`, the device's own `observed_at`, and three fields the
+backend derives: `available`, `unavailable_reason` and `state_since`. Read back
+on `GET /api/admin/terminals` and `GET /api/admin/terminals/{id}`, both
+`ADMIN_ONLY` — dispenser state is the admin office's alone.
 
 **Overlap rotation (#395)**: rotating does not touch the active columns. It
 writes the `pending_*` triple instead, so both tokens authenticate until the

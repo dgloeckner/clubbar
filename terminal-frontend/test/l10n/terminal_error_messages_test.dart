@@ -90,6 +90,11 @@ void main() {
           // different drink is the only true next step.
           'choose something else',
           'wähle etwas anderes',
+          // One dispenser, one dispensable product (#949): nobody at the bar
+          // can make the machine give out two kinds at once, so the next step
+          // is splitting the purchase — and that is what the copy offers.
+          'buy it separately',
+          'einzeln kaufen',
         ];
 
         for (final key in TerminalErrorKey.values) {

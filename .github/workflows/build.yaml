@@ -607,7 +607,7 @@ jobs:
           - { lane: ui, id: ui-1, shard: 1/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile --project=register --project=tools }
           - { lane: ui, id: ui-2, shard: 2/2, browsers: chromium webkit, browser_key: chromium-webkit, projects: --project=admin-chromium --project=admin-mobile --project=register --project=tools }
           # One job, no shard: every project in it is deliberately serial.
-          - { lane: chain, id: chain, shard: 1/1, browsers: chromium, browser_key: chromium, projects: --project=api-ordered --project=api-rotation --project=mail-backup --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles --project=mail-digest --project=mail-member --project=mail-anmeldelink }
+          - { lane: chain, id: chain, shard: 1/1, browsers: chromium, browser_key: chromium, projects: --project=api-ordered --project=api-rotation --project=mail-backup --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles --project=mail-digest --project=mail-member --project=mail-anmeldelink --project=mail-dispenser }
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1212,6 +1212,67 @@ jobs:
 
       - name: Run unit tests
         run: flutter test
+        working-directory: terminal-frontend
+
+      # L3 of the dispenser test plan (#944, #950): the money paths of a token
+      # purchase, driven over real HTTP against the Go mock that lives beside
+      # the firmware. It is a separate repository, so it is checked out at a
+      # **pinned commit** and built here — the pin is bumped deliberately, like
+      # any other dependency, and a bump is what un-skips the scenarios that
+      # need a newer mock (see terminal-frontend/flow_test/README.md).
+      #
+      # A separate step from `flutter test` on purpose: that command runs
+      # `test/` only, and a flow suite that skipped itself when the binary was
+      # missing would be a green run that proved nothing. Here the binary is
+      # always there, and the suite fails loudly if it is not.
+      - name: Check out the dispenser mock (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: dgloeckner/remote-token-dispenser
+          # F8 (dgloeckner/remote-token-dispenser#8): request signing. The
+          # mock issues nonces at `GET /nonce`, verifies `X-Nonce` /
+          # `X-Signature` over `METHOD \n PATH \n BODY \n NONCE`, spends the
+          # nonce on a mutating request and answers a refusal with
+          # `401 {"error":"unauthorized","reason":"nonce"|"signature"}` — the
+          # distinction the client's single retry hangs on (#951). It is
+          # started with `--signing-key`; **`--api-key` no longer exists**, so
+          # this pin and the terminal's signing client move together or the
+          # flow suite cannot even start the mock.
+          #
+          # It carries F6 with it (protocol 2 — one `state` and one `fault` in
+          # `/health`, `count_reliable`/`error_code`/`error_type` required on
+          # every transaction response, a `409 fault` for a POST while
+          # faulted, and a `--protocol` flag that changes only what the mock
+          # *claims*, which is what makes "a dispenser speaking protocol 1 is
+          # unavailable, not degraded" assertable against a mock whose
+          # behaviour is still correct, #948), and F3 before it (a transaction
+          # survives a reset: the crashed one comes back as `error` with its
+          # exact count and `count_reliable: true`, and stays in the persisted
+          # history ring, so a later GET is a 200 and not a 404 — the reset
+          # scenario of #947).
+          #
+          # A **full 40-character SHA**, not the short one: `actions/checkout`
+          # recognises a `ref` as a commit only at full length, and otherwise
+          # takes it for a branch or tag name — it fetched
+          # `refs/heads/f0ce893*`, found nothing, and failed the job three
+          # retries later.
+          ref: 49d4c9313696912615f19bc421efbf35e04e5d41
+          path: dispenser-mock-repo
+
+      # No setup-go step: the runner image ships Go, and `go build` fetches the
+      # exact toolchain the mock's go.mod asks for (GOTOOLCHAIN=auto, the
+      # default since Go 1.21). One less pinned action to keep current.
+      - name: Build the dispenser mock
+        run: |
+          go version
+          go build -o "$GITHUB_WORKSPACE/dispenser-mock-bin" .
+        working-directory: dispenser-mock-repo/dispenser-mock
+
+      - name: Run the dispenser flow suite
+        run: flutter test flow_test/
+        timeout-minutes: 3
+        env:
+          CLUBBAR_DISPENSER_MOCK: ${{ github.workspace }}/dispenser-mock-bin
         working-directory: terminal-frontend
 
       - name: Run integration tests

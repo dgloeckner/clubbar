@@ -1004,6 +1004,96 @@ abstract class AppLocalizations {
   /// **'Unbekannt'**
   String get dispenserStateUnknown;
 
+  /// Dispenser device state: fault — the machine needs a human and only a power cycle clears it (#948)
+  ///
+  /// In de, this message translates to:
+  /// **'Störung'**
+  String get dispenserStateFault;
+
+  /// Label of the row showing the protocol versions behind a mismatch (#948)
+  ///
+  /// In de, this message translates to:
+  /// **'Protokoll'**
+  String get dispenserProtocol;
+
+  /// Status value for a dispenser that cannot serve a token right now; the reason row next to it says which (#948)
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht verfügbar'**
+  String get dispenserUnavailableShort;
+
+  /// Label of the row naming why the dispenser is unavailable (#948)
+  ///
+  /// In de, this message translates to:
+  /// **'Grund'**
+  String get dispenserReason;
+
+  /// Reason: nothing answered at the dispenser's address
+  ///
+  /// In de, this message translates to:
+  /// **'Nicht erreichbar'**
+  String get dispenserUnavailableOffline;
+
+  /// Reason: fault=jam. The device cannot tell a wedged token from an empty hopper, and the copy must not pretend it can (#948)
+  ///
+  /// In de, this message translates to:
+  /// **'Stau oder leer'**
+  String get dispenserUnavailableJam;
+
+  /// Reason: fault=hopper_error, with the Azkoyen code 1-7 the hopper reported
+  ///
+  /// In de, this message translates to:
+  /// **'Hopper-Fehler {code}'**
+  String dispenserUnavailableHopperError(int code);
+
+  /// Reason: the device reports a fault state without naming a fault
+  ///
+  /// In de, this message translates to:
+  /// **'Störung'**
+  String get dispenserUnavailableFault;
+
+  /// Reason: the device answered in a protocol this terminal does not speak — deliberately not 'offline' (#948)
+  ///
+  /// In de, this message translates to:
+  /// **'Protokoll passt nicht'**
+  String get dispenserUnavailableProtocol;
+
+  /// The two protocol versions behind a mismatch
+  ///
+  /// In de, this message translates to:
+  /// **'Gerät: Protokoll {reported} · erwartet: {expected}'**
+  String dispenserProtocolDetail(int reported, int expected);
+
+  /// What staff must do about a fault. There is no reset from the kiosk — a power cycle is the only way (owner decision, #948)
+  ///
+  /// In de, this message translates to:
+  /// **'Stau beseitigen, bei Bedarf nachfüllen, dann das Gerät 5 Sekunden vom Strom trennen.'**
+  String get dispenserFaultInstruction;
+
+  /// What staff should check when the dispenser does not answer
+  ///
+  /// In de, this message translates to:
+  /// **'Strom und WLAN des Ausgabegeräts prüfen.'**
+  String get dispenserOfflineInstruction;
+
+  /// What to do about a protocol mismatch: it is a deployment problem, not something to clear at the machine
+  ///
+  /// In de, this message translates to:
+  /// **'Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – bitte einem Admin melden.'**
+  String get dispenserProtocolInstruction;
+
+  /// Reason: the device answered and refused this terminal's signature (#951) — deliberately not 'offline', which would send somebody to look at the network
+  ///
+  /// In de, this message translates to:
+  /// **'Zugangsschlüssel abgelehnt'**
+  String get dispenserUnavailableKeyRejected;
+
+  /// What to do about a rejected signature: it is a configuration problem, not something to clear at the machine
+  ///
+  /// In de, this message translates to:
+  /// **'Dieses Terminal und das Ausgabegerät haben nicht denselben Zugangsschlüssel – bitte einem Admin melden.'**
+  String get dispenserKeyInstruction;
+
   /// No description provided for @tabOverview.
   ///
   /// In de, this message translates to:
@@ -1183,6 +1273,30 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Es sind keine Token herausgekommen – dir wurde nichts berechnet. Dein Warenkorb bleibt erhalten; bitte beim Bar-Team melden.'**
   String get errorDispenserNoTokensDispensed;
+
+  /// TerminalErrorKey.dispenserMixedProducts — the cart holds two different products that both need the dispenser (#949). The dispenser is told a count, never a product, so the member is asked to split the purchase instead of being billed at one of the two prices.
+  ///
+  /// In de, this message translates to:
+  /// **'Pro Einkauf kann nur eine Token-Sorte ausgegeben werden – bitte eine davon aus dem Warenkorb nehmen und einzeln kaufen.'**
+  String get errorDispenserMixedProducts;
+
+  /// TerminalErrorKey.dispenserFaulted — the device refused the dispense because it has a fault: a jam, an empty hopper or a hopper error (#948). Only a power cycle clears it, so the copy names the bar team and the workaround instead of offering a retry.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Token-Automat hat eine Störung und gibt gerade keine Token aus – bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.'**
+  String get errorDispenserFaulted;
+
+  /// TerminalErrorKey.dispenserKeyRejected — the dispenser refused the terminal's signature (#951): the signing key here is not the one the device was flashed with, or there is none. A configuration fault nobody at the kiosk can fix, so the copy sends the member to the bar team instead of offering a retry.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Token-Automat nimmt dieses Terminal nicht an – es ist nicht richtig eingerichtet. Dir wurde nichts berechnet; bitte beim Bar-Team melden. Alles andere kannst du trotzdem kaufen.'**
+  String get errorDispenserKeyRejected;
+
+  /// TerminalErrorKey.dispenserCountUnreliable — the dispenser reset mid-dispense and cannot vouch for its count (#947). Its lower bound was zero, so nothing is billed; the copy must not claim that no tokens came out, because nobody knows that.
+  ///
+  /// In de, this message translates to:
+  /// **'Der Automat konnte nicht sicher zählen, wie viele Token herausgekommen sind. Dir wurde nichts berechnet – bitte beim Bar-Team melden.'**
+  String get errorDispenserCountUnreliable;
 
   /// TerminalErrorKey.backendUnreachable — backend health check failed
   ///

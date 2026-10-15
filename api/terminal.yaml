@@ -753,6 +753,59 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /sync/terminal-status:
+    put:
+      tags:
+        - Synchronization
+      summary: Report the status of this terminal's peripherals
+      description: |
+        What the terminal knows about the hardware attached to it — today, the
+        token dispenser ([ADR-0057](../../adr/0057-terminals-report-peripheral-status.md),
+        [#952](https://github.com/dgloeckner/clubbar/issues/952)). Called on the
+        sync cadence and immediately on a state change.
+
+        **The answer is always `204`.** A body that is oversized, unparseable,
+        missing the envelope or carrying a value outside the protocol is dropped
+        and logged, and the previously stored report is kept. There is no `422`
+        on this route: a terminal must never fail a sync cycle over telemetry,
+        and the report body is exactly the thing a dispenser firmware release
+        changes.
+
+        **Which terminal this is about comes from the bearer token**, never from
+        the body — the same authority rule ADR-0033 §6 applies to every other
+        terminal-authenticated write.
+
+        **Last write wins.** No history is kept: the device's counters are
+        cumulative, so a trend is recoverable from two reads. `PUT` rather than
+        `POST` for the same reason — the body is the whole current status and
+        re-sending it creates nothing.
+
+        **Counts only.** The terminal's own dispenser operation rows carry a
+        member id; none of that may appear here.
+
+        **Unknown keys are dropped, not refused.** A firmware that adds a
+        counter keeps reporting; a firmware that sends a `fault` this protocol
+        does not define does not, because storing the rest of a document whose
+        verdict cannot be read would show an admin a healthy machine.
+      operationId: reportTerminalStatus
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TerminalStatusReport'
+      responses:
+        '204':
+          description: |
+            Received. This is also the answer when the report was dropped —
+            the caller cannot tell, and must not have to.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
   /terminal/pairing/ack:
     post:
       tags:
@@ -792,6 +845,147 @@ paths:
 
 components:
   schemas:
+    TerminalStatusReport:
+      type: object
+      description: |
+        An envelope, not a bare dispenser document: the route is named for the
+        terminal, and the dispenser is the first peripheral rather than the only
+        conceivable one.
+      properties:
+        dispenser:
+          $ref: '#/components/schemas/DispenserStatus'
+      required:
+        - dispenser
+
+    DispenserStatus:
+      type: object
+      description: |
+        The fields the terminal already parses from the device, with the same
+        meanings (`dispenser_client.dart`). Two of those meanings are load
+        bearing: **availability is `state != fault`**, while **"a human has to
+        go there" is `fault != none`** — a controller that crashed and recovered
+        is `idle` / `none` and stays in service. A **protocol mismatch is not a
+        device fault**: nothing is wrong at the machine, the errand is a
+        deployment one, and it is its own `contact` value rather than a flavour
+        of "offline".
+      properties:
+        configured:
+          type: boolean
+          description: |
+            Whether a dispenser is attached at all. `false` is a *report*, not
+            an absence of one — it is what lets the panel show *no dispenser*
+            rather than *unknown*. When it is `false` every other field is
+            ignored.
+        contact:
+          type: string
+          enum: [reported, unreachable, protocol_mismatch]
+          description: |
+            How the terminal came by this document: it parsed a protocol-2
+            `/health` (`reported`), nothing answered (`unreachable`), or
+            something answered in a protocol it does not speak
+            (`protocol_mismatch`). Required when `configured` is true.
+        state:
+          type: string
+          enum: [idle, dispensing, fault]
+          nullable: true
+          description: |
+            What the device says it is doing. Required when `contact` is
+            `reported`; null when nothing answered.
+        fault:
+          type: string
+          enum: [none, jam, hopper_error]
+          default: none
+          description: |
+            The device-level fault. Anything but `none` means a human has to go
+            there, and no surface can clear it — the device has no reset route
+            and a jam is cleared by a power cycle.
+        fault_code:
+          type: integer
+          minimum: 0
+          maximum: 255
+          default: 0
+          description: The Azkoyen code (1-7) behind a `hopper_error`, 0 otherwise.
+        firmware:
+          type: string
+          maxLength: 32
+          nullable: true
+        protocol:
+          type: integer
+          minimum: 0
+          maximum: 255
+          nullable: true
+          description: The protocol version the device claimed.
+        rssi:
+          type: integer
+          minimum: -127
+          maximum: 0
+          nullable: true
+          description: Wi-Fi signal strength in dBm.
+        uptime_s:
+          type: integer
+          minimum: 0
+          nullable: true
+        reset_reason:
+          type: string
+          maxLength: 64
+          nullable: true
+          description: Why the controller last booted, in the device's own words.
+        lifetime:
+          $ref: '#/components/schemas/DispenserLifetimeCounters'
+        pending_reconciliations:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Dispense operations this terminal has not yet settled against the device.
+        manual_reconciliations:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: |
+            Operations on the terminal's *manual reconciliation required* list.
+            Note that this list no longer holds every checkout attempted against
+            a dark dispenser (#947), so a count of it means less than it did.
+        observed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The device's own clock. Recorded beside — never instead of — the
+            backend's receipt stamp: a kiosk whose clock is wrong must not be
+            able to date a fault.
+      required:
+        - configured
+
+    DispenserLifetimeCounters:
+      type: object
+      description: |
+        Cumulative counters, by the names the device publishes. A key the
+        backend does not know is dropped rather than stored, so a firmware that
+        grows a counter keeps reporting; teaching the panel about it is one list
+        entry. `filtered_pulses` is optional in practice as well as in the
+        schema — the mock dispenser does not emit it.
+      properties:
+        requested_tokens:
+          type: integer
+          minimum: 0
+        dispensed_tokens:
+          type: integer
+          minimum: 0
+        jams:
+          type: integer
+          minimum: 0
+        crashes:
+          type: integer
+          minimum: 0
+        overrun_tokens:
+          type: integer
+          minimum: 0
+          description: Tokens that left the hopper past the requested quantity. They are billed, so they are counted.
+        filtered_pulses:
+          type: integer
+          minimum: 0
+          description: Falling edges on the coin line rejected as noise.
+
     # ============================================================================
     # Member Schema
     # ============================================================================

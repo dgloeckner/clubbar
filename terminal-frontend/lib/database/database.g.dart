@@ -3344,6 +3344,29 @@ class $DispenserOperationsTable extends DispenserOperations
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _acknowledgedMeta = const VerificationMeta(
+    'acknowledged',
+  );
+  @override
+  late final GeneratedColumn<int> acknowledged = GeneratedColumn<int>(
+    'acknowledged',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _transactionsCreatedMeta =
       const VerificationMeta('transactionsCreated');
   @override
@@ -3408,6 +3431,8 @@ class $DispenserOperationsTable extends DispenserOperations
     priceCents,
     requestedQty,
     createdAt,
+    sessionId,
+    acknowledged,
     transactionsCreated,
     lastKnownState,
     lastKnownDispensed,
@@ -3479,6 +3504,21 @@ class $DispenserOperationsTable extends DispenserOperations
       );
     } else if (isInserting) {
       context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('acknowledged')) {
+      context.handle(
+        _acknowledgedMeta,
+        acknowledged.isAcceptableOrUnknown(
+          data['acknowledged']!,
+          _acknowledgedMeta,
+        ),
+      );
     }
     if (data.containsKey('transactions_created')) {
       context.handle(
@@ -3558,6 +3598,14 @@ class $DispenserOperationsTable extends DispenserOperations
         DriftSqlType.string,
         data['${effectivePrefix}created_at'],
       )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      ),
+      acknowledged: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}acknowledged'],
+      )!,
       transactionsCreated: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}transactions_created'],
@@ -3607,6 +3655,26 @@ class DispenserOperation extends DataClass
   /// When this operation was started
   final String createdAt;
 
+  /// The terminal session the purchase belongs to (ADR-0027).
+  ///
+  /// Written when the tracking row is created, so that a row billed by the
+  /// recovery service days later still carries the session the member bought
+  /// in — recovery has no session of its own, and inventing one (or leaving it
+  /// null) made recovery rows second-class next to checkout's (#945).
+  ///
+  /// Nullable because every row written before schema 15 has none.
+  final String? sessionId;
+
+  /// Whether the dispenser has ever answered for this `dispenser_tx_id`
+  /// (1=yes, 0=not yet).
+  ///
+  /// Added here with `session_id` because both belong to one migration
+  /// (confirmed by the owner, 2026-09-20). **#947 owns its semantics**: it is
+  /// what separates "the POST never arrived, nothing was dispensed" from "the
+  /// device lost a transaction it had accepted" when a later `GET` answers
+  /// 404. Until #947 lands, nothing reads it.
+  final int acknowledged;
+
   /// How many transactions we've already created for this operation
   /// Used by recovery service to detect missing transactions
   final int transactionsCreated;
@@ -3633,6 +3701,8 @@ class DispenserOperation extends DataClass
     required this.priceCents,
     required this.requestedQty,
     required this.createdAt,
+    this.sessionId,
+    required this.acknowledged,
     required this.transactionsCreated,
     this.lastKnownState,
     required this.lastKnownDispensed,
@@ -3648,6 +3718,10 @@ class DispenserOperation extends DataClass
     map['price_cents'] = Variable<int>(priceCents);
     map['requested_qty'] = Variable<int>(requestedQty);
     map['created_at'] = Variable<String>(createdAt);
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<String>(sessionId);
+    }
+    map['acknowledged'] = Variable<int>(acknowledged);
     map['transactions_created'] = Variable<int>(transactionsCreated);
     if (!nullToAbsent || lastKnownState != null) {
       map['last_known_state'] = Variable<String>(lastKnownState);
@@ -3668,6 +3742,10 @@ class DispenserOperation extends DataClass
       priceCents: Value(priceCents),
       requestedQty: Value(requestedQty),
       createdAt: Value(createdAt),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      acknowledged: Value(acknowledged),
       transactionsCreated: Value(transactionsCreated),
       lastKnownState: lastKnownState == null && nullToAbsent
           ? const Value.absent()
@@ -3692,6 +3770,8 @@ class DispenserOperation extends DataClass
       priceCents: serializer.fromJson<int>(json['priceCents']),
       requestedQty: serializer.fromJson<int>(json['requestedQty']),
       createdAt: serializer.fromJson<String>(json['createdAt']),
+      sessionId: serializer.fromJson<String?>(json['sessionId']),
+      acknowledged: serializer.fromJson<int>(json['acknowledged']),
       transactionsCreated: serializer.fromJson<int>(
         json['transactionsCreated'],
       ),
@@ -3711,6 +3791,8 @@ class DispenserOperation extends DataClass
       'priceCents': serializer.toJson<int>(priceCents),
       'requestedQty': serializer.toJson<int>(requestedQty),
       'createdAt': serializer.toJson<String>(createdAt),
+      'sessionId': serializer.toJson<String?>(sessionId),
+      'acknowledged': serializer.toJson<int>(acknowledged),
       'transactionsCreated': serializer.toJson<int>(transactionsCreated),
       'lastKnownState': serializer.toJson<String?>(lastKnownState),
       'lastKnownDispensed': serializer.toJson<int>(lastKnownDispensed),
@@ -3726,6 +3808,8 @@ class DispenserOperation extends DataClass
     int? priceCents,
     int? requestedQty,
     String? createdAt,
+    Value<String?> sessionId = const Value.absent(),
+    int? acknowledged,
     int? transactionsCreated,
     Value<String?> lastKnownState = const Value.absent(),
     int? lastKnownDispensed,
@@ -3738,6 +3822,8 @@ class DispenserOperation extends DataClass
     priceCents: priceCents ?? this.priceCents,
     requestedQty: requestedQty ?? this.requestedQty,
     createdAt: createdAt ?? this.createdAt,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
+    acknowledged: acknowledged ?? this.acknowledged,
     transactionsCreated: transactionsCreated ?? this.transactionsCreated,
     lastKnownState: lastKnownState.present
         ? lastKnownState.value
@@ -3760,6 +3846,10 @@ class DispenserOperation extends DataClass
           ? data.requestedQty.value
           : this.requestedQty,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      acknowledged: data.acknowledged.present
+          ? data.acknowledged.value
+          : this.acknowledged,
       transactionsCreated: data.transactionsCreated.present
           ? data.transactionsCreated.value
           : this.transactionsCreated,
@@ -3787,6 +3877,8 @@ class DispenserOperation extends DataClass
           ..write('priceCents: $priceCents, ')
           ..write('requestedQty: $requestedQty, ')
           ..write('createdAt: $createdAt, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('acknowledged: $acknowledged, ')
           ..write('transactionsCreated: $transactionsCreated, ')
           ..write('lastKnownState: $lastKnownState, ')
           ..write('lastKnownDispensed: $lastKnownDispensed, ')
@@ -3804,6 +3896,8 @@ class DispenserOperation extends DataClass
     priceCents,
     requestedQty,
     createdAt,
+    sessionId,
+    acknowledged,
     transactionsCreated,
     lastKnownState,
     lastKnownDispensed,
@@ -3820,6 +3914,8 @@ class DispenserOperation extends DataClass
           other.priceCents == this.priceCents &&
           other.requestedQty == this.requestedQty &&
           other.createdAt == this.createdAt &&
+          other.sessionId == this.sessionId &&
+          other.acknowledged == this.acknowledged &&
           other.transactionsCreated == this.transactionsCreated &&
           other.lastKnownState == this.lastKnownState &&
           other.lastKnownDispensed == this.lastKnownDispensed &&
@@ -3834,6 +3930,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
   final Value<int> priceCents;
   final Value<int> requestedQty;
   final Value<String> createdAt;
+  final Value<String?> sessionId;
+  final Value<int> acknowledged;
   final Value<int> transactionsCreated;
   final Value<String?> lastKnownState;
   final Value<int> lastKnownDispensed;
@@ -3847,6 +3945,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     this.priceCents = const Value.absent(),
     this.requestedQty = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.acknowledged = const Value.absent(),
     this.transactionsCreated = const Value.absent(),
     this.lastKnownState = const Value.absent(),
     this.lastKnownDispensed = const Value.absent(),
@@ -3861,6 +3961,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     required int priceCents,
     required int requestedQty,
     required String createdAt,
+    this.sessionId = const Value.absent(),
+    this.acknowledged = const Value.absent(),
     this.transactionsCreated = const Value.absent(),
     this.lastKnownState = const Value.absent(),
     this.lastKnownDispensed = const Value.absent(),
@@ -3880,6 +3982,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     Expression<int>? priceCents,
     Expression<int>? requestedQty,
     Expression<String>? createdAt,
+    Expression<String>? sessionId,
+    Expression<int>? acknowledged,
     Expression<int>? transactionsCreated,
     Expression<String>? lastKnownState,
     Expression<int>? lastKnownDispensed,
@@ -3894,6 +3998,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
       if (priceCents != null) 'price_cents': priceCents,
       if (requestedQty != null) 'requested_qty': requestedQty,
       if (createdAt != null) 'created_at': createdAt,
+      if (sessionId != null) 'session_id': sessionId,
+      if (acknowledged != null) 'acknowledged': acknowledged,
       if (transactionsCreated != null)
         'transactions_created': transactionsCreated,
       if (lastKnownState != null) 'last_known_state': lastKnownState,
@@ -3912,6 +4018,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     Value<int>? priceCents,
     Value<int>? requestedQty,
     Value<String>? createdAt,
+    Value<String?>? sessionId,
+    Value<int>? acknowledged,
     Value<int>? transactionsCreated,
     Value<String?>? lastKnownState,
     Value<int>? lastKnownDispensed,
@@ -3926,6 +4034,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
       priceCents: priceCents ?? this.priceCents,
       requestedQty: requestedQty ?? this.requestedQty,
       createdAt: createdAt ?? this.createdAt,
+      sessionId: sessionId ?? this.sessionId,
+      acknowledged: acknowledged ?? this.acknowledged,
       transactionsCreated: transactionsCreated ?? this.transactionsCreated,
       lastKnownState: lastKnownState ?? this.lastKnownState,
       lastKnownDispensed: lastKnownDispensed ?? this.lastKnownDispensed,
@@ -3955,6 +4065,12 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
     }
     if (createdAt.present) {
       map['created_at'] = Variable<String>(createdAt.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (acknowledged.present) {
+      map['acknowledged'] = Variable<int>(acknowledged.value);
     }
     if (transactionsCreated.present) {
       map['transactions_created'] = Variable<int>(transactionsCreated.value);
@@ -3986,6 +4102,8 @@ class DispenserOperationsCompanion extends UpdateCompanion<DispenserOperation> {
           ..write('priceCents: $priceCents, ')
           ..write('requestedQty: $requestedQty, ')
           ..write('createdAt: $createdAt, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('acknowledged: $acknowledged, ')
           ..write('transactionsCreated: $transactionsCreated, ')
           ..write('lastKnownState: $lastKnownState, ')
           ..write('lastKnownDispensed: $lastKnownDispensed, ')
@@ -6345,6 +6463,8 @@ typedef $$DispenserOperationsTableCreateCompanionBuilder =
       required int priceCents,
       required int requestedQty,
       required String createdAt,
+      Value<String?> sessionId,
+      Value<int> acknowledged,
       Value<int> transactionsCreated,
       Value<String?> lastKnownState,
       Value<int> lastKnownDispensed,
@@ -6360,6 +6480,8 @@ typedef $$DispenserOperationsTableUpdateCompanionBuilder =
       Value<int> priceCents,
       Value<int> requestedQty,
       Value<String> createdAt,
+      Value<String?> sessionId,
+      Value<int> acknowledged,
       Value<int> transactionsCreated,
       Value<String?> lastKnownState,
       Value<int> lastKnownDispensed,
@@ -6404,6 +6526,16 @@ class $$DispenserOperationsTableFilterComposer
 
   ColumnFilters<String> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6472,6 +6604,16 @@ class $$DispenserOperationsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get transactionsCreated => $composableBuilder(
     column: $table.transactionsCreated,
     builder: (column) => ColumnOrderings(column),
@@ -6530,6 +6672,14 @@ class $$DispenserOperationsTableAnnotationComposer
 
   GeneratedColumn<String> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<int> get acknowledged => $composableBuilder(
+    column: $table.acknowledged,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<int> get transactionsCreated => $composableBuilder(
     column: $table.transactionsCreated,
@@ -6606,6 +6756,8 @@ class $$DispenserOperationsTableTableManager
                 Value<int> priceCents = const Value.absent(),
                 Value<int> requestedQty = const Value.absent(),
                 Value<String> createdAt = const Value.absent(),
+                Value<String?> sessionId = const Value.absent(),
+                Value<int> acknowledged = const Value.absent(),
                 Value<int> transactionsCreated = const Value.absent(),
                 Value<String?> lastKnownState = const Value.absent(),
                 Value<int> lastKnownDispensed = const Value.absent(),
@@ -6619,6 +6771,8 @@ class $$DispenserOperationsTableTableManager
                 priceCents: priceCents,
                 requestedQty: requestedQty,
                 createdAt: createdAt,
+                sessionId: sessionId,
+                acknowledged: acknowledged,
                 transactionsCreated: transactionsCreated,
                 lastKnownState: lastKnownState,
                 lastKnownDispensed: lastKnownDispensed,
@@ -6634,6 +6788,8 @@ class $$DispenserOperationsTableTableManager
                 required int priceCents,
                 required int requestedQty,
                 required String createdAt,
+                Value<String?> sessionId = const Value.absent(),
+                Value<int> acknowledged = const Value.absent(),
                 Value<int> transactionsCreated = const Value.absent(),
                 Value<String?> lastKnownState = const Value.absent(),
                 Value<int> lastKnownDispensed = const Value.absent(),
@@ -6647,6 +6803,8 @@ class $$DispenserOperationsTableTableManager
                 priceCents: priceCents,
                 requestedQty: requestedQty,
                 createdAt: createdAt,
+                sessionId: sessionId,
+                acknowledged: acknowledged,
                 transactionsCreated: transactionsCreated,
                 lastKnownState: lastKnownState,
                 lastKnownDispensed: lastKnownDispensed,
