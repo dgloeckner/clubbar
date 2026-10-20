@@ -162,7 +162,7 @@ final class AdminControllerTest extends TestCase
             'first_name' => 'Magdalena',
             'mandate_reference' => 'somebodyelses',
             'privacy_notice_url' => 'https://elsewhere.example/nothing.pdf',
-            'expires_at' => '2099-01-01 00:00:00',
+            'submitted_at' => '2099-01-01 00:00:00',
         ]);
 
         self::assertSame(['first_name' => 'Magdalena'], $this->service->updateArgs['data']);
@@ -439,7 +439,7 @@ final class RecordingReviewService extends RegistrationReviewService
             'iban_last4' => '3000', 'bank_name' => 'Sparkasse',
             'privacy_notice_url' => 'https://club.example/Anmeldung.pdf',
             'privacy_notice_shown_at' => '2026-08-31 10:00:00',
-            'submitted_at' => '2026-08-31 10:00:00', 'expires_at' => '2026-09-30 10:00:00',
+            'submitted_at' => '2026-08-31 10:00:00',
         ]);
     }
 }

@@ -10,12 +10,12 @@ use PDO;
 /**
  * The pending store (migration 059, ADR-0052).
  *
- * Deliberately small, and short-lived by design. This table is written once by a
- * stranger and read only by an authenticated admin: a correction before approval
- * replaces a value, approval copies the row out and deletes it, and rejection and
- * the TTL purge delete it. A row that exists is a submission nobody has acted on
- * yet, and no row is meant to be here for long — which is why the write path an
- * admin reaches cannot touch `submitted_at` or `expires_at`.
+ * Deliberately small. This table is written once by a stranger and read only by
+ * an authenticated admin: a correction before approval replaces a value,
+ * approval copies the row out and deletes it, and rejection deletes it. Nothing
+ * deletes a row by itself — a row that exists is a submission nobody has acted
+ * on yet, and it waits for an admin however long that takes (ADR-0052 decision
+ * 10, amended). The write path an admin reaches cannot touch `submitted_at`.
  *
  * Every query here is plain, portable SQL, which is what lets the unit suite
  * exercise it against `sqlite::memory:` instead of the Docker MariaDB.
@@ -47,8 +47,8 @@ class RegistrationsRepository
                 preferred_language, account_holder_name, mandate_reference,
                 iban_ciphertext, iban_last4, iban_fingerprint, encryption_key_id,
                 bank_name, privacy_notice_url, privacy_notice_shown_at,
-                submitted_at, expires_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                submitted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         $stmt->execute([
@@ -68,7 +68,6 @@ class RegistrationsRepository
             $data['privacy_notice_url'],
             $data['privacy_notice_shown_at'],
             $data['submitted_at'],
-            $data['expires_at'],
         ]);
 
         return $id;
@@ -111,7 +110,7 @@ class RegistrationsRepository
         // parameter — so the allow-list *is* the defence, and an unknown key
         // falls back rather than being interpolated. Same reasoning as
         // `SafeQuery`, spelled out here because the failure mode is silent.
-        $sortable = ['submitted_at', 'expires_at', 'last_name', 'first_name', 'email'];
+        $sortable = ['submitted_at', 'last_name', 'first_name', 'email'];
         $column = in_array($sortKey, $sortable, true) ? $sortKey : 'submitted_at';
         $direction = strtolower($sortOrder) === 'asc' ? 'ASC' : 'DESC';
 
@@ -147,10 +146,9 @@ class RegistrationsRepository
     /**
      * Correct a submission before it is approved.
      *
-     * The allow-list is narrow on purpose. `submitted_at` and `expires_at` are
-     * the retention rule (decision 10) and are not an admin's to move — a queue
-     * whose deadline can be pushed out is a queue that never purges. The
-     * ciphertext quartet *is* writable, because replacing an IBAN is a real
+     * The allow-list is narrow on purpose. `submitted_at` is when the applicant
+     * acted, and the review list sorts and ages by it — it is not an admin's to
+     * move. The ciphertext quartet *is* writable, because replacing an IBAN is a real
      * correction, but only as a unit: a row sealed under one key and labelled
      * with another can never be opened again.
      *
@@ -210,22 +208,6 @@ class RegistrationsRepository
         $stmt->execute([$id]);
 
         return $stmt->rowCount() > 0;
-    }
-
-    /**
-     * Delete everything past its expiry.
-     *
-     * Returns a count and nothing else on purpose: the caller logs how many
-     * rows went, never who they were. A purge line naming the people it deleted
-     * would be a copy of the data outliving the deletion, in the one place
-     * nobody thinks to look for personal data.
-     */
-    public function purgeExpired(string $now): int
-    {
-        $stmt = $this->db->prepare('DELETE FROM pending_registrations WHERE expires_at <= ?');
-        $stmt->execute([$now]);
-
-        return $stmt->rowCount();
     }
 
     /**

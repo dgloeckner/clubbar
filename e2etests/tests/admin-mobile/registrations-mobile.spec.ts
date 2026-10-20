@@ -46,7 +46,6 @@ const REGISTRATION = {
   privacy_notice_url: 'https://example.org/datenschutz.pdf',
   privacy_notice_shown_at: '2026-09-06T20:00:00+00:00',
   submitted_at: '2026-09-06T20:01:12+00:00',
-  expires_at: '2026-10-06T20:01:12+00:00',
   duplicate_email: true,
   duplicate_iban: false,
 }

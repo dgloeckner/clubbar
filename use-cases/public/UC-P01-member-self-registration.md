@@ -99,8 +99,9 @@ mandate lawful, and this use case explicitly ends before anyone has seen it.
    member yet**, what has to happen next — print it, tick the Kenntnisnahme
    box on page 1 by hand, sign, and bring it, or have it brought, to the club,
    where a Kassenwart still has to see it (UC-A17) — that an email follows
-   when the card is assigned (UC-A67), and that the registration is deleted
-   after the club's retention period if nobody confirms it.
+   when the card is assigned (UC-A67), and that the registration is kept until
+   the treasurer confirms or declines it, so there is no rush (ADR-0052
+   decision 10, amended 2026-10-20).
 8. The applicant saves the document, prints it, ticks the Kenntnisnahme box,
    signs it, and brings it to the club. This use case ends here. Nothing the
    applicant does after this point is observable to the system until an
@@ -209,7 +210,7 @@ the paper in front of them (UC-A17).
 | No enumeration | A submission naming an email or an IBAN the club already knows is accepted exactly like any other; the duplicate surfaces only at review, to an authenticated admin, flagged by matching email or fingerprint |
 | A honeypot field is silently accepted and never stored | The traffic this URL will actually attract is commodity form-filling bots, not a targeted attacker |
 | Two rate meters, not one | The login surface counts failed attempts; here a caller holding the real secret can flood the queue with perfectly *valid* submissions, so accepted submissions get their own per-IP counter alongside the refused-gate counter, which uses the shared budget invitations use |
-| A pending row purges after 30 days (configurable); a rejection deletes it immediately | Nothing here is a Beleg — no money has moved and no contract has been performed — so none of the ten-year accounting retention attaches, and data about somebody who never joined must not accumulate |
+| A pending row never expires; it leaves the store only when an admin approves or rejects it, and a rejection deletes it immediately | Nothing here is a Beleg — no money has moved and no contract has been performed — so none of the ten-year accounting retention attaches. The paper an applicant hands in can take weeks to reach the club, and a timer that deleted the row in the meantime made them start again (ADR-0052 decision 10, amended 2026-10-20). An abandoned row is rejected by an admin, in sight in the inbox |
 | A pending registration creates no `members` row and no `mandates` row | `GET /api/sync/members` cannot return it, so no terminal can recognise the applicant — not by policy, but because there is nothing there to recognise |
 | No personal data appears in the logs of the public endpoints | A refusal logs its reason code and nothing about the person who triggered it |
 | The page is served by the backend itself, as its own small bundle | One deployment, one origin, no CORS, matching the constraint ADR-0031 already imposes — and it is deliberately **not** the admin SPA: an anonymous visitor on a phone must not be served the panel's routes, strings or weight |
@@ -219,13 +220,12 @@ the paper in front of them (UC-A17).
 
 - A `pending_registrations` row exists, holding the sealed IBAN in the
   `mandates` column shape, the minted mandate reference, the URL of the notice
-  shown to the applicant, and a 30-day expiry clock.
+  shown to the applicant, and its submission time. It has no expiry.
 - No `members` row and no `mandates` row exist. The applicant is not a member;
   the terminal has no way to recognise them.
 - The document returned with the submission response is not retained anywhere
   and cannot be obtained a second time; this has no effect on the pending row
-  itself, which stays available for admin review until it expires or is acted
-  on.
+  itself, which stays available for admin review until it is acted on.
 - No mail has been sent to the applicant, and nothing about the submission has
   been disclosed to anyone but the applicant themselves.
 - No audit log entry is written. This use case runs with no session; the
@@ -327,8 +327,8 @@ in the response tells the filler that anything different happened.
   budget invitations use
 - Repeated accepted submissions from one IP are throttled on their own,
   independent counter
-- A row older than 30 days is purged by the scheduled tick, logging a count
-  and no identities
+- A row submitted long ago survives the scheduled tick and stays in the
+  review inbox
 - Rejecting a pending row deletes it immediately, with the audit entry's IBAN
   masked
 - The confirmation screen states the applicant is not yet a member and names

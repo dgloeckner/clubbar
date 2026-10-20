@@ -254,10 +254,6 @@ function sealPosterSecret(secret: string): string {
  * @param options `enabled` defaults to true; `disabledReason` is the club's
  *        member-facing text; `documentUrl` defaults to a plausible published
  *        Anmeldung. Pass `documentUrl: null` to assert the fail-closed path.
- *        `retentionDays` is the club's purge horizon, which the onboarding
- *        page's done screen says out loud (#804); it defaults to the shipped
- *        30 so a test that does not care leaves the row as every other test
- *        expects to find it.
  */
 export function configureSelfRegistration(
   secret: string,
@@ -265,14 +261,12 @@ export function configureSelfRegistration(
     enabled?: boolean
     disabledReason?: string | null
     documentUrl?: string | null
-    retentionDays?: number
   } = {},
 ): void {
   const enabled = options.enabled ?? true
   const reason = options.disabledReason ?? null
   const documentUrl =
     options.documentUrl === undefined ? CLUB_DOCUMENT_URL : options.documentUrl
-  const retentionDays = options.retentionDays ?? 30
 
   const hash = createHash('sha256').update(secret).digest('hex')
   // The sealed copy, alongside the hash. Writing only the hash produces a state
@@ -288,8 +282,7 @@ export function configureSelfRegistration(
   execSql(
     `UPDATE self_registration_config SET enabled = ${enabled ? 1 : 0}, ` +
       `secret_hash = '${hash}', secret_cipher = '${cipher.replace(/'/g, "''")}', ` +
-      `disabled_reason = ${reasonSql}, ` +
-      `retention_days = ${Number(retentionDays)} WHERE id = 1`,
+      `disabled_reason = ${reasonSql} WHERE id = 1`,
   )
   execSql(`UPDATE sepa_config SET mandate_template_url = ${urlSql} WHERE id = 1`)
 }
@@ -539,8 +532,11 @@ export function queuedRegistrationLinks(
     })
 }
 
-/** Age a registration past its expiry, so a real cron run has something to purge. */
-export function expireRegistration(registrationId: string): void {
+/**
+ * Backdate a registration's submission, so a real cron run sees a row far older
+ * than any retention window the system has ever had (ADR-0052 decision 10).
+ */
+export function ageRegistration(registrationId: string): void {
   const id = registrationId.replace(/'/g, '')
-  execSql(`UPDATE pending_registrations SET expires_at = '2000-01-01 00:00:00' WHERE id = '${id}'`)
+  execSql(`UPDATE pending_registrations SET submitted_at = '2000-01-01 00:00:00' WHERE id = '${id}'`)
 }

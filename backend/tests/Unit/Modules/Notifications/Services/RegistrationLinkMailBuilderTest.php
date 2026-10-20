@@ -56,7 +56,6 @@ class RegistrationLinkMailBuilderTest extends TestCase
             hasSecret: $secret !== null,
             secretRotatedAt: '2026-03-01 09:00:00',
             documentUrl: 'https://club.example/Anmeldung.pdf',
-            retentionDays: 30,
         ));
 
         if ($secretFailure !== null) {

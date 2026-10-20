@@ -85,8 +85,7 @@ test.describe('Public onboarding page', () => {
    */
   test.afterEach(() => {
     execSql(
-      'UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL, ' +
-        'retention_days = 30 WHERE id = 1',
+      'UPDATE self_registration_config SET enabled = 1, disabled_reason = NULL WHERE id = 1',
     )
   })
 
@@ -820,12 +819,12 @@ test.describe('Public onboarding page', () => {
   /**
    * The applicant leaves knowing three things they could not know before
    * (#804): save this now, an email is coming when the card is assigned, and
-   * this registration is deleted if nobody confirms it — with the club's own
-   * number, read from the context answer rather than typed into the page.
+   * this registration waits for the treasurer however long the paper takes —
+   * nothing deletes it unseen (ADR-0052 decision 10, amended).
    */
   test('the done screen saves first, then says what happens next', async ({ page }) => {
     const secret = uniqueSecret()
-    configureSelfRegistration(secret, { retentionDays: 45 })
+    configureSelfRegistration(secret)
 
     await openWith(page, secret)
     await page.getByTestId('language-de').click()
@@ -844,7 +843,8 @@ test.describe('Public onboarding page', () => {
     expect(saveTop).toBeLessThan(stepsTop)
 
     await expect(page.getByTestId('done-card')).toContainText('E-Mail')
-    await expect(page.getByTestId('done-expiry')).toContainText('45 Tagen')
+    await expect(page.getByTestId('done-retention')).toContainText('bis der Kassenwart sie bestätigt oder ablehnt')
+    await expect(page.getByTestId('done-retention')).not.toContainText('gelöscht')
   })
 
   test('the done screen is English end to end when English was chosen', async ({ page }) => {
@@ -863,14 +863,14 @@ test.describe('Public onboarding page', () => {
 
     await expect(page.getByTestId('screen-done')).toBeVisible()
     await expect(page.getByTestId('done-card')).toContainText('email')
-    await expect(page.getByTestId('done-expiry')).toContainText('30 days')
+    await expect(page.getByTestId('done-retention')).toContainText('kept until the treasurer')
     await expect(page.getByTestId('platform-hint')).toContainText('iPhone')
     await expect(page.getByTestId('download-button')).toHaveText('Save again')
 
     // …and it is still English after the reload rescue, which is rebuilt from
     // what the tab kept rather than from a fresh context answer.
     await page.reload()
-    await expect(page.getByTestId('done-expiry')).toContainText('30 days')
+    await expect(page.getByTestId('done-retention')).toContainText('kept until the treasurer')
   })
 
   /**

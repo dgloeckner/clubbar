@@ -200,10 +200,6 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
                 value={registration.privacy_notice_url ?? '—'}
                 testId="panel-notice-url"
               />
-              <Detail
-                label={t('registrations.fields.expires')}
-                value={registration.expires_at ? formatDate(registration.expires_at) : '—'}
-              />
             </dl>
 
             <div style={actionsStyle}>

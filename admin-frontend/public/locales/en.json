@@ -1702,7 +1702,6 @@
       "accountHolder": "Account holder",
       "mandateReference": "Mandate reference",
       "notice": "Club documents shown",
-      "expires": "Deleted on",
       "newIban": "Correct the IBAN",
       "newIbanPlaceholder": "Only fill this in if the IBAN is wrong",
       "newIbanHint": "Leaving it empty changes nothing. A new IBAN is validated and re-encrypted; the old one cannot be recovered afterwards."

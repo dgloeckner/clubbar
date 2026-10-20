@@ -37,8 +37,8 @@ class AdminController
      * Absent, on purpose: `mandate_reference` (printed on the paper the member
      * signed — ADR-0006, and changing it silently invalidates the signature),
      * `privacy_notice_url` and `privacy_notice_shown_at` (the club's evidence
-     * of what was shown, and evidence nobody may edit), and the two timestamps
-     * that are the retention rule.
+     * of what was shown, and evidence nobody may edit), and `submitted_at`
+     * (when the applicant acted).
      */
     private const FIELD_RULES = [
         'first_name' => ['nullable', 'string', 'max:100'],
@@ -103,7 +103,7 @@ class AdminController
         // Narrowed to what this surface may write, and narrowed *here* rather
         // than only in the service, so a form that echoes the whole row back —
         // the reference printed on the signed paper, the notice URL, the
-        // expiry — is not refused for sending fields it never edited. They are
+        // submission time — is not refused for sending fields it never edited. They are
         // simply not an admin's to change, so they are dropped.
         $registration = $this->registrations->update(
             $args['registrationId'],

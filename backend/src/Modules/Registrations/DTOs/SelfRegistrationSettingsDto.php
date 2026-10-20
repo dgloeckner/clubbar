@@ -26,7 +26,6 @@ final readonly class SelfRegistrationSettingsDto
         public bool $hasSecret,
         public ?string $secretRotatedAt,
         public ?string $documentUrl,
-        public int $retentionDays,
     ) {}
 
     /** @return array<string, mixed> */
@@ -41,7 +40,6 @@ final readonly class SelfRegistrationSettingsDto
             // read by the browser as local.
             'secret_rotated_at' => DateFormatter::toUtcIso($this->secretRotatedAt),
             'document_url' => $this->documentUrl,
-            'retention_days' => $this->retentionDays,
         ];
     }
 }

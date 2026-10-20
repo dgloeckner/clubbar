@@ -131,7 +131,6 @@ final class RegistrationApprovalTest extends DatabaseTestCase
             'privacy_notice_url' => 'https://club.example/Anmeldung.pdf',
             'privacy_notice_shown_at' => date('Y-m-d H:i:s'),
             'submitted_at' => date('Y-m-d H:i:s'),
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
         ]);
 
         $this->registrationIds[] = $id;

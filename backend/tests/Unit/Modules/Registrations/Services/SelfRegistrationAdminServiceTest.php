@@ -50,7 +50,6 @@ final class SelfRegistrationAdminServiceTest extends TestCase
                 id INTEGER NOT NULL PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0,
                 disabled_reason VARCHAR(500) NULL, secret_hash CHAR(64) NULL,
                 secret_cipher TEXT NULL, secret_rotated_at DATETIME NULL,
-                retention_days INTEGER NOT NULL DEFAULT 30,
                 updated_by_admin_id CHAR(36) NULL, created_at DATETIME NULL, updated_at DATETIME NULL
             )'
         );
@@ -376,7 +375,7 @@ final class SelfRegistrationAdminServiceTest extends TestCase
         self::assertFalse($settings['enabled']);
         self::assertFalse($settings['has_secret']);
         self::assertNull($settings['document_url']);
-        self::assertSame(30, $settings['retention_days']);
+        self::assertArrayNotHasKey('retention_days', $settings);
     }
 }
 

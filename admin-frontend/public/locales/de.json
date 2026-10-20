@@ -1702,7 +1702,6 @@
       "accountHolder": "Kontoinhaber",
       "mandateReference": "Mandatsreferenz",
       "notice": "Gezeigte Vereinsunterlagen",
-      "expires": "Wird gelöscht am",
       "newIban": "IBAN korrigieren",
       "newIbanPlaceholder": "Nur ausfüllen, wenn die IBAN falsch ist",
       "newIbanHint": "Leer lassen ändert nichts. Eine neue IBAN wird geprüft und neu verschlüsselt; die alte ist danach nicht mehr wiederherstellbar."

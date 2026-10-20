@@ -294,6 +294,26 @@ the final PR.
       re-scoped rather than weakened — before submit nothing is stored at all,
       after submit only `sessionStorage`, and `localStorage`, cookies and the
       URL never carry the e-mail, the name or `DE89` at any point.
+- [x] **M10 — A pending registration no longer expires** (owner decision,
+      2026-10-20; amends ADR-0052 decision 10). The 30-day purge deleted
+      registrations the club still wanted: the signed paper — especially from an
+      applicant reached by the Anmeldelink, at home — took longer than the
+      window to reach a Kassenwart, and the row was gone from the inbox with
+      only a backup to recover it from. A row now leaves the store only by
+      approval or rejection. Migration `070` drops
+      `pending_registrations.expires_at` (and its index) and
+      `self_registration_config.retention_days`; the cron tick's purge step is
+      gone (the registration-attempt prune stays); `expires_at` leaves the
+      review API and `retention_days` leaves the settings and context answers;
+      the review panel's "Wird gelöscht am" row is gone; the done screen says
+      the registration is kept until the treasurer confirms or declines it.
+      Poster and mailed link are treated alike, because under ADR-0053 they
+      cannot be told apart.
+      *Verified by*: backend Unit **3384/3384**, Feature **885/885**, vitest
+      **780/780**, `api-tests` self-registration + cron-drain **63/63**,
+      `register` **38/38**, `admin-chromium` registrations-inbox **11/11**,
+      `admin-mobile` registrations **5/5**, all at 4 workers; migration 070 and
+      its rollback applied, reverted and re-applied against the dev MariaDB.
 
 ## Testable acceptance, epic-wide
 
@@ -310,7 +330,7 @@ which milestone happens to implement them:
 | 6 | A submission queues no mail | M1 + M7 |
 | 7 | Approval produces a member indistinguishable from one created via UC-A11 | M2 |
 | 8 | A Getränkewart is refused on every route in this feature | M2 |
-| 9 | An abandoned registration is gone after the TTL, and a rejected one at once | M1 + M2 |
+| 9 | A pending registration survives any number of cron ticks, and a rejected one is gone at once | M2 + M10 |
 | 10 | The audit trail names who approved, who rejected, and never a full IBAN | M2 |
 | 11 | Self-registration cannot be enabled without a configured Datenschutz URL, and the refusal names it | M1 + M6 |
 | 12 | No Datenschutz prose ships in this repository — the page links the club's document | M4 |
@@ -344,7 +364,7 @@ accepted.
 |---|---|
 | The document | **One** — the club's combined four-page Anmeldung; fields on page 1, every page preserved by the fill |
 | The template | Not pinned: `sepa_config.mandate_template_url` is the pointer, and the same URL the page links for Art. 13 |
-| Retention | **30 days** before an unapproved registration is purged |
+| Retention | ~~**30 days** before an unapproved registration is purged~~ — since M10, kept until an admin approves or rejects it |
 | Translation | None, and no club-language setting exists |
 | Optional consents | None — the document carries nothing to opt into |
 

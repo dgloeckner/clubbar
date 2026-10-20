@@ -47,7 +47,6 @@ final readonly class PendingRegistrationDto
         public string $privacyNoticeUrl,
         public string $privacyNoticeShownAt,
         public string $submittedAt,
-        public string $expiresAt,
         /** Whether the club already has a member at this address. */
         public bool $duplicateEmail,
         /** Whether the club already has a mandate on this account. */
@@ -79,7 +78,6 @@ final readonly class PendingRegistrationDto
             privacyNoticeUrl: (string) $row['privacy_notice_url'],
             privacyNoticeShownAt: (string) $row['privacy_notice_shown_at'],
             submittedAt: (string) $row['submitted_at'],
-            expiresAt: (string) $row['expires_at'],
             duplicateEmail: (bool) ($duplicates['email'] ?? false),
             duplicateIban: (bool) ($duplicates['iban'] ?? false),
         );
@@ -105,13 +103,12 @@ final readonly class PendingRegistrationDto
             // before any of the data above was collected, and the document at
             // that URL can change afterwards.
             'privacy_notice_url' => $this->privacyNoticeUrl,
-            // All three are instants, labelled UTC on the way out (#365). Bare,
+            // Both are instants, labelled UTC on the way out (#365). Bare,
             // they are read by the browser as local time, which moves a
             // late-evening submission — and the day the review list sorts and
             // prints it under — by the reader's own offset.
             'privacy_notice_shown_at' => DateFormatter::toUtcIso($this->privacyNoticeShownAt),
             'submitted_at' => DateFormatter::toUtcIso($this->submittedAt),
-            'expires_at' => DateFormatter::toUtcIso($this->expiresAt),
             'duplicate_email' => $this->duplicateEmail,
             'duplicate_iban' => $this->duplicateIban,
         ];

@@ -38,8 +38,8 @@ use App\Shared\Utils\Uuid;
  *
  * A refusal logs its reason code and the meter that tripped. It does not log
  * the name, the address or the IBAN of whoever sent it — the public endpoint's
- * log is the one place personal data would accumulate outside the store that
- * has a retention rule (decision 10).
+ * log is the one place personal data would accumulate outside the store an
+ * admin empties by approving or rejecting (decision 10).
  */
 class RegistrationsService
 {
@@ -177,8 +177,12 @@ class RegistrationsService
         $key = $this->encryptionKeys->requireOperationalActive();
         $bankName = $this->bankCodes->getBankNameForIban($iban);
 
+        // No expiry is computed. A pending registration stays until an admin
+        // approves or rejects it (ADR-0052 decision 10, amended): the applicant
+        // has done everything asked of them, and the paper they were told to
+        // hand in may take weeks to reach the club. Deleting it unseen would
+        // make them start again for a delay that was never theirs.
         $submittedAt = date('Y-m-d H:i:s');
-        $expiresAt = date('Y-m-d H:i:s', strtotime("+{$config->retentionDays} days"));
 
         // Minted here, not at approval: it is printed on the paper the member
         // signs, so it has to exist before the mandate does, and approval
@@ -187,7 +191,7 @@ class RegistrationsService
         // The same counter the admin panel draws from (#936), which is what
         // makes the two paths safe to interleave — an admin creating a member
         // while a registration lands cannot be handed the same number. A
-        // registration later rejected or purged takes its number with it; gaps
+        // registration later rejected takes its number with it; gaps
         // are harmless because nothing reads a reference as a position.
         $mandateReference = $this->mandateReferences->mint();
 
@@ -207,7 +211,6 @@ class RegistrationsService
             'privacy_notice_url' => $documentUrl,
             'privacy_notice_shown_at' => $submittedAt,
             'submitted_at' => $submittedAt,
-            'expires_at' => $expiresAt,
         ]);
 
         // The last use of the plaintext, and the only chance there will ever be
@@ -295,7 +298,6 @@ class RegistrationsService
                 message: $config->disabledReason,
                 documentUrl: $documentUrl === '' ? null : $documentUrl,
                 languages: $languages,
-                retentionDays: $config->retentionDays,
                 branding: $branding,
             );
         }
@@ -314,7 +316,6 @@ class RegistrationsService
                 message: null,
                 documentUrl: null,
                 languages: $languages,
-                retentionDays: $config->retentionDays,
                 branding: $branding,
             );
         }
@@ -325,19 +326,8 @@ class RegistrationsService
             message: null,
             documentUrl: $documentUrl,
             languages: $languages,
-            retentionDays: $config->retentionDays,
             branding: $branding,
         );
-    }
-
-    /**
-     * Delete everything past its expiry, for the cron tick.
-     *
-     * Returns how many went. The caller logs the number and never the people.
-     */
-    public function purgeExpired(): int
-    {
-        return $this->registrations->purgeExpired(date('Y-m-d H:i:s'));
     }
 
     /**

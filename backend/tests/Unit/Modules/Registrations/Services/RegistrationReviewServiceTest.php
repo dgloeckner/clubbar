@@ -64,7 +64,7 @@ final class RegistrationReviewServiceTest extends TestCase
                 iban_fingerprint CHAR(64) NOT NULL, encryption_key_id CHAR(36) NOT NULL,
                 bank_name VARCHAR(255) NULL, privacy_notice_url VARCHAR(500) NOT NULL,
                 privacy_notice_shown_at DATETIME NOT NULL,
-                submitted_at DATETIME NOT NULL, expires_at DATETIME NOT NULL
+                submitted_at DATETIME NOT NULL
             )'
         );
 
@@ -131,7 +131,6 @@ final class RegistrationReviewServiceTest extends TestCase
             'privacy_notice_url' => 'https://club.example/Anmeldung.pdf',
             'privacy_notice_shown_at' => '2026-08-31 10:00:00',
             'submitted_at' => '2026-08-31 10:00:00',
-            'expires_at' => '2026-09-30 10:00:00',
         ]);
     }
 

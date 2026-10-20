@@ -16,7 +16,6 @@ use App\Modules\Notifications\Services\CreditLimitDigestNotifier;
 use App\Modules\Notifications\Services\PeriodicEnqueueService;
 use App\Modules\Notifications\Services\PreDrainTasks;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
-use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Terminals\DTOs\AnomalyScanResultDto;
 use App\Modules\Terminals\Services\TerminalAnomalyDetector;
 use App\Shared\Logging\Logger;
@@ -36,7 +35,6 @@ class PreDrainTasksTest extends TestCase
 {
     private LoginAttemptsRepository&MockObject $loginAttempts;
     private LoginAttemptsRepository&MockObject $terminalAuthAttempts;
-    private RegistrationsService&MockObject $registrations;
     private RegistrationAttemptsRepository&MockObject $registrationAttempts;
     private TerminalAnomalyDetector&MockObject $anomalyDetector;
     private PeriodicEnqueueService&MockObject $periodicEnqueue;
@@ -49,7 +47,6 @@ class PreDrainTasksTest extends TestCase
     {
         $this->loginAttempts = $this->createMock(LoginAttemptsRepository::class);
         $this->terminalAuthAttempts = $this->createMock(LoginAttemptsRepository::class);
-        $this->registrations = $this->createMock(RegistrationsService::class);
         $this->registrationAttempts = $this->createMock(RegistrationAttemptsRepository::class);
         $this->anomalyDetector = $this->createMock(TerminalAnomalyDetector::class);
         $this->periodicEnqueue = $this->createMock(PeriodicEnqueueService::class);
@@ -70,7 +67,6 @@ class PreDrainTasksTest extends TestCase
         return new PreDrainTasks(
             $this->loginAttempts,
             $this->terminalAuthAttempts,
-            $this->registrations,
             $this->registrationAttempts,
             $this->anomalyDetector,
             $this->periodicEnqueue,
@@ -93,7 +89,7 @@ class PreDrainTasksTest extends TestCase
         $this->assertSame(
             [
                 'auth attempt pruning',
-                'registration purge',
+                'registration attempt pruning',
                 'terminal anomaly scan',
                 'statement enqueue',
                 'credit limit digest scan',
@@ -150,12 +146,12 @@ class PreDrainTasksTest extends TestCase
     {
         $this->credentialExpiry = $this->createMock(CredentialExpiryNotifier::class);
         $this->credentialExpiry->method('run')->willReturn(new CredentialExpiryScanResultDto(queued: 1));
-        $this->registrations->method('purgeExpired')->willReturn(2);
+        $this->registrationAttempts->method('pruneOlderThan')->willReturn(2);
 
         $steps = $this->tasks()->run($this->now());
 
         $this->assertSame([], $steps[0]->lines, 'nothing pruned, nothing to print');
-        $this->assertSame(['Purged 2 expired registration(s).'], $steps[1]->lines);
+        $this->assertSame(['Pruned 2 registration attempt(s).'], $steps[1]->lines);
         $this->assertNull($steps[2]->alert, 'no anomaly opened');
         $this->assertStringStartsWith('Credential expiry warnings queued: ', (string) $steps[5]->alert);
     }

@@ -7,7 +7,6 @@ namespace App\Modules\Notifications\Services;
 use App\Modules\Auth\Repositories\LoginAttemptsRepository;
 use App\Modules\Notifications\DTOs\PreDrainStepDto;
 use App\Modules\Registrations\Repositories\RegistrationAttemptsRepository;
-use App\Modules\Registrations\Services\RegistrationsService;
 use App\Modules\Terminals\Services\TerminalAnomalyDetector;
 use App\Shared\Logging\Logger;
 use DateTimeImmutable;
@@ -21,8 +20,8 @@ use DateTimeImmutable;
  * did, because both call {@see DrainService}. Everything *before* the drain
  * lived in `cron.php` alone, and the URL trigger ran only the anomaly scan:
  * an installation scheduled by URL never queued a Deckelauszug, a credit limit
- * digest, a credential or backup warning, and never purged an expired
- * registration. Nothing said so — the drain ran, the heartbeat stayed green,
+ * digest, a credential or backup warning, and never pruned the
+ * registration meter. Nothing said so — the drain ran, the heartbeat stayed green,
  * and there was simply no mail to send. This class is the one list both
  * triggers run, so a step added later cannot reach only one of them.
  *
@@ -44,7 +43,6 @@ class PreDrainTasks
     public function __construct(
         private LoginAttemptsRepository $loginAttempts,
         private LoginAttemptsRepository $terminalAuthAttempts,
-        private RegistrationsService $registrations,
         private RegistrationAttemptsRepository $registrationAttempts,
         private TerminalAnomalyDetector $anomalyDetector,
         private PeriodicEnqueueService $periodicEnqueue,
@@ -80,22 +78,16 @@ class PreDrainTasks
                 );
             }),
 
-            // ADR-0052 decision 10. The line says how many went, never who they
-            // were: a purge log naming the people it deleted would be a copy of
-            // the data outliving the deletion.
-            $this->step('registration purge', function () use ($attemptCutoff): PreDrainStepDto {
-                $purged = $this->registrations->purgeExpired();
+            // The submission meter only. A pending registration itself is never
+            // deleted by a tick: it waits for an admin to approve or reject it
+            // (ADR-0052 decision 10, amended).
+            $this->step('registration attempt pruning', function () use ($attemptCutoff): PreDrainStepDto {
                 $pruned = $this->registrationAttempts->pruneOlderThan($attemptCutoff);
 
-                $lines = [];
-                if ($purged > 0) {
-                    $lines[] = "Purged {$purged} expired registration(s).";
-                }
-                if ($pruned > 0) {
-                    $lines[] = "Pruned {$pruned} registration attempt(s).";
-                }
-
-                return new PreDrainStepDto('registration purge', $lines);
+                return new PreDrainStepDto(
+                    'registration attempt pruning',
+                    $pruned > 0 ? ["Pruned {$pruned} registration attempt(s)."] : [],
+                );
             }),
 
             // ADR-0041.
