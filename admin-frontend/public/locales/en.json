@@ -801,6 +801,8 @@
     "terminalVersionBlockedHint": "Updating to {{version}} failed here, so this terminal will never retry it and cannot update again until a newer release ships. See the terminal runbook to clear it.",
     "terminalVersionAhead": "Ahead",
     "terminalVersionAheadHint": "This terminal is newer than the backend ({{version}}). It was installed by hand, or the backend was rolled back. It keeps working; nothing is blocked.",
+    "terminalVersionUncomparable": "Not comparable",
+    "terminalVersionUncomparableHint": "The backend reports “{{version}}”, which is not a release tag (vMAJOR.MINOR.PATCH), so this terminal cannot be compared with it — and no terminal will update from this backend until it runs a release tag.",
     "terminalAnomaly": "Check",
     "terminalAnomalyHint": "This terminal’s credential may be in use on more than one device. Nothing has been blocked — please review.",
     "terminalAnomalyPanelTitle": "Terminal credential anomalies — {{name}}",

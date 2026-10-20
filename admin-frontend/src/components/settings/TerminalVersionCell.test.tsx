@@ -23,8 +23,7 @@ import { TerminalVersionCell } from './TerminalVersionCell'
 // the wording, which is not a regression.
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, params?: Record<string, unknown>) =>
-      params?.version ? `${key}:${String(params.version)}` : key,
+    t: (key: string, params?: Record<string, unknown>) => (params?.version ? `${key}:${String(params.version)}` : key),
     i18n: { language: 'de' },
   }),
 }))
@@ -76,9 +75,7 @@ describe('TerminalVersionCell', () => {
     expect(cell.getAttribute('data-version-state')).toBe('blocked')
     // The tag itself, because "blocked" alone is not something an admin can act
     // on or repeat over the phone.
-    expect(screen.getByTestId(`${testId}-badge`).textContent).toContain(
-      'settings.terminalVersionBlocked:v1.0.7',
-    )
+    expect(screen.getByTestId(`${testId}-badge`).textContent).toContain('settings.terminalVersionBlocked:v1.0.7')
   })
 
   it('marks a terminal newer than its backend', () => {
@@ -99,6 +96,22 @@ describe('TerminalVersionCell', () => {
 
     expect(cell.getAttribute('data-version-state')).toBe('unknown')
     expect(cell.textContent).toContain('settings.terminalVersionUnknown')
+  })
+
+  it('shows what the terminal reported when the backend has no release tag to compare it with', () => {
+    // The 1.1.7 release was tagged without its `v`, so the backend reported
+    // `1.1.7`, every row read "not reported", and the terminal — which had
+    // reported `v1.1.6` all along — was the side the page pointed at.
+    const cell = renderCell({
+      version_state: 'unknown',
+      reported_version: 'v1.1.6',
+      backend_version: '1.1.7',
+    })
+
+    expect(cell.getAttribute('data-version-state')).toBe('unknown')
+    expect(cell.textContent).toContain('v1.1.6')
+    expect(cell.textContent).not.toContain('settings.terminalVersionUnknown')
+    expect(screen.getByTestId(`${testId}-badge`).textContent).toContain('settings.terminalVersionUncomparable')
   })
 
   it('treats a state it does not recognise as unknown', () => {
