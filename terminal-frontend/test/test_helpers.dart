@@ -37,7 +37,7 @@ MockConfigService createMockConfigService() {
   when(() => mock.terminalId).thenReturn('test-terminal');
   when(() => mock.dispenserEnabled).thenReturn(false);
   when(() => mock.dispenserBaseUrl).thenReturn(null);
-  when(() => mock.dispenserApiKey).thenReturn(null);
+  when(() => mock.dispenserSigningKey).thenReturn(null);
   when(() => mock.soundsEnabled).thenReturn(false);
   when(() => mock.fullscreen).thenReturn(false);
   // Screen blanking off by default (#763): a widget test must not have a

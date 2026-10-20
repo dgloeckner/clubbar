@@ -11,6 +11,7 @@ class DispenserHealthService extends ChangeNotifier {
   final Duration interval;
   Timer? _healthTimer;
   DispenserHealth? _lastHealth;
+  DateTime? _lastCheckedAt;
 
   DispenserHealthService({
     required this.client,
@@ -19,6 +20,15 @@ class DispenserHealthService extends ChangeNotifier {
 
   /// Get the most recent health check result
   DispenserHealth? get currentHealth => _lastHealth;
+
+  /// When [currentHealth] was observed, in UTC — `null` before the first poll.
+  ///
+  /// The terminal's own clock, not the device's: an ESP8266 has no wall clock
+  /// and reports an uptime instead. It travels as `observed_at` in the status
+  /// report (#953), *beside* the backend's receipt stamp and never instead of
+  /// it, because a kiosk whose clock is wrong must not be able to date a fault
+  /// (ADR-0057).
+  DateTime? get lastCheckedAt => _lastCheckedAt;
 
   /// Start periodic health monitoring
   void startMonitoring() {
@@ -48,10 +58,30 @@ class DispenserHealthService extends ChangeNotifier {
     try {
       final health = await client.getHealth();
       _lastHealth = health;
+      _lastCheckedAt = DateTime.now().toUtc();
       notifyListeners(); // Notify UI of health status change
+    } on DispenserSignatureException {
+      // The device answered and refused our signature: the key on this
+      // terminal is not the key it was flashed with (#951). Reporting that as
+      // *offline* would send somebody to look at the WLAN for a fault that is
+      // in `config.json`.
+      _lastHealth = DispenserHealth.signingKeyRejected();
+      _lastCheckedAt = DateTime.now().toUtc();
+      notifyListeners();
+    } on DispenserProtocolException catch (e) {
+      // The device answered — in a protocol this terminal does not speak, or
+      // in a shape it could not read. That is *not* offline, and reporting it
+      // as offline sent whoever was called out looking for a network fault
+      // that did not exist (#948). The dispenser is unavailable either way;
+      // only the reason on the screen differs, and the reason is the point.
+      _lastHealth =
+          DispenserHealth.protocolMismatch(reportedProtocol: e.reportedProtocol);
+      _lastCheckedAt = DateTime.now().toUtc();
+      notifyListeners();
     } catch (e) {
       // Dispenser offline or unreachable
       _lastHealth = DispenserHealth.offline();
+      _lastCheckedAt = DateTime.now().toUtc();
       notifyListeners(); // Notify UI that dispenser went offline
     }
   }

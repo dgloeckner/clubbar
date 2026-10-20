@@ -262,6 +262,76 @@ final class MailStrings
             'terminal_anomaly.no_action_taken' => 'Es wurde nichts gesperrt und nichts geändert — der Betrieb an der '
                                           . 'Theke läuft unverändert weiter.',
 
+            // ── Ausgabegerät braucht Aufmerksamkeit (#956, ADR-0057/0058) ───
+            // Die Zustandsnamen und die Abhilfe-Sätze sind **wörtlich** die des
+            // Panels (`settings.terminalDispenserUnavailable*`,
+            // `settings.terminalDispenserRemedy*`) und der Kiosk-App. Drei
+            // Oberflächen, eine Maschine, dieselben Worte: wer die hier neu
+            // übersetzt, bringt einen Verein dazu, sich auszusuchen, welchem
+            // Bildschirm er glaubt.
+            'dispenser.subject'            => 'Ausgabegerät „{terminal}“: {condition}',
+            'dispenser.subject_cleared'    => 'Ausgabegerät „{terminal}“: hat sich erledigt',
+            'dispenser.preheader'          => '{condition} · seit {since}',
+            'dispenser.preheader_cleared'  => 'Die Meldung war berechtigt, der Zustand ist inzwischen vorbei.',
+            'dispenser.eyebrow'            => 'Ausgabegerät',
+            'dispenser.title'              => 'Ein Ausgabegerät braucht Aufmerksamkeit',
+            'dispenser.title_cleared'      => 'Ausgabegerät: hat sich erledigt',
+            'dispenser.cleared_lede'       => 'Diese Nachricht wurde verschickt, weil das Ausgabegerät am Terminal '
+                                            . '{terminal} Aufmerksamkeit brauchte. Inzwischen ist das nicht mehr so — '
+                                            . 'es ist nichts zu tun.',
+            // Die fünf Zustandsnamen, wortgleich mit dem Panel.
+            'dispenser.condition.offline'           => 'Nicht erreichbar',
+            'dispenser.condition.protocol_mismatch' => 'Protokoll passt nicht',
+            'dispenser.condition.jam'               => 'Stau oder leer',
+            'dispenser.condition.hopper_error'      => 'Hopper-Fehler {code}',
+            'dispenser.condition.unspecified_fault' => 'Störung',
+            'dispenser.condition.low'               => 'Token gehen zur Neige',
+            'dispenser.lede.fault'      => 'am Terminal <strong>{terminal}</strong> meldet das Ausgabegerät '
+                                         . '<strong>{condition}</strong>. Es gibt gerade keine Token aus.',
+            'dispenser.lede_text.fault' => 'am Terminal {terminal} meldet das Ausgabegerät {condition}. '
+                                         . 'Es gibt gerade keine Token aus.',
+            'dispenser.lede.offline'      => 'das Terminal <strong>{terminal}</strong> erreicht sein Ausgabegerät '
+                                           . 'nicht. Es gibt gerade keine Token aus.',
+            'dispenser.lede_text.offline' => 'das Terminal {terminal} erreicht sein Ausgabegerät nicht. '
+                                           . 'Es gibt gerade keine Token aus.',
+            // Ausdrücklich keine Störung am Gerät: Das ist der Fehlbefund, den
+            // dieses Epic schon einmal gefunden hat (Fund 13) — als „offline"
+            // gemeldet, worauf jemand nach einem Stromkabel suchte.
+            'dispenser.lede.mismatch'      => 'am Terminal <strong>{terminal}</strong> antwortet das Ausgabegerät in '
+                                            . 'einer Protokollfassung, die die Terminal-Software nicht spricht. '
+                                            . 'Am Gerät selbst ist nichts kaputt — es ist eine Sache der Software-Stände.',
+            'dispenser.lede_text.mismatch' => 'am Terminal {terminal} antwortet das Ausgabegerät in einer '
+                                            . 'Protokollfassung, die die Terminal-Software nicht spricht. Am Gerät '
+                                            . 'selbst ist nichts kaputt — es ist eine Sache der Software-Stände.',
+            'dispenser.lede.low'      => 'der Hopper am Terminal <strong>{terminal}</strong> geht zur Neige.',
+            'dispenser.lede_text.low' => 'der Hopper am Terminal {terminal} geht zur Neige.',
+            'dispenser.since'         => 'In diesem Zustand seit {since}.',
+            'dispenser.remedy_heading' => 'Was zu tun ist',
+            // Wortgleich mit dem Panel.
+            'dispenser.remedy.fault'    => 'Stau beseitigen, bei Bedarf nachfüllen, dann das Gerät 5 Sekunden vom '
+                                         . 'Strom trennen.',
+            'dispenser.remedy.offline'  => 'Strom und WLAN des Ausgabegeräts prüfen.',
+            'dispenser.remedy.protocol' => 'Firmware des Ausgabegeräts und Terminal-Software passen nicht zusammen – '
+                                         . 'bitte einem Admin melden.',
+            'dispenser.remedy.low'      => 'Hopper nachfüllen und die Nachfüllung im Admin-Bereich eintragen — die '
+                                         . 'eingezählte Zahl ersetzt die bisherige Schätzung.',
+            'dispenser.fill'            => 'Noch etwa {value} Token — bald nachfüllen (Warnung ab {threshold}).',
+            'dispenser.fill_exhausted'  => 'Schätzung aufgebraucht — nachfüllen.',
+            'dispenser.fill_note'       => 'Geschätzt: eingezählte Token minus seitdem verkaufte. Das Gerät kann den '
+                                         . 'Füllstand nicht melden – es hat keinen Leer-Sensor.',
+            // ADR-0058: ein Satz, kein zweiter Befund. Die Maschine kann Stau
+            // und leeren Hopper nicht unterscheiden.
+            'dispenser.probably_empty'  => 'Die Schätzung des Füllstands ist aufgebraucht — wahrscheinlich ist der '
+                                         . 'Hopper leer und nicht verklemmt.',
+            'dispenser.where'           => 'Das Ausgabegerät steht im Admin-Bereich unter '
+                                         . 'Einstellungen → Terminals.',
+            // Owner-Entscheidung 3 aus #944: Es gibt keinen Fernzugriff auf das
+            // Gerät. Diese Mail quittiert deshalb nichts und kann nichts
+            // quittieren — ein Knopf hier würde einen Bildschirm ändern und
+            // keinen Hopper.
+            'dispenser.no_remote'       => 'Diese E-Mail quittiert nichts und setzt nichts zurück: Das Ausgabegerät '
+                                         . 'kennt keinen Fernzugriff. Ein Stau wird nur am Gerät selbst behoben.',
+
             // ── Ablaufende Zugangsdaten (#438, ADR-0036) ────────────────────
             // Der Ton steigt mit der Stufe, der Inhalt nicht: dieselben vier
             // Angaben bei 90, 30 und 7 Tagen. Was sich ändert, ist die
@@ -843,6 +913,55 @@ final class MailStrings
                                           . 'rotate or revoke the credential in the admin panel.',
             'terminal_anomaly.no_action_taken' => 'Nothing has been blocked and nothing has been changed — the bar '
                                           . 'carries on exactly as before.',
+
+            'dispenser.subject'            => 'Dispenser "{terminal}": {condition}',
+            'dispenser.subject_cleared'    => 'Dispenser "{terminal}": the problem has cleared',
+            'dispenser.preheader'          => '{condition} · since {since}',
+            'dispenser.preheader_cleared'  => 'The warning was justified; the condition has passed.',
+            'dispenser.eyebrow'            => 'Dispenser',
+            'dispenser.title'              => 'A dispenser needs attention',
+            'dispenser.title_cleared'      => 'Dispenser: the problem has cleared',
+            'dispenser.cleared_lede'       => 'This message was sent because the dispenser at terminal {terminal} '
+                                            . 'needed attention. It no longer does — there is nothing to do.',
+            'dispenser.condition.offline'           => 'Unreachable',
+            'dispenser.condition.protocol_mismatch' => 'Protocol mismatch',
+            'dispenser.condition.jam'               => 'Jammed or empty',
+            'dispenser.condition.hopper_error'      => 'Hopper error {code}',
+            'dispenser.condition.unspecified_fault' => 'Fault',
+            'dispenser.condition.low'               => 'Running out of tokens',
+            'dispenser.lede.fault'      => 'the dispenser at terminal <strong>{terminal}</strong> reports '
+                                         . '<strong>{condition}</strong>. It is not serving tokens.',
+            'dispenser.lede_text.fault' => 'the dispenser at terminal {terminal} reports {condition}. '
+                                         . 'It is not serving tokens.',
+            'dispenser.lede.offline'      => 'terminal <strong>{terminal}</strong> cannot reach its dispenser. '
+                                           . 'It is not serving tokens.',
+            'dispenser.lede_text.offline' => 'terminal {terminal} cannot reach its dispenser. '
+                                           . 'It is not serving tokens.',
+            'dispenser.lede.mismatch'      => 'the dispenser at terminal <strong>{terminal}</strong> answers in a '
+                                            . 'protocol version the terminal software does not speak. Nothing is '
+                                            . 'broken at the machine — this is about which software versions are deployed.',
+            'dispenser.lede_text.mismatch' => 'the dispenser at terminal {terminal} answers in a protocol version the '
+                                            . 'terminal software does not speak. Nothing is broken at the machine — '
+                                            . 'this is about which software versions are deployed.',
+            'dispenser.lede.low'      => 'the hopper at terminal <strong>{terminal}</strong> is running out.',
+            'dispenser.lede_text.low' => 'the hopper at terminal {terminal} is running out.',
+            'dispenser.since'         => 'In this state since {since}.',
+            'dispenser.remedy_heading' => 'What to do',
+            'dispenser.remedy.fault'    => 'Clear the jam, refill if empty, then unplug the dispenser for 5 seconds.',
+            'dispenser.remedy.offline'  => "Check the dispenser's power and WiFi.",
+            'dispenser.remedy.protocol' => 'The dispenser firmware and the terminal software do not match — please '
+                                         . 'report this to an admin.',
+            'dispenser.remedy.low'      => 'Refill the hopper and record the refill in the admin panel — the number '
+                                         . 'you count in replaces the estimate.',
+            'dispenser.fill'            => 'About {value} tokens left — refill soon (warning at {threshold}).',
+            'dispenser.fill_exhausted'  => 'Estimate used up — refill.',
+            'dispenser.fill_note'       => 'An estimate: tokens counted in, minus tokens sold since. The device '
+                                         . 'cannot report its fill level — it has no empty sensor.',
+            'dispenser.probably_empty'  => 'The fill estimate is used up — the hopper is probably empty rather than '
+                                         . 'jammed.',
+            'dispenser.where'           => 'The dispenser is in the admin panel under Settings → Terminals.',
+            'dispenser.no_remote'       => 'This email acknowledges nothing and resets nothing: the dispenser has no '
+                                         . 'remote control. A jam is cleared at the machine itself.',
 
             'credential_expiry.subject.90' => '{name}: expires in {days} days',
             'credential_expiry.subject.30' => '{name}: expires in {days} days — worth scheduling',

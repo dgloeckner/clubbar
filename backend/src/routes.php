@@ -30,6 +30,7 @@ use App\Modules\Registrations\Controllers\SelfRegistrationConfigController;
 use App\Modules\Registrations\Controllers\PublicController as RegistrationsPublicController;
 use App\Modules\AuditLog\Controllers\AdminController as AuditLogAdminController;
 use App\Modules\Terminals\Controllers\AdminController as TerminalsAdminController;
+use App\Modules\Terminals\Controllers\DispenserStatusController;
 use App\Modules\Terminals\Controllers\PairingController;
 use App\Modules\BankCodes\Controllers\AdminController as BankCodesAdminController;
 use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminController;
@@ -172,6 +173,14 @@ return function (App $app): void {
         // it is what a terminal caches *after* it can authenticate, unlike
         // /health, which carries only what it needs before that.
         $group->get('/config', [CreditLimitSyncController::class, 'config']);
+        // What the terminal knows about its own peripherals (ADR-0057, #952).
+        // PUT rather than POST: the body is the terminal's whole current
+        // status, last-write-wins, and re-sending it changes nothing — there is
+        // no history table and no row created per report. Inside this group so
+        // it inherits TerminalTokenAuth and the terminal rate limit with no new
+        // wiring, and so the terminal identity comes from the bearer token
+        // rather than from the body.
+        $group->put('/terminal-status', [DispenserStatusController::class, 'report']);
     })->add(TerminalTokenAuth::class)->add($terminalRateLimit);
 
     $app->get('/api/terminal/transactions/{memberId}', [TransactionsSyncController::class, 'transactionHistory'])
@@ -409,6 +418,10 @@ return function (App $app): void {
         $group->post('/terminals/{id}/rotate-token', [TerminalsAdminController::class, 'rotateToken'])->add($stepUpRateLimit);
         $group->post('/terminals/{id}/revoke', [TerminalsAdminController::class, 'revoke']);
         // ADR-0041: clears the alert, never the credential.
+        // #955: the hopper's fill estimate has one write — an exact count
+        // after a refill. There is no clear, reset or acknowledge route here or
+        // anywhere else: the device has no reset (owner decision 3).
+        $group->post('/terminals/{id}/dispenser-refill', [TerminalsAdminController::class, 'recordDispenserRefill']);
         $group->get('/terminals/{id}/anomalies', [TerminalsAdminController::class, 'listAnomalies']);
         $group->post('/terminals/{id}/anomalies/{anomalyId}/acknowledge', [TerminalsAdminController::class, 'acknowledgeAnomaly']);
     })->add(CsrfMiddleware::class)->add(AdminSessionAuth::class);

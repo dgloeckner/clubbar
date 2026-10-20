@@ -21,12 +21,17 @@ import 'package:clubbar_terminal/app/terminal_theme.dart';
 import 'package:clubbar_terminal/l10n/app_localizations.dart';
 import 'package:clubbar_terminal/providers/sync_provider.dart';
 import 'package:clubbar_terminal/services/config_service.dart';
+import 'package:clubbar_terminal/services/dispenser_client.dart';
+import 'package:clubbar_terminal/services/dispenser_health_service.dart';
 import 'package:clubbar_terminal/services/system_health_probe.dart';
 import 'package:clubbar_terminal/widgets/status_info_modal.dart';
 
 class _MockSyncProvider extends Mock implements SyncProvider {}
 
 class _MockConfigService extends Mock implements ConfigService {}
+
+class _MockDispenserHealthService extends Mock
+    implements DispenserHealthService {}
 
 class _FixedProbe implements SystemHealthProbe {
   final SystemHealth health;
@@ -135,6 +140,81 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// The same modal with a dispenser attached, for the states a member and a
+  /// volunteer have to tell apart (#948). The reason and its one instruction
+  /// are on the overview tab, which is where the modal opens.
+  Future<void> shootDispenser(
+    WidgetTester tester,
+    String name,
+    DispenserHealth health,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(980, 620));
+    tester.view.devicePixelRatio = 2.0;
+
+    final sync = _MockSyncProvider();
+    when(() => sync.addListener(any())).thenReturn(null);
+    when(() => sync.removeListener(any())).thenReturn(null);
+    when(() => sync.connectionStatus).thenReturn(ConnectionStatus.online);
+    when(() => sync.lastSyncTime).thenReturn(DateTime(2026, 8, 30, 21, 14, 6));
+    when(() => sync.lastSuccessfulTransactionSync)
+        .thenReturn(DateTime(2026, 8, 30, 21, 13, 58));
+    when(() => sync.retryCount).thenReturn(0);
+    when(() => sync.lastError).thenReturn(null);
+    when(() => sync.degradedSince).thenReturn(null);
+
+    final config = _MockConfigService();
+    when(() => config.apiUrl).thenReturn('https://bar.example.org/api');
+    when(() => config.dispenserEnabled).thenReturn(true);
+    when(() => config.dispenserBaseUrl).thenReturn('http://192.168.188.243');
+
+    final healthService = _MockDispenserHealthService();
+    when(() => healthService.addListener(any())).thenReturn(null);
+    when(() => healthService.removeListener(any())).thenReturn(null);
+    when(() => healthService.checkNow()).thenAnswer((_) async {});
+    when(() => healthService.currentHealth).thenReturn(health);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('de'),
+        theme: buildTerminalTheme().copyWith(
+          textTheme: buildTerminalTheme().textTheme.apply(fontFamily: 'Roboto'),
+        ),
+        localizationsDelegates: const [
+          AppLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('de'), Locale('en')],
+        home: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<SyncProvider>.value(value: sync),
+            Provider<ConfigService>.value(value: config),
+            ChangeNotifierProvider<DispenserHealthService>.value(
+                value: healthService),
+          ],
+          child: Builder(
+            builder: (context) => Scaffold(
+              backgroundColor: const Color(0xff0a1628),
+              body: ElevatedButton(
+                onPressed: () => showStatusInfoModal(context),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+
+    await expectLater(find.byType(Dialog), matchesGoldenFile('out/$name.png'));
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('normal', (t) => shoot(t, '01-normal',
       const SystemHealth(temperatureCelsius: 58.9, undervoltage: false)));
 
@@ -149,4 +229,24 @@ void main() {
 
   testWidgets('both', (t) => shoot(t, '05-throttling-and-undervoltage',
       const SystemHealth(temperatureCelsius: 82.7, undervoltage: true)));
+
+  testWidgets('dispenser jammed or empty', (t) => shootDispenser(
+        t,
+        '06-dispenser-jam',
+        DispenserHealth(
+          protocol: dispenserProtocolVersion,
+          state: DispenserDeviceState.fault,
+          fault: DispenserFault.jam,
+          totalDispenses: 1247,
+          successful: 1189,
+          jams: 4,
+          successRate: 95.3,
+        ),
+      ));
+
+  testWidgets('dispenser protocol mismatch', (t) => shootDispenser(
+        t,
+        '07-dispenser-protocol-mismatch',
+        DispenserHealth.protocolMismatch(reportedProtocol: 1),
+      ));
 }

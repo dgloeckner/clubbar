@@ -305,6 +305,10 @@ final class RouteRoleMap
         'DELETE /api/admin/terminals/{id}' => self::ADMIN_ONLY,
         'POST /api/admin/terminals/{id}/rotate-token' => self::ADMIN_ONLY,
         'POST /api/admin/terminals/{id}/revoke' => self::ADMIN_ONLY,
+        // The hopper estimate and its refill (#955) sit with the rest of the
+        // dispenser: owner decision, 2026-09-20. The Getränkewart looks after
+        // the bar's stock and is still outside this, on every surface.
+        'POST /api/admin/terminals/{id}/dispenser-refill' => self::ADMIN_ONLY,
         'GET /api/admin/terminals/{id}/anomalies' => self::ADMIN_ONLY,
         'POST /api/admin/terminals/{id}/anomalies/{anomalyId}/acknowledge' => self::ADMIN_ONLY,
     ];

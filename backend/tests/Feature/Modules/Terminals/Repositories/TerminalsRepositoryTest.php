@@ -270,4 +270,92 @@ class TerminalsRepositoryTest extends DatabaseTestCase
         // walks back in with the token an admin had already prepared (#395).
         $this->assertNull($this->terminalsRepository->findByPendingTokenHash($pendingHash));
     }
+
+    /**
+     * The dispenser columns (ADR-0057, #952), against the real database
+     * because the question is what MariaDB does with a JSON column: it is
+     * LONGTEXT underneath, so what comes back has to be the bytes that went in,
+     * and the row must read as *never reported* until one arrives.
+     */
+    public function test_a_terminal_reads_as_never_having_reported_a_dispenser(): void
+    {
+        $terminal = $this->createTerminal($this->hash('dispenser-none'));
+
+        $this->assertNull($this->terminalsRepository->findDispenserStatus($terminal['id']));
+        $this->assertNull($this->terminalsRepository->findById($terminal['id'])['dispenser_status']);
+    }
+
+    public function test_a_dispenser_document_survives_the_round_trip(): void
+    {
+        $terminal = $this->createTerminal($this->hash('dispenser-round'));
+        $document = [
+            'configured' => true,
+            'contact' => 'reported',
+            'state' => 'fault',
+            'fault' => 'hopper_error',
+            'fault_code' => 4,
+            'lifetime' => ['jams' => 3],
+            'available' => false,
+            'unavailable_reason' => 'hopper_error',
+            'state_since' => '2026-09-20T17:00:00.000Z',
+        ];
+
+        $this->assertTrue($this->terminalsRepository->updateDispenserStatus(
+            $terminal['id'],
+            (string) json_encode($document),
+            '2026-09-20 18:00:00',
+        ));
+
+        $this->assertSame($document, $this->terminalsRepository->findDispenserStatus($terminal['id']));
+        $this->assertSame(
+            '2026-09-20 18:00:00',
+            $this->terminalsRepository->findById($terminal['id'])['dispenser_status_at'],
+        );
+    }
+
+    /**
+     * Last write wins — no history, by decision. The whole document is
+     * replaced, so a counter that vanished from the report vanishes from the
+     * column rather than lingering as a value nothing is still claiming.
+     */
+    public function test_a_second_report_replaces_the_first(): void
+    {
+        $terminal = $this->createTerminal($this->hash('dispenser-replace'));
+
+        $this->terminalsRepository->updateDispenserStatus(
+            $terminal['id'],
+            (string) json_encode(['configured' => true, 'state' => 'fault', 'fault' => 'jam']),
+            '2026-09-20 18:00:00',
+        );
+        $this->terminalsRepository->updateDispenserStatus(
+            $terminal['id'],
+            (string) json_encode(['configured' => true, 'state' => 'idle', 'fault' => 'none']),
+            '2026-09-20 18:01:00',
+        );
+
+        $stored = $this->terminalsRepository->findDispenserStatus($terminal['id']);
+        $this->assertSame('idle', $stored['state']);
+        $this->assertSame('none', $stored['fault']);
+    }
+
+    /**
+     * `dispenser_status_at` is the stamp that means *this report*, and nothing
+     * else on the row is. `updated_at` carries `ON UPDATE CURRENT_TIMESTAMP`,
+     * so MariaDB moves it for every write regardless — an admin reading it as
+     * "when somebody last edited this terminal" would be reading telemetry.
+     */
+    public function test_the_report_stamp_is_the_one_that_means_this_report(): void
+    {
+        $terminal = $this->createTerminal($this->hash('dispenser-stamp'));
+
+        $this->terminalsRepository->updateDispenserStatus(
+            $terminal['id'],
+            (string) json_encode(['configured' => false]),
+            '2026-09-20 18:00:00',
+        );
+
+        $row = $this->terminalsRepository->findById($terminal['id']);
+        $this->assertSame('2026-09-20 18:00:00', $row['dispenser_status_at']);
+        $this->assertNotSame('2026-09-20 18:00:00', $row['updated_at']);
+    }
 }

@@ -367,19 +367,36 @@ void main() {
       when(() => mockHealth.currentHealth).thenReturn(null);
     });
 
-    test('dispenser product is available while the dispenser reports ok', () {
-      when(() => mockHealth.currentHealth).thenReturn(
+    /// A protocol-2 health report (#948): one state, one fault.
+    DispenserHealth reported({
+      DispenserDeviceState state = DispenserDeviceState.idle,
+      DispenserFault fault = DispenserFault.none,
+      int faultCode = 0,
+    }) =>
         DispenserHealth(
-          status: 'ok',
-          dispenser: 'idle',
+          protocol: dispenserProtocolVersion,
+          state: state,
+          fault: fault,
+          faultCode: faultCode,
           totalDispenses: 10,
           successful: 10,
           jams: 0,
           successRate: 1.0,
-        ),
-      );
+        );
 
-      expect(buildProvider().isProductAvailable(tokenProduct), isTrue);
+    test('idle and dispensing keep tokens sellable', () {
+      // A dispenser mid-dispense for somebody else is busy, not broken: it
+      // will be free again in seconds, and greying the tile out for those
+      // seconds teaches the member the machine is unreliable.
+      for (final state in [
+        DispenserDeviceState.idle,
+        DispenserDeviceState.dispensing,
+      ]) {
+        when(() => mockHealth.currentHealth).thenReturn(reported(state: state));
+
+        expect(buildProvider().isProductAvailable(tokenProduct), isTrue,
+            reason: '$state must not take the token off the grid');
+      }
     });
 
     test('dispenser product is unavailable while the dispenser is offline', () {
@@ -389,18 +406,25 @@ void main() {
       expect(buildProvider().isProductAvailable(tokenProduct), isFalse);
     });
 
-    test('dispenser product is unavailable while the dispenser reports error',
-        () {
-      when(() => mockHealth.currentHealth).thenReturn(
-        DispenserHealth(
-          status: 'error',
-          dispenser: 'error',
-          totalDispenses: 10,
-          successful: 8,
-          jams: 2,
-          successRate: 0.8,
-        ),
-      );
+    test('a fault makes tokens unavailable', () {
+      // Both faults the protocol knows, and the state that carries them.
+      for (final fault in [DispenserFault.jam, DispenserFault.hopperError]) {
+        when(() => mockHealth.currentHealth).thenReturn(reported(
+          state: DispenserDeviceState.fault,
+          fault: fault,
+          faultCode: fault == DispenserFault.hopperError ? 3 : 0,
+        ));
+
+        expect(buildProvider().isProductAvailable(tokenProduct), isFalse,
+            reason: 'a $fault must take the token off the grid');
+      }
+    });
+
+    test('a protocol mismatch makes tokens unavailable, not degraded', () {
+      // The device works perfectly and speaks a protocol this terminal does
+      // not. That is *unavailable* — never "works, mostly" (#948).
+      when(() => mockHealth.currentHealth)
+          .thenReturn(DispenserHealth.protocolMismatch(reportedProtocol: 1));
 
       expect(buildProvider().isProductAvailable(tokenProduct), isFalse);
     });

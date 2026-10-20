@@ -484,6 +484,40 @@ class NetworkService {
   }
 
   // ---------------------------------------------------------------------------
+  // Peripheral status (PUT /sync/terminal-status)
+  // ---------------------------------------------------------------------------
+
+  /// Report what this terminal knows about the hardware attached to it —
+  /// today, the token dispenser (ADR-0057, #953).
+  ///
+  /// **Which terminal this is about comes from the bearer token**, never from
+  /// the body: the report names no terminal, and one that did would be ignored
+  /// (ADR-0033 §6).
+  ///
+  /// The route answers `204` for every body it accepts *and* every body it
+  /// drops, so a non-204 here is a transport problem and nothing else — there
+  /// is no validation message to read. Callers treat this as fire-and-forget:
+  /// telemetry must never cost a sale, and the exception below exists so the
+  /// failure reaches the log, not so anybody retries it.
+  Future<void> reportTerminalStatus(TerminalStatusReport report) async {
+    try {
+      final response = await _api.syncTerminalStatusPut(body: report);
+      _logger.i('PUT /sync/terminal-status -> HTTP ${response.statusCode}');
+
+      if (!response.isSuccessful) {
+        throw NetworkException(
+          'Terminal status report failed: HTTP ${response.statusCode}',
+          statusCode: response.statusCode,
+          errorCode: backendErrorCode(response.error),
+        );
+      }
+    } catch (e) {
+      if (e is NetworkException) rethrow;
+      throw NetworkException('Terminal status report failed: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Member language update (PATCH /sync/members/{memberId}/language)
   // ---------------------------------------------------------------------------
 
