@@ -801,6 +801,8 @@
     "terminalVersionBlockedHint": "Das Update auf {{version}} ist hier fehlgeschlagen. Das Terminal versucht es nie wieder und kann sich erst mit einem neueren Release wieder aktualisieren. Das Terminal-Runbook beschreibt, wie man das aufhebt.",
     "terminalVersionAhead": "Neuer",
     "terminalVersionAheadHint": "Dieses Terminal ist neuer als das Backend ({{version}}). Es wurde von Hand installiert, oder das Backend wurde zurückgerollt. Es funktioniert weiter, nichts ist blockiert.",
+    "terminalVersionUncomparable": "Nicht vergleichbar",
+    "terminalVersionUncomparableHint": "Das Backend meldet „{{version}}“, das ist kein Release-Tag (vMAJOR.MINOR.PATCH). Dieses Terminal lässt sich damit nicht vergleichen, und kein Terminal aktualisiert sich, bis das Backend auf einem Release-Tag läuft.",
     "terminalAnomaly": "Auffällig",
     "terminalAnomalyHint": "Der Zugang dieses Terminals wird möglicherweise auf mehr als einem Gerät verwendet. Es wurde nichts gesperrt — bitte prüfen.",
     "terminalAnomalyPanelTitle": "Auffälligkeiten beim Terminal-Zugang — {{name}}",

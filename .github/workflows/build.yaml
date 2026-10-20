@@ -103,6 +103,34 @@ jobs:
         with:
           fetch-depth: 0 # paths-filter diffs against main
 
+      # The tag becomes `backend/VERSION`, the terminal's APP_VERSION and both
+      # artifact names, and the backend and the Pi's updater act only on
+      # `vMAJOR.MINOR.PATCH`. Release 1.1.7 was tagged without its `v` and
+      # built green: its backend reported a version nothing would compare
+      # against, every terminal logged "not a release tag; no update, ever"
+      # and stayed on 1.1.6, and the Terminals page read "not reported".
+      #
+      # Refused here because every job downstream needs this one, so a bad tag
+      # builds nothing and `release-gate` publishes nothing. The rule is the
+      # updater's own function, not a third copy of the regex — it is the
+      # consumer that silently does nothing, and `updater-version.sh` already
+      # holds it to the same table as `ReleaseVersionTest`.
+      - name: Refuse a release tag the updater would not act on
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          eval "$(sed -n '/^is_release_tag()/,/^}/p' terminal-frontend/scripts/clubbar-update.sh)"
+          if ! declare -F is_release_tag > /dev/null; then
+            echo "::error title=Release tag check::could not load is_release_tag from clubbar-update.sh"
+            exit 1
+          fi
+          if ! is_release_tag "$TAG"; then
+            echo "::error title=Not a release tag::'$TAG' is not vMAJOR.MINOR.PATCH (e.g. v1.1.7). No terminal would update to it. Delete this release and create it again with the v."
+            exit 1
+          fi
+          echo "Release tag $TAG accepted."
+
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:

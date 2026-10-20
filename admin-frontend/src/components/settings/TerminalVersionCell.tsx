@@ -18,7 +18,11 @@
  *   version skew into a bar that cannot sell drinks.
  * - `unknown` — nothing to compare. Either the terminal has not reported (a
  *   build older than the header, or a proxy that strips it) or the backend
- *   itself is on `dev`, which never moves terminals at all.
+ *   itself is not on a release tag — `dev`, or a release tagged without its
+ *   `v` — which never moves terminals at all. The two are told apart by
+ *   whether a version was reported: the backend stores only release tags, so a
+ *   reported version under `unknown` means the backend is the side with no
+ *   tag. Saying "not reported" there pointed at the wrong machine.
  *
  * The classification is the server's (`version_state`), not this component's:
  * comparing release tags is the same correctness question the Pi's updater
@@ -68,6 +72,27 @@ export function TerminalVersionCell({
   // The state travels as an attribute as well as a badge, because the badge
   // text is translated and E2E has to read something stable.
   const attributes = { 'data-testid': testId, 'data-version-state': state }
+
+  // Only the server's own `unknown`, not a state this component does not
+  // recognise: the hint below claims the backend has no release tag, and only
+  // the server's classification licenses that.
+  if (terminal.version_state === 'unknown' && terminal.reported_version) {
+    return (
+      <span {...attributes} style={{ display: 'inline-flex', alignItems: 'center', gap: theme.spacing.sm }}>
+        <span>{terminal.reported_version}</span>
+        <Tooltip content={t('settings.terminalVersionUncomparableHint', { version: terminal.backend_version ?? '—' })}>
+          <span>
+            <Badge
+              label={t('settings.terminalVersionUncomparable')}
+              variant="warning"
+              showDot={false}
+              testId={`${testId}-badge`}
+            />
+          </span>
+        </Tooltip>
+      </span>
+    )
+  }
 
   if (state === 'unknown') {
     return (
