@@ -57,6 +57,15 @@ test.describe('Admin Dashboard Page (UC-A80)', () => {
     await authenticatedDashboardPage.expectSystemStatusField('database-health')
   })
 
+  test('transaction count names the 30-day window it covers', async ({ authenticatedDashboardPage }) => {
+    // The count is the last 30 days, not every booking ever made. Labelled
+    // "Total Transactions" it read as the whole journal, and an admin
+    // comparing it with the journal's 3-month default saw two numbers that
+    // could not both be right. The label must say which window it counts.
+    await authenticatedDashboardPage.expectPageVisible()
+    await authenticatedDashboardPage.expectSystemStatusLabelToContain('total-transactions', '30')
+  })
+
   test('dashboard auto-refreshes data', async ({ authenticatedDashboardPage }) => {
     await authenticatedDashboardPage.expectPageVisible()
     await authenticatedDashboardPage.waitForRefresh()

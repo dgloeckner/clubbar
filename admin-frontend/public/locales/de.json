@@ -1321,7 +1321,7 @@
     "lastSettlement": "Letzte Abrechnung",
     "pendingSettlements": "Ausstehende Abrechnungen",
     "totalMembers": "Mitglieder gesamt",
-    "totalTransactions": "Buchungen gesamt",
+    "transactionsLast30Days": "Buchungen (30 Tage)",
     "databaseHealth": "Datenbank",
     "online": "Online",
     "offline": "Offline",

@@ -41,6 +41,11 @@ class DashboardService
     public const SEPA_WARNING_THRESHOLD = 5;
 
     private const RECENT_TRANSACTION_LIMIT = 10;
+    /**
+     * Window of `system_status.total_transactions`. The admin panel names it in
+     * the label (`dashboard.transactionsLast30Days`, both locales) — change
+     * them together, or the dashboard and the journal disagree again.
+     */
     private const REVENUE_WINDOW_DAYS = 30;
     private const TOP_LIST_LIMIT = 10;
 
