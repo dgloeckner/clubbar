@@ -10620,7 +10620,10 @@ components:
               description: Total member count (active + inactive)
             total_transactions:
               type: integer
-              description: Total transaction count
+              description: |
+                Number of transactions that occurred in the last 30 days
+                (rolling, counted back from now), stornos included. Not an
+                all-time count, despite the field name.
             database_health:
               type: string
               enum: [ok]

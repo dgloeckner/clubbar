@@ -1319,7 +1319,7 @@
     "lastSettlement": "Last Settlement",
     "pendingSettlements": "Pending Settlements",
     "totalMembers": "Total Members",
-    "totalTransactions": "Total Transactions",
+    "transactionsLast30Days": "Transactions (30 days)",
     "databaseHealth": "Database",
     "online": "Online",
     "offline": "Offline",

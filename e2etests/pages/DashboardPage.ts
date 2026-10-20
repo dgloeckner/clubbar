@@ -153,6 +153,10 @@ export class DashboardPage extends BasePage {
     await expect(this.page.getByTestId(`dashboard-system-${testId}`)).toBeVisible()
   }
 
+  async expectSystemStatusLabelToContain(testId: string, text: string) {
+    await expect(this.page.getByTestId(`dashboard-system-${testId}-label`)).toContainText(text)
+  }
+
   async waitForLoadingToComplete() {
     await expect(this.loadingIndicator()).not.toBeVisible({ timeout: 10000 })
   }

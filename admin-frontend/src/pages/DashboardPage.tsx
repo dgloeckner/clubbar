@@ -862,7 +862,7 @@ export function DashboardPage() {
                 { label: t('dashboard.lastSettlement'), value: system_status.last_settlement_date ? formatRelativeDate(system_status.last_settlement_date) : '–', testId: 'last-settlement' },
                 { label: t('dashboard.pendingSettlements'), value: system_status.pending_settlement_count, testId: 'pending-settlements' },
                 { label: t('dashboard.totalMembers'), value: system_status.total_members, testId: 'total-members' },
-                { label: t('dashboard.totalTransactions'), value: system_status.total_transactions, testId: 'total-transactions' },
+                { label: t('dashboard.transactionsLast30Days'), value: system_status.total_transactions, testId: 'total-transactions' },
                 { label: t('dashboard.databaseHealth'), value: system_status.database_health, testId: 'database-health' },
               ].map(({ label, value, testId }) => (
                 <div key={testId} data-testid={`dashboard-system-${testId}`} style={{
@@ -871,7 +871,7 @@ export function DashboardPage() {
                   padding: `${theme.spacing.xs} 0`,
                   borderBottom: `1px solid ${theme.colors.border.dark}`,
                 }}>
-                  <span style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
+                  <span data-testid={`dashboard-system-${testId}-label`} style={{ fontSize: theme.typography.fontSize.sm, color: theme.colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
                   <span style={{
                     fontSize: theme.typography.fontSize.sm,
                     fontWeight: theme.typography.fontWeight.medium,
