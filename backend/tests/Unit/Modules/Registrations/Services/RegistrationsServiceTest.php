@@ -62,7 +62,7 @@ final class RegistrationsServiceTest extends TestCase
                 iban_fingerprint CHAR(64) NOT NULL, encryption_key_id CHAR(36) NOT NULL,
                 bank_name VARCHAR(255) NULL, privacy_notice_url VARCHAR(500) NOT NULL,
                 privacy_notice_shown_at DATETIME NOT NULL,
-                submitted_at DATETIME NOT NULL, expires_at DATETIME NOT NULL
+                submitted_at DATETIME NOT NULL
             )'
         );
         $this->db->exec(
@@ -70,7 +70,6 @@ final class RegistrationsServiceTest extends TestCase
                 id INTEGER NOT NULL PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0,
                 disabled_reason VARCHAR(500) NULL, secret_hash CHAR(64) NULL,
                 secret_cipher TEXT NULL, secret_rotated_at DATETIME NULL,
-                retention_days INTEGER NOT NULL DEFAULT 30,
                 updated_by_admin_id CHAR(36) NULL, created_at DATETIME NULL, updated_at DATETIME NULL
             )'
         );
@@ -301,15 +300,18 @@ final class RegistrationsServiceTest extends TestCase
         self::assertSame('RVM-000001', $receipt->mandateReference);
     }
 
-    public function test_the_expiry_is_the_configured_retention_from_submission(): void
+    /**
+     * A submission carries no deadline (ADR-0052 decision 10, amended). The
+     * row is written with its submission time and nothing that would let a
+     * sweep decide, later, that it has waited long enough.
+     */
+    public function test_a_submission_is_stored_without_a_deadline(): void
     {
-        $this->db->exec('UPDATE self_registration_config SET retention_days = 30 WHERE id = 1');
-
         $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
 
-        $row = $this->db->query('SELECT submitted_at, expires_at FROM pending_registrations')->fetch();
-        $days = (strtotime($row['expires_at']) - strtotime($row['submitted_at'])) / 86400;
-        self::assertEqualsWithDelta(30, $days, 0.01);
+        $row = $this->db->query('SELECT * FROM pending_registrations')->fetch();
+        self::assertNotEmpty($row['submitted_at']);
+        self::assertArrayNotHasKey('expires_at', $row);
     }
 
     /** The document the applicant was pointed at is recorded as shown. */
@@ -454,16 +456,15 @@ final class RegistrationsServiceTest extends TestCase
         self::assertNotSame('', $receipt->id);
     }
 
-    // --- the purge -----------------------------------------------------------
+    // --- nothing expires -----------------------------------------------------
 
-    public function test_the_purge_deletes_expired_rows_and_returns_a_count(): void
+    /**
+     * The service offers no way to delete a registration by age. An admin
+     * approving or rejecting it is the only way out of the inbox.
+     */
+    public function test_there_is_no_purge_to_call(): void
     {
-        $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
-        $this->db->exec("UPDATE pending_registrations SET expires_at = '2000-01-01 00:00:00'");
-        $this->service->submit(self::SECRET, $this->payload(), '10.0.0.1');
-
-        self::assertSame(1, $this->service->purgeExpired());
-        self::assertSame(1, (int) $this->db->query('SELECT COUNT(*) FROM pending_registrations')->fetchColumn());
+        self::assertFalse(method_exists($this->service, 'purgeExpired'));
     }
 
     // ── the entry lookup (#781) ──────────────────────────────────────────
@@ -514,36 +515,15 @@ final class RegistrationsServiceTest extends TestCase
     }
 
     /**
-     * The done screen tells the applicant their registration is deleted after
-     * N days if nobody confirms it (#804), and N is the club's own setting.
-     *
-     * On the answer rather than typed into the page for the reason every other
-     * number on a public surface belongs to the configuration: a club that
-     * widened its retention to sixty days would otherwise keep promising thirty
-     * to every applicant, and nothing would ever say so.
+     * The context promises no deletion date (#804 said "deleted after N days";
+     * ADR-0052 decision 10 as amended says nothing is deleted unseen). A
+     * `retention_days` key would be a number the page might still print.
      */
-    public function test_the_context_carries_the_clubs_retention_period(): void
+    public function test_the_context_carries_no_retention_period(): void
     {
-        $this->db->exec('UPDATE self_registration_config SET retention_days = 45');
-
         $context = $this->service->context(self::SECRET, '203.0.113.7');
 
-        self::assertSame(45, $context->retentionDays);
-        self::assertSame(45, $context->toArray()['retention_days']);
-    }
-
-    /**
-     * A paused club still answers it: the number belongs to the club, not to
-     * the availability of the form, and one rendering path reads it.
-     */
-    public function test_a_paused_club_carries_the_retention_period_too(): void
-    {
-        $this->db->exec("UPDATE self_registration_config SET enabled = 0, retention_days = 45");
-
-        $context = $this->service->context(self::SECRET, '203.0.113.7');
-
-        self::assertFalse($context->available);
-        self::assertSame(45, $context->retentionDays);
+        self::assertArrayNotHasKey('retention_days', $context->toArray());
     }
 
     /**

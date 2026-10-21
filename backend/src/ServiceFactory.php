@@ -1157,7 +1157,6 @@ class ServiceFactory implements ContainerInterface
         return $this->resolve(PreDrainTasks::class, fn() => new PreDrainTasks(
             $this->getLoginAttemptsRepository(),
             $this->getTerminalAuthAttemptsRepository(),
-            $this->getRegistrationsService(),
             $this->getRegistrationAttemptsRepository(),
             $this->getTerminalAnomalyDetector(),
             $this->getPeriodicEnqueueService(),

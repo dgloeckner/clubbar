@@ -93,7 +93,7 @@
       'done.hintAndroid': 'Android: die Datei liegt danach unter „Downloads“.',
       'done.hintDesktop': 'Die Datei landet im Download-Ordner dieses Geräts.',
       'done.card': 'Du bekommst eine E-Mail, sobald deine Karte zugewiesen ist.',
-      'done.expiry': 'Deine Anmeldung wird nach {days} Tagen gelöscht, wenn sie bis dahin nicht bestätigt wurde.',
+      'done.retention': 'Deine Anmeldung bleibt gespeichert, bis der Kassenwart sie bestätigt oder ablehnt — es eilt also nicht.',
       'done.noDocument': 'Die Unterlagen konnten gerade nicht erzeugt werden — deine Anmeldung ist trotzdem angekommen. Der Kassenwart druckt sie für dich aus.',
       'done.reference': 'Mandatsreferenz',
       'error.required': 'Bitte ausfüllen.',
@@ -156,7 +156,7 @@
       'done.hintAndroid': 'Android: the file lands in “Downloads”.',
       'done.hintDesktop': 'The file lands in this device’s downloads folder.',
       'done.card': 'You will get an email as soon as your card has been assigned.',
-      'done.expiry': 'Your registration is deleted after {days} days if it has not been confirmed by then.',
+      'done.retention': 'Your registration is kept until the treasurer confirms or declines it, so there is no rush.',
       'done.noDocument': 'The documents could not be produced just now — your registration arrived all the same. The treasurer will print them for you.',
       'done.reference': 'Mandate reference',
       'error.required': 'Please fill this in.',
@@ -197,15 +197,6 @@
   /** The document this tab is holding, base64, or '' once it is gone. */
   var document64 = ''
 
-  /**
-   * Values the strings interpolate — today only the club's retention period.
-   *
-   * A default so the sentence is never wrong before the context answers, and a
-   * variable rather than a literal in the string table because the number is
-   * `self_registration_config.retention_days` and a club may change it.
-   */
-  var params = { days: 30 }
-
   /* ── the tab's copy of the document (#804) ────────────────────────────────
      The filled Anmeldung exists in exactly one place — the submission response
      — and cannot be asked for again, because the plaintext IBAN it was rendered
@@ -241,7 +232,6 @@
           v: 1,
           lang: lang,
           saved_at: Date.now(),
-          days: params.days,
           mandate_reference: receipt.mandate_reference || '',
           document: receipt.document || '',
           // Club configuration, not the applicant: without it a restored screen
@@ -323,13 +313,7 @@
 
   function t(key) {
     var table = STRINGS[lang] || STRINGS.de
-    var value = table[key] !== undefined ? table[key] : (STRINGS.de[key] !== undefined ? STRINGS.de[key] : key)
-
-    // `{days}` and nothing cleverer. A string table this page can read out loud
-    // does not need a template language.
-    return value.replace(/\{(\w+)\}/g, function (whole, name) {
-      return params[name] !== undefined ? String(params[name]) : whole
-    })
+    return table[key] !== undefined ? table[key] : (STRINGS.de[key] !== undefined ? STRINGS.de[key] : key)
   }
 
   /* ── branding ─────────────────────────────────────────────────────────────
@@ -694,14 +678,6 @@
 
         context = body
         applyBranding(body)
-
-        // The club's own retention period, into the sentence the done screen
-        // says it in. Read here rather than typed into the page, because a club
-        // that widens it would otherwise keep promising thirty days.
-        if (typeof body.retention_days === 'number' && body.retention_days > 0) {
-          params.days = body.retention_days
-          translate()
-        }
 
         if (!body.available) {
           renderPaused(body.reason, body.message)
@@ -1086,7 +1062,6 @@
     if (saved === null) return false
 
     if (STRINGS[saved.lang] !== undefined) lang = saved.lang
-    if (typeof saved.days === 'number' && saved.days > 0) params.days = saved.days
     translate()
 
     applyBranding({ club_name: saved.club_name, logo_url: saved.logo_url })

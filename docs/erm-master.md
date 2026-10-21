@@ -106,8 +106,7 @@ erDiagram
         varchar_255 bank_name "Resolved from the BLZ at submission"
         varchar_500 privacy_notice_url "URL of the club's Art. 13 notice, as shown"
         datetime privacy_notice_shown_at "When the page carrying the link was submitted"
-        datetime submitted_at "Submission time"
-        datetime expires_at "TTL purge deadline (drafted, #776)"
+        datetime submitted_at "Submission time; no expiry (migration 070)"
     }
 
     encryption_keys {
@@ -274,7 +273,6 @@ erDiagram
         char_64 secret_hash "SHA-256 of the poster secret"
         text secret_cipher "Sealed copy, for reprinting without rotating"
         datetime secret_rotated_at "When last (re)generated"
-        smallint retention_days "pending_registrations TTL; DEFAULT 30"
         char_36 updated_by_admin_id FK "Who last modified"
         datetime created_at "Initial configuration (drafted, #776)"
         datetime updated_at "Last modification"
@@ -519,11 +517,10 @@ owner's confirmation of this schema first.
 | privacy_notice_url | VARCHAR(500) | NOT NULL | The **exact URL** of the club's document that was shown, copied from `sepa_config.mandate_template_url` at submission. Its Datenschutzhinweise are pages 2+ of that same file (ADR-0052 decision 6). Club Bar neither hosts nor authors it — the link is displayed and the member navigates to it — so the URL displayed is the most this row can honestly record; a club wanting versioning puts it in the URL |
 | privacy_notice_shown_at | DATETIME | NOT NULL | When the page carrying that link was submitted. Paired with `privacy_notice_url` — a timestamp with no record of *what* was pointed at proves nothing once the club republishes. **Not an acknowledgement**: there is no checkbox (ADR-0052 decision 6), because Art. 13 is a duty to inform and a box declaring the notice was read edges toward a consent for processing that rests on Art. 6(1)(b) |
 | submitted_at | DATETIME | NOT NULL | When the registration was submitted |
-| expires_at | DATETIME | NOT NULL | TTL purge deadline — `submitted_at` + the club's `self_registration_config.retention_days` (default 30). The `bin/cron.php` tick deletes rows past this and logs a **count**, never identities (ADR-0052 decision 10) |
+| ~~expires_at~~ | — | — | **Removed** (migration 070). Was the TTL purge deadline, `submitted_at` + `self_registration_config.retention_days`. A pending row no longer expires: it waits for an admin to approve or reject it (ADR-0052 decision 10, amended 2026-10-20) |
 
 **Indexes:**
 - `mandate_reference` (UNIQUE)
-- `expires_at` — the purge scan
 - `email` — the duplicate flag at review
 - `iban_fingerprint` — the duplicate flag at review, answerable without a key
 
@@ -543,7 +540,7 @@ so a file under `backend/storage/` would survive an upgrade and vanish on restor
 while a row claiming it was pinned came back. See [ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)
 decision 5a.
 
-**Deleted three ways, never updated in place:** approval moves the ciphertext and reference into `members`/`mandates` and deletes the row; rejection deletes it immediately, with the audit entry recording the act, the reason and the IBAN masked ([ADR-0005](../adr/0005-iban-storage-and-validation.md)); the TTL purge (`expires_at`) deletes it silently, logging only a count.
+**Deleted two ways, never by age:** approval moves the ciphertext and reference into `members`/`mandates` and deletes the row; rejection deletes it immediately, with the audit entry recording the act, the reason and the IBAN masked ([ADR-0005](../adr/0005-iban-storage-and-validation.md)). There is no TTL purge since migration 070 — an abandoned registration is removed by rejecting it.
 
 ---
 
@@ -976,7 +973,7 @@ from a pending registration and the stored row can never name different numbers.
 `LAST_INSERT_ID()` is connection-scoped, which is what makes the read-back safe
 under two overlapping requests.
 
-**Gaps are expected.** A rejected or purged registration takes its number with
+**Gaps are expected.** A rejected registration takes its number with
 it, and the self-registration honeypot deliberately returns a
 reference-*shaped* value that draws no number at all — a consumed one would let
 a bot read the club's mandate count off a fake receipt.
@@ -1035,7 +1032,7 @@ yet migrated** — see [`pending_registrations`](#pending_registrations) above.
 | secret_hash | CHAR(64) | NULL | SHA-256 of the poster secret — the lookup key, so a database dump yields no working poster |
 | secret_cipher | TEXT | NULL | `SymmetricSecretBox` copy of the same secret, same reasoning as `admin_user_invitations.token_cipher`: it lets an admin **reprint** the poster without rotating and invalidating the one already on the clubhouse wall |
 | secret_rotated_at | DATETIME | NULL | When the secret was last (re)generated |
-| retention_days | SMALLINT UNSIGNED | NOT NULL, DEFAULT 30 | How long a `pending_registrations` row lives before the TTL purge deletes it |
+| ~~retention_days~~ | — | — | **Removed** (migration 070), with the TTL purge it configured |
 | updated_by_admin_id | CHAR(36) | FK → admin_users.id, NULL | Admin who last modified |
 | created_at | TIMESTAMP | NOT NULL | Initial configuration timestamp |
 | updated_at | TIMESTAMP | NOT NULL | Last modification timestamp |
@@ -1341,7 +1338,7 @@ When a member requests deletion (GDPR Art. 17):
 
 `iban` and `mandate_reference` no longer live on `members` at all — they moved to `mandates` in [#164](https://github.com/dgloeckner/clubbar/issues/164)/[#165](https://github.com/dgloeckner/clubbar/issues/165) and are **not** touched by member anonymization ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)): both are Beleg-bearing, and nulling them would break matching a returned collection that arrives after the erasure request.
 
-`pending_registrations` (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) is **never anonymised** — there is no mapping for it in this section because approval, rejection and the TTL purge all delete the row outright ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)); anonymisation is a members-table operation on a person who has already joined.
+`pending_registrations` (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) is **never anonymised** — there is no mapping for it in this section because approval and rejection both delete the row outright ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)); anonymisation is a members-table operation on a person who has already joined.
 
 The outbox is the **second place a member's address lives**, and erasure covers it in the same transaction ([#408](https://github.com/dgloeckner/clubbar/issues/408)) — otherwise anonymisation clears `members.email` and leaves the same address sitting in a queue row:
 
@@ -1364,7 +1361,7 @@ The outbox is the **second place a member's address lives**, and erasure covers 
 | settlement_announcements | 10 years (with the settlement) | § 147 AO; proof the Nutzungsordnung § 7 Abs. 3 announcement was made |
 | mail_outbox (`sent` rows) | 90 days from delivery, per kind | Operational tier — a delivered message has no reason to keep an address ([ADR-0029](../adr/0029-two-tier-retention-and-erasure.md)) |
 | mail_outbox (`pending`/`failed`/`superseded`) | Not pruned | A failed row is the record that somebody was **not** reached |
-| pending_registrations (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) | 30 days from submission by default (`self_registration_config.retention_days`, configurable), or immediately on reject | Not a Beleg — no money moved, no contract performed, so ADR-0029's ten-year tier does not attach ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)) |
+| pending_registrations (drafted, [#776](https://github.com/dgloeckner/clubbar/issues/776)) | Until an admin approves or rejects it — no automatic expiry since migration 070; immediately on reject | Not a Beleg — no money moved, no contract performed, so ADR-0029's ten-year tier does not attach ([ADR-0052](../adr/0052-member-self-registration-via-qr-code.md)) |
 
 ---
 

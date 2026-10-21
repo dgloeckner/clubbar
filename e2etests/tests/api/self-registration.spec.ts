@@ -7,7 +7,7 @@ import {
   configureSelfRegistration,
   countPendingRegistrations,
   execSql,
-  expireRegistration,
+  ageRegistration,
   CLUB_DOCUMENT_URL,
   pendingRowsContainingPlaintext,
   queuedRegistrationLinks,
@@ -63,13 +63,13 @@ const TEST_IBAN = 'DE89370400440532013000'
 const CORRECTED_IBAN = 'DE39370502991234567890'
 
 /**
- * Run `bin/cron.php` for its purge tick without delivering any mail.
+ * Run `bin/cron.php` for its pre-drain steps without delivering any mail.
  *
  * The empty DSN is load-bearing: a drain claims the whole queue, so a run with
  * a transport configured would deliver messages other specs are waiting to
  * assert on (CLAUDE.md's note on why the stack's own MAIL_DSN is empty).
  */
-function runPurgeTick(): void {
+function runCronTick(): void {
   drainMailQueue({ dsn: '' })
 }
 
@@ -359,35 +359,36 @@ test.describe('Public self-registration', () => {
     expect((await response.json()).error).toBe('payload_too_large')
   })
 
-  test('an expired registration is purged by a real cron run, a fresh one survives', async ({
+  test('a registration submitted long ago survives a real cron run and stays in the inbox', async ({
     request,
+    authenticatedRequest,
   }) => {
     const secret = uniqueSecret()
     configureSelfRegistration(secret)
 
-    const stale = await request.post(`${API}/public/registrations`, {
+    const submitted = await request.post(`${API}/public/registrations`, {
       data: { secret, ...submission() },
     })
-    const fresh = await request.post(`${API}/public/registrations`, {
-      data: { secret, ...submission() },
-    })
-    const staleId = (await stale.json()).id
-    const freshId = (await fresh.json()).id
+    expect(submitted.status()).toBe(201)
+    const id = (await submitted.json()).id
 
-    expireRegistration(staleId)
-    const before = countPendingRegistrations()
+    // Decades older than the thirty days that used to delete it. Nothing may
+    // take it out of the inbox but an admin approving or rejecting it
+    // (ADR-0052 decision 10, amended).
+    ageRegistration(id)
 
-    // `bin/cron.php` is the one entrypoint, so the purge tick is reached
-    // through the drain helper — but with an **empty** MAIL_DSN. A drain claims
-    // the whole queue, and delivering here would sweep announcements the admin
-    // and mail specs are asserting on. The tick under test writes no mail.
-    runPurgeTick()
+    // `bin/cron.php` is the one entrypoint, so the tick is reached through the
+    // drain helper — but with an **empty** MAIL_DSN. A drain claims the whole
+    // queue, and delivering here would sweep announcements the admin and mail
+    // specs are asserting on. The tick under test writes no mail.
+    runCronTick()
 
-    expect(countPendingRegistrations()).toBe(before - 1)
-    // The fresh one is untouched: the purge takes only what has expired.
-    expireRegistration(freshId)
-    runPurgeTick()
-    expect(countPendingRegistrations()).toBe(before - 2)
+    // Pattern 003: by id, not by count — parallel specs add and remove rows.
+    const response = await authenticatedRequest.get(`${API}/admin/registrations/${id}`)
+    expect(response.status()).toBe(200)
+    const body = await response.json()
+    expect(body.id).toBe(id)
+    expect(body).not.toHaveProperty('expires_at')
   })
 
   // ── the review inbox (#779, UC-A17) ────────────────────────────────────
@@ -454,7 +455,8 @@ test.describe('Public self-registration', () => {
     // anything was collected (ADR-0052 decision 6).
     expect(body.privacy_notice_url).toBe(CLUB_DOCUMENT_URL)
     expect(body.privacy_notice_shown_at).toBeTruthy()
-    expect(body.expires_at).toBeTruthy()
+    // No deadline: a pending registration waits for an admin (decision 10).
+    expect(body).not.toHaveProperty('expires_at')
   })
 
   test('an edit corrects a typo and re-seals a corrected IBAN', async ({
@@ -887,9 +889,8 @@ test.describe('Public self-registration', () => {
     expect(body.reason).toBeNull()
     expect(body.document_url).toBe(CLUB_DOCUMENT_URL)
     expect(body.languages).toContain('de')
-    // The done screen's "deleted after N days" sentence reads N from here
-    // rather than from its own markup (#804).
-    expect(body.retention_days).toBeGreaterThan(0)
+    // Nothing is deleted unseen, so there is no retention period to promise.
+    expect(body).not.toHaveProperty('retention_days')
   })
 
   test('a paused club answers with its own words, as a 200 rather than a refusal', async ({
@@ -960,7 +961,6 @@ test.describe('Public self-registration', () => {
       'logo_url',
       'message',
       'reason',
-      'retention_days',
     ])
   })
 
@@ -1110,7 +1110,6 @@ test.describe('Public self-registration', () => {
       'document_url',
       'enabled',
       'has_secret',
-      'retention_days',
       'secret_rotated_at',
     ])
     expect(body.has_secret).toBe(true)

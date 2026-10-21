@@ -17,16 +17,12 @@ namespace App\Modules\Registrations\DTOs;
  */
 final readonly class SelfRegistrationConfigDto
 {
-    /** What a fresh installation gets, and what a missing row means. */
-    public const DEFAULT_RETENTION_DAYS = 30;
-
     public function __construct(
         public bool $enabled,
         public ?string $disabledReason,
         public ?string $secretHash,
         public ?string $secretCipher,
         public ?string $secretRotatedAt,
-        public int $retentionDays,
     ) {}
 
     /** @param array<string, mixed>|null $row */
@@ -39,7 +35,6 @@ final readonly class SelfRegistrationConfigDto
                 secretHash: null,
                 secretCipher: null,
                 secretRotatedAt: null,
-                retentionDays: self::DEFAULT_RETENTION_DAYS,
             );
         }
 
@@ -49,9 +44,6 @@ final readonly class SelfRegistrationConfigDto
             secretHash: self::nullableString($row['secret_hash'] ?? null),
             secretCipher: self::nullableString($row['secret_cipher'] ?? null),
             secretRotatedAt: self::nullableString($row['secret_rotated_at'] ?? null),
-            retentionDays: isset($row['retention_days'])
-                ? (int) $row['retention_days']
-                : self::DEFAULT_RETENTION_DAYS,
         );
     }
 

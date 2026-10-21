@@ -40,8 +40,7 @@ final class RegistrationsRepositoryTest extends TestCase
                 bank_name VARCHAR(255) NULL,
                 privacy_notice_url VARCHAR(500) NOT NULL,
                 privacy_notice_shown_at DATETIME NOT NULL,
-                submitted_at DATETIME NOT NULL,
-                expires_at DATETIME NOT NULL
+                submitted_at DATETIME NOT NULL
             )'
         );
 
@@ -67,7 +66,6 @@ final class RegistrationsRepositoryTest extends TestCase
             'privacy_notice_url' => 'https://club.example/Anmeldung.pdf',
             'privacy_notice_shown_at' => '2026-08-31 10:00:00',
             'submitted_at' => '2026-08-31 10:00:00',
-            'expires_at' => '2026-09-30 10:00:00',
         ]);
     }
 
@@ -116,25 +114,17 @@ final class RegistrationsRepositoryTest extends TestCase
         self::assertSame(2, (int) $this->db->query('SELECT COUNT(*) FROM pending_registrations')->fetchColumn());
     }
 
-    public function test_purge_removes_only_rows_past_their_expiry(): void
+    /**
+     * A registration submitted long ago is still there (ADR-0052 decision 10,
+     * amended): the store has no way to delete a row by age, so the only way
+     * out is an admin approving or rejecting it.
+     */
+    public function test_an_old_registration_is_kept_and_nothing_deletes_by_age(): void
     {
-        $stale = $this->insert(['expires_at' => '2026-08-30 09:00:00']);
-        $fresh = $this->insert(['expires_at' => '2026-09-30 09:00:00']);
+        $old = $this->insert(['submitted_at' => '2020-01-01 10:00:00']);
 
-        $purged = $this->repository->purgeExpired('2026-08-31 10:00:00');
-
-        self::assertSame(1, $purged);
-        $remaining = $this->db->query('SELECT id FROM pending_registrations')->fetchAll();
-        self::assertCount(1, $remaining);
-        self::assertSame($fresh, $remaining[0]['id']);
-        self::assertNotSame($stale, $remaining[0]['id']);
-    }
-
-    public function test_purge_returns_zero_when_nothing_has_expired(): void
-    {
-        $this->insert();
-
-        self::assertSame(0, $this->repository->purgeExpired('2026-08-31 10:00:00'));
+        self::assertFalse(method_exists($this->repository, 'purgeExpired'));
+        self::assertNotNull($this->repository->findById($old));
     }
 
     /**
@@ -238,22 +228,19 @@ final class RegistrationsRepositoryTest extends TestCase
 
     /**
      * The pending row is the applicant's data, not a place to reset the clock
-     * on it. An expiry an admin could push out is a retention rule that never
-     * runs (decision 10).
+     * on it: `submitted_at` is when they acted, and the review list ages by it.
      */
     public function test_update_ignores_columns_outside_its_allow_list(): void
     {
-        $id = $this->insert(['expires_at' => '2026-09-30 10:00:00']);
+        $id = $this->insert();
 
         $row = $this->repository->updateById($id, [
             'first_name' => 'Magdalena',
-            'expires_at' => '2099-01-01 00:00:00',
             'submitted_at' => '2099-01-01 00:00:00',
             'mandate_reference' => 'somebodyelses',
         ]);
 
         self::assertSame('Magdalena', $row['first_name']);
-        self::assertSame('2026-09-30 10:00:00', $row['expires_at']);
         self::assertSame('2026-08-31 10:00:00', $row['submitted_at']);
     }
 

@@ -46,7 +46,7 @@ import { useFormatters } from '../hooks/useFormatters'
 import { useListQuery } from '../hooks/useListQuery'
 import { theme } from '../styles/design-system'
 
-type RegistrationSortKey = 'submitted_at' | 'last_name' | 'email' | 'expires_at'
+type RegistrationSortKey = 'submitted_at' | 'last_name' | 'email'
 
 /** No filters: a queue with four states to slice by is a queue nobody empties. */
 type RegistrationFilters = Record<never, never>

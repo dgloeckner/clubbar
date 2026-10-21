@@ -49,7 +49,6 @@ function settings(overrides: Partial<SelfRegistrationSettings> = {}): SelfRegist
     has_secret: true,
     secret_rotated_at: '2026-03-14T09:00:00Z',
     document_url: 'https://club.example/anmeldung.pdf',
-    retention_days: 30,
     ...overrides,
   }
 }

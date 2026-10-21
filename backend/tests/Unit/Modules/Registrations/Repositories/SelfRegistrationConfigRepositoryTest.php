@@ -27,7 +27,6 @@ final class SelfRegistrationConfigRepositoryTest extends TestCase
                 secret_hash CHAR(64) NULL,
                 secret_cipher TEXT NULL,
                 secret_rotated_at DATETIME NULL,
-                retention_days INTEGER NOT NULL DEFAULT 30,
                 updated_by_admin_id CHAR(36) NULL,
                 created_at DATETIME NULL,
                 updated_at DATETIME NULL
@@ -49,7 +48,6 @@ final class SelfRegistrationConfigRepositoryTest extends TestCase
         self::assertFalse($config->enabled);
         self::assertNull($config->secretHash);
         self::assertNull($config->disabledReason);
-        self::assertSame(30, $config->retentionDays);
     }
 
     /**
@@ -65,7 +63,6 @@ final class SelfRegistrationConfigRepositoryTest extends TestCase
 
         self::assertFalse($config->enabled);
         self::assertNull($config->secretHash);
-        self::assertSame(30, $config->retentionDays);
     }
 
     public function test_it_reads_back_what_was_configured(): void
@@ -73,7 +70,7 @@ final class SelfRegistrationConfigRepositoryTest extends TestCase
         $this->db->exec(
             "UPDATE self_registration_config
              SET enabled = 1, secret_hash = '" . str_repeat('a', 64) . "',
-                 disabled_reason = 'Beta-Phase schon voll', retention_days = 14
+                 disabled_reason = 'Beta-Phase schon voll'
              WHERE id = 1"
         );
 
@@ -82,6 +79,5 @@ final class SelfRegistrationConfigRepositoryTest extends TestCase
         self::assertTrue($config->enabled);
         self::assertSame(str_repeat('a', 64), $config->secretHash);
         self::assertSame('Beta-Phase schon voll', $config->disabledReason);
-        self::assertSame(14, $config->retentionDays);
     }
 }

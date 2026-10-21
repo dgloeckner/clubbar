@@ -4,6 +4,8 @@
 
 **Date**: 2026-08-31
 
+**Amended**: 2026-10-20 — decision 10: a pending registration no longer expires
+
 **Relates to**: [ADR-0006](./0006-sepa-mandate-reference-strategy.md) (the reference is minted before the paper is printed), [ADR-0016](./0016-transport-security.md), [ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md), [ADR-0029](./0029-two-tier-retention-and-erasure.md), [ADR-0031](./0031-production-hardening-on-shared-hosting.md), [ADR-0036](./0036-iban-encryption-sealed-box.md) (no exception), [ADR-0037](./0037-mandate-documents-not-retained.md), [ADR-0044](./0044-tiered-admin-roles.md)
 
 ---
@@ -128,7 +130,7 @@ what makes a returned collection matchable months later.
 
 So `pending_registrations.mandate_reference` is minted at submission in
 ADR-0006's format, and **approval carries it into the `mandates` row
-unchanged**. A rejected or purged registration takes its reference with it.
+unchanged**. A rejected registration takes its reference with it.
 Since [#936](https://github.com/dgloeckner/clubbar/issues/936) that format is
 `<PREFIX>-<number>` drawn from the same per-install counter the admin panel uses
 (it was a UUID with its hyphens removed until then), so the number a
@@ -440,11 +442,11 @@ comparison ADR-0036 designed for, answerable without a key.
 **No personal data in the logs of the public endpoint.** A refusal logs its
 reason code and nothing about the person.
 
-### 10. A pending registration expires; a rejected one is gone at once
+### 10. A pending registration waits for an admin; a rejected one is gone at once
 
 | Event | Effect |
 |---|---|
-| 30 days pass (configurable) | The row is purged by the `bin/cron.php` tick, which logs a **count** and no identities |
+| Time passes | Nothing. The row stays in the review inbox until an admin acts on it — see *Amended 2026-10-20* below |
 | Admin rejects | The row is deleted immediately; the audit entry records the act, the reason, and the IBAN **masked** (ADR-0005) |
 | Admin approves | `members` + `mandates` rows are created, the ciphertext and the reference move across, the pending row is deleted |
 
@@ -452,6 +454,42 @@ This store is not the retention tier. Nothing here is a Beleg: no money has move
 and no contract has been performed, so ADR-0029's ten-year accounting retention
 attaches to none of it. Data about somebody who never joined must not accumulate,
 and a queue nobody empties is exactly how it would.
+
+#### Amended 2026-10-20: no automatic expiry
+
+As first decided, a row was purged 30 days after submission
+(`self_registration_config.retention_days`, migration 059). In practice that
+deleted registrations the club still wanted. Filling the form is not joining:
+the applicant prints, signs and hands the paper in, and through the Anmeldelink
+([ADR-0053](./0053-anmeldelink-carries-no-credential.md)) they are often at
+home, not in the clubhouse. A sheet that took longer than thirty days to reach the
+Kassenwart arrived to an empty inbox. The applicant had done everything asked
+of them and had to start again, and the club could only get the row back from
+a backup.
+
+**Decision, by the owner:** nothing deletes a pending registration by itself.
+It leaves the store only when an admin approves it (it becomes a member) or
+rejects it (it is gone at once, as before). Migration 070 drops
+`pending_registrations.expires_at`, its index and
+`self_registration_config.retention_days`, and the cron tick no longer has a
+purge step.
+
+This applies to every submission, the poster and the mailed link alike. Under
+ADR-0053 they cannot be told apart — the link *is* the poster's URL — so
+"registrations from the link do not expire" can only mean "registrations do not
+expire".
+
+The accumulation risk this section names is still real. It is now handled by
+people, not by a timer:
+
+- **The inbox is the list.** Every pending row is visible under
+  `/registrations` with its submission date, so an abandoned one is in sight
+  rather than hidden in a table.
+- **Rejecting is how an abandoned registration is removed.** It is the same
+  immediate delete, audited the same way, and it answers an applicant's Art. 17
+  request too.
+- **The done screen no longer promises a deletion date.** It says the
+  registration is kept until the treasurer confirms or declines it.
 
 #### What is audited, and what deliberately is not
 
@@ -461,15 +499,14 @@ and a queue nobody empties is exactly how it would.
 | **Reject** | Yes | An admin decided to delete somebody's data. The act, the actor and the reason are exactly what a log is for |
 | **Edit** | Yes | Not obviously an authority change, and audited anyway — this is the one place in the system where one person edits another's freshly submitted personal data, including which bank account a mandate will be opened against. The entry is what makes "the IBAN on file is not the one I sent" answerable, and it carries the masked value on both sides, never the number |
 | **Print** | Yes | An IBAN hint and a member's details leave the building on paper |
-| **Submission** | **No** | It grants nothing. Unlike an accepted invitation — the one sessionless act this log does record, because it makes an account *usable* — a pending registration is not a member and no terminal can see it, so the entry that matters is the approval. And the audit log is retained while this store purges at 30 days: an entry naming the applicant would be a copy of their personal data outliving the deletion that exists to remove them. The trail that does exist is `registration_attempts`, metering submissions per address, and an identity-free application-log line |
-| **TTL purge** | **No** | Every automated sweep in this system logs a count and writes no audit rows — the login-attempt prune, mail retention, the rest. Per-row entries here would either name the people just deleted, which is the same leak, or say nothing at all. One aggregate line is what demonstrates the retention runs |
+| **Submission** | **No** | It grants nothing. Unlike an accepted invitation — the one sessionless act this log does record, because it makes an account *usable* — a pending registration is not a member and no terminal can see it, so the entry that matters is the approval. And the audit log is retained while this store deletes the row at approval or rejection: an entry naming the applicant would be a copy of their personal data outliving the deletion that exists to remove them. The trail that does exist is `registration_attempts`, metering submissions per address, and an identity-free application-log line |
 
 The shape of that table is one rule: **the log follows the actor, not the
 activity.** Every act an *admin* takes on somebody else's submission is audited —
 approving, rejecting, correcting, printing — because each is a person exercising
 authority over another's personal data. Everything the store does by itself is
-not: a stranger submitting grants nothing, and the TTL purge is a sweep. Auditing
-either would leave an entry naming the applicant behind after the very deletion
+not: a stranger submitting grants nothing. Auditing it
+would leave an entry naming the applicant behind after the very deletion
 that exists to remove them.
 
 ### 11. The public page is served by the backend
@@ -514,9 +551,9 @@ valid submissions. Both meters are needed.
 |---|---|
 | A new unauthenticated write surface exists | One secret gate, two rate meters, a body cap, a honeypot, write-only semantics, uniform refusals, and no mail |
 | A poster secret is long-lived and physically copyable | Rotatable without redeploying, reprintable without rotating, and it grants nothing but the ability to *submit* — never to read |
-| Personal data now sits in a second table before anybody has agreed to anything | TTL purge, immediate delete on reject, no Beleg status, no terminal visibility |
+| Personal data now sits in a second table before anybody has agreed to anything | Immediate delete on reject, every pending row visible in the inbox, no Beleg status, no terminal visibility. No automatic expiry since 2026-10-20 (decision 10), so an abandoned row stays until somebody rejects it |
 | Two mandate variants means two PDF paths to keep correct | They share one renderer and differ by a single flag; the admin-print variant is the fallback that always works |
-| A member could register twice, or register and never appear | Duplicates are visible at review by email and fingerprint; abandoned rows purge themselves |
+| A member could register twice, or register and never appear | Duplicates are visible at review by email and fingerprint; an abandoned row is rejected by an admin |
 
 ## Settled by the owner, and what is still theirs to do
 
@@ -524,7 +561,7 @@ valid submissions. Both meters are needed.
 |---|---|
 | **The document** | Stays **one** — the club's combined Anmeldung, four pages, fields on page 1. Clubbar fills page 1 and preserves the rest |
 | **The template** | Not pinned, not copied: `sepa_config.mandate_template_url` is the pointer (decision 5a), and it is the same URL the page links for Art. 13 |
-| **Retention** | An unapproved registration is purged after **30 days** |
+| **Retention** | ~~An unapproved registration is purged after 30 days~~ — amended 2026-10-20: an unapproved registration is kept until an admin approves or rejects it (decision 10) |
 | **Translation** | None. One document, in whatever language the club published it in; no club-language setting exists to translate against |
 | **Optional consents** | None. This flow is the Anmeldung and its mandate, nothing to opt into |
 

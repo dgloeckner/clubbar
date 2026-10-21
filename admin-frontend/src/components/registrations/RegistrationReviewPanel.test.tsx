@@ -45,7 +45,6 @@ const registration: PendingRegistration = {
   privacy_notice_url: 'https://club.example/Anmeldung.pdf',
   privacy_notice_shown_at: '2026-08-31T10:00:00Z',
   submitted_at: '2026-08-31T10:00:00Z',
-  expires_at: '2026-09-30T10:00:00Z',
   duplicate_email: false,
   duplicate_iban: false,
 } as PendingRegistration

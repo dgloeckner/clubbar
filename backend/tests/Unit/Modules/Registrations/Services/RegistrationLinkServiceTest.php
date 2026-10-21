@@ -60,7 +60,6 @@ class RegistrationLinkServiceTest extends TestCase
             hasSecret: $hasSecret,
             secretRotatedAt: '2026-03-01 09:00:00',
             documentUrl: $documentUrl,
-            retentionDays: 30,
         ));
 
         $outbox = $this->createMock(MailOutboxRepository::class);

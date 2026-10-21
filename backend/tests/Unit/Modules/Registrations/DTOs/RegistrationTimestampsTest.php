@@ -35,7 +35,6 @@ class RegistrationTimestampsTest extends TestCase
             'privacy_notice_url' => 'https://club.example/Anmeldung.pdf',
             'privacy_notice_shown_at' => '2026-08-31 22:15:00',
             'submitted_at' => '2026-08-31 22:15:04',
-            'expires_at' => '2026-09-30 22:15:04',
         ], $overrides))->toArray();
     }
 
@@ -45,7 +44,8 @@ class RegistrationTimestampsTest extends TestCase
 
         $this->assertSame('2026-08-31T22:15:00Z', $array['privacy_notice_shown_at']);
         $this->assertSame('2026-08-31T22:15:04Z', $array['submitted_at']);
-        $this->assertSame('2026-09-30T22:15:04Z', $array['expires_at']);
+        // No deadline travels: nothing deletes a pending row by age.
+        $this->assertArrayNotHasKey('expires_at', $array);
     }
 
     /** A calendar day is not an instant, and must not grow a zone. */
@@ -62,7 +62,6 @@ class RegistrationTimestampsTest extends TestCase
             hasSecret: true,
             secretRotatedAt: '2026-03-14 08:00:00',
             documentUrl: 'https://club.example/Anmeldung.pdf',
-            retentionDays: 30,
         );
 
         $this->assertSame('2026-03-14T08:00:00Z', $settings->toArray()['secret_rotated_at']);
@@ -77,7 +76,6 @@ class RegistrationTimestampsTest extends TestCase
             hasSecret: false,
             secretRotatedAt: null,
             documentUrl: null,
-            retentionDays: 30,
         );
 
         $this->assertNull($settings->toArray()['secret_rotated_at']);

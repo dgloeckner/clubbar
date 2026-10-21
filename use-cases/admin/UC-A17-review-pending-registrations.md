@@ -27,7 +27,9 @@ belongs: **after** the data exists, **before** it counts.
 Everything an admin does here is either reversible (correcting a typo, moving
 on to the next row) or immediate and final (approve, reject) — there is no
 "save as draft" state beyond the row simply sitting in the inbox until it is
-acted on or its TTL purges it (ADR-0052 decision 10).
+acted on. Nothing deletes it by age (ADR-0052 decision 10, amended
+2026-10-20): the signed paper can take weeks to reach the club, and the row
+waits for it.
 
 ## Preconditions
 
@@ -51,7 +53,6 @@ acted on or its TTL purges it (ADR-0052 decision 10).
    | IBAN | Masked as `****3000` — `iban_last4` only. The full number is never shown, because the server holds no key that can decrypt it (ADR-0036, no exception for this store — ADR-0052 decision 3) |
    | Bank | Resolved from the BLZ at submission |
    | Duplicate flags | A matching `email` or a matching `iban_fingerprint` against existing members **and** against other pending rows (ADR-0052 decision 9) |
-   | Purge in | Days remaining before the row's TTL deletes it unseen (submission date plus the configured window, default 30 days — decision 10) |
 
 2. The admin opens one row. The detail view repeats everything from the list
    and adds the account holder name (when the applicant supplied one) and
@@ -141,7 +142,7 @@ screen to edit — the server never held the plaintext and cannot show it back.
 
 | Step | What the reviewing Kassenwart sees |
 |---|---|
-| Inbox row | `Lena Brandt` · submitted 3 days ago · `****3000` · Sparkasse · no duplicate flags · purges in 27 days |
+| Inbox row | `Lena Brandt` · submitted 3 days ago · `****3000` · Sparkasse · no duplicate flags |
 | Detail view | Date of birth makes Lena 15 — the "minor" note appears; account holder name `Petra Brandt` is filled in |
 | Printed document | Page 1: blank IBAN line with `****3000` printed beside it; a legal-representative signature line under the applicant's own; signature block names **Petra Brandt**, not Lena. Pages 2–4 (Datenschutzhinweise, Nutzungsordnung) carried over untouched |
 | At the bar | Petra ticks the Kenntnisnahme box, signs as legal representative, and writes her IBAN by hand; it ends in `3000`, matching the hint |
@@ -183,9 +184,9 @@ screen to edit — the server never held the plaintext and cannot show it back.
   undo.
 
 **Unreviewed**
-- The row stays in the inbox, visible with its purge countdown, until it is
-  approved, rejected, or purged by `bin/cron.php` at its TTL (decision 10),
-  which logs a count and no identity.
+- The row stays in the inbox until it is approved or rejected, however long
+  that takes. `bin/cron.php` never deletes it (decision 10, amended
+  2026-10-20). An abandoned registration is removed by rejecting it.
 
 ## Error Cases
 
@@ -201,18 +202,13 @@ is sealed or stored.
 Refused. There is no "approve anyway" — the attestation is the entire content
 of this step, not a formality alongside it.
 
-### E4: The row purges while it is open in the reviewer's tab
-The TTL is enforced by the cron tick independent of anyone's open browser
-tab. A subsequent action on that row is refused as not found; the applicant
-must scan the poster again if they still want to join.
-
-### E5: Reject is submitted with no reason
+### E4: Reject is submitted with no reason
 Refused. A deleted row with no recorded reason is a decision nobody can later
 account for.
 
 ## Test Derivation
 
-- Inbox lists a submitted row with masked IBAN, bank name, purge countdown,
+- Inbox lists a submitted row with masked IBAN, bank name, submission date,
   and no duplicate flags when none exist
 - A matching email against an existing member flags the row; a matching
   `iban_fingerprint` flags it independently
@@ -240,9 +236,8 @@ account for.
   reason and the masked IBAN, never the plaintext
 - Reject without a reason is refused
 - A Getränkewart is refused on every verb here and shown no inbox
-- A row past its TTL is gone from the inbox and any action on it is refused
-  as not found
-- The TTL purge (`bin/cron.php`) logs a count, never an identity
+- A row submitted long ago survives a `bin/cron.php` run and is still in the
+  inbox, with no expiry on the wire
 
 ## Related
 

@@ -477,17 +477,6 @@ paths:
                     items:
                       type: string
                     description: The languages the page may offer.
-                  retention_days:
-                    type: integer
-                    example: 30
-                    description: >
-                      How long an unconfirmed registration is kept before the
-                      purge takes it. The done screen says it out loud — "your
-                      registration is deleted after 30 days if it has not been
-                      confirmed by then" — and reads the number from here, so a
-                      club that widens the setting does not leave the page
-                      promising the old one. Club configuration, like every
-                      other field on this answer.
                   club_name:
                     type: string
                     nullable: true
@@ -1675,7 +1664,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [submitted_at, expires_at, last_name, first_name, email]
+            enum: [submitted_at, last_name, first_name, email]
             default: submitted_at
         - name: order
           in: query
@@ -9828,10 +9817,9 @@ components:
         submitted_at:
           type: string
           format: date-time
-        expires_at:
-          type: string
-          format: date-time
-          description: When the TTL purge deletes this row if nobody has acted on it.
+          description: >
+            When the applicant submitted. A pending registration has no expiry:
+            it stays until an admin approves or rejects it (ADR-0052 decision 10).
         duplicate_email:
           type: boolean
           description: The club already has a member at this address.
@@ -9903,7 +9891,7 @@ components:
         The club's registration surface as the settings screen sees it (#783).
         Carries no secret material by construction — see
         `GET /admin/self-registration`.
-      required: [enabled, disabled_reason, has_secret, secret_rotated_at, document_url, retention_days]
+      required: [enabled, disabled_reason, has_secret, secret_rotated_at, document_url]
       properties:
         enabled:
           type: boolean
@@ -9933,13 +9921,6 @@ components:
             (ADR-0052 decision 6) and used as the template the review print
             fills. Validated at save time, not at print time.
           example: https://frgs.example/dokumente/anmeldung-vereinsbar.pdf
-        retention_days:
-          type: integer
-          description: |
-            How long an unapproved submission survives before the purge tick
-            deletes it. Not a credential and not audited — a retention window
-            is a setting, not an act of authority.
-          example: 30
 
     SelfRegistrationUpdateRequest:
       type: object

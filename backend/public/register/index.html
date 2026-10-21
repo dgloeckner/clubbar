@@ -282,15 +282,14 @@
       What happens next, and by when. The welcome mail (ADR-0051) is sent at
       exactly one moment — when the card is assigned — and until this sentence
       existed the applicant did not know what they were waiting for. The second
-      sentence is the retention rule (`self_registration_config.retention_days`)
-      the purge already enforces, said out loud for the one person it affects;
-      the number comes from the context answer rather than from this markup.
+      sentence says the registration waits for the treasurer however long the
+      paper takes: nothing deletes it unseen (ADR-0052 decision 10).
     -->
     <p class="outlook" data-testid="done-card" data-i18n="done.card">
       Du bekommst eine E-Mail, sobald deine Karte zugewiesen ist.
     </p>
-    <p class="outlook muted" data-testid="done-expiry" data-i18n="done.expiry">
-      Deine Anmeldung wird nach 30 Tagen gelöscht, wenn sie bis dahin nicht bestätigt wurde.
+    <p class="outlook muted" data-testid="done-retention" data-i18n="done.retention">
+      Deine Anmeldung bleibt gespeichert, bis der Kassenwart sie bestätigt oder ablehnt — es eilt also nicht.
     </p>
 
     <p class="reference">

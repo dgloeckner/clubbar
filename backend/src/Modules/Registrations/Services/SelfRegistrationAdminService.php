@@ -62,7 +62,6 @@ class SelfRegistrationAdminService
             hasSecret: $config->hasSecret(),
             secretRotatedAt: $config->secretRotatedAt,
             documentUrl: $this->documentUrl() ?: null,
-            retentionDays: $config->retentionDays,
         );
     }
 
