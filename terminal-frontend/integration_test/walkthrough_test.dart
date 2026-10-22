@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,8 +51,11 @@ Future<List<int>> captureFrame(WidgetTester tester) async {
 
 /// Screenshot manifest entry — matches admin walkthrough format so the
 /// same ffmpeg slideshow pipeline can assemble the video.
-Map<String, dynamic> _entry(int index, String file, String subtitle) =>
-    {'index': index, 'file': file, 'subtitle': subtitle};
+Map<String, dynamic> _entry(int index, String file, String subtitle) => {
+  'index': index,
+  'file': file,
+  'subtitle': subtitle,
+};
 
 /// Creates a walkthrough-specific database with rich test data:
 /// 3 categories (Drinks, Snacks, Sauna) with multiple products each,
@@ -244,11 +248,54 @@ Future<ClubBarDatabase> createWalkthroughDatabase() async {
   return db;
 }
 
+/// Writes a few earlier evenings at the bar, so "Meine Buchungen" shows a
+/// history rather than "Noch keine Transaktionen".
+///
+/// Called **after** the scan, for the reason
+/// transaction_history_screenshot_test.dart gives: the terminal syncs pending
+/// transactions on launch, the test network accepts every row, and a synced
+/// row drops out of the local-unsynced query the history reads.
+Future<void> seedPastPurchases(ClubBarDatabase db) async {
+  final today = DateTime.now();
+  DateTime at(int daysAgo, int hour, int minute) =>
+      DateTime(today.year, today.month, today.day - daysAgo, hour, minute);
+
+  var counter = 0;
+  Future<void> purchase(
+    String productId,
+    int amountCents,
+    DateTime when, {
+    int times = 1,
+  }) async {
+    for (var i = 0; i < times; i++) {
+      counter++;
+      await db
+          .into(db.transactionsLocal)
+          .insert(
+            TransactionsLocalCompanion.insert(
+              id: 'wt-txn-${counter.toString().padLeft(3, '0')}',
+              memberId: 'wt-member-1',
+              productId: Value(productId),
+              amountCents: amountCents,
+              transactionType: 'purchase',
+              createdAt: when.toUtc().toIso8601String(),
+            ),
+          );
+    }
+  }
+
+  await purchase('wt-prod-pils', 350, at(1, 21, 40), times: 2);
+  await purchase('wt-prod-pretzel', 250, at(1, 20, 15));
+  await purchase('wt-prod-sauna-session', 500, at(3, 18, 30));
+  await purchase('wt-prod-apfelschorle', 200, at(3, 19, 45), times: 2);
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  // macOS sandboxes the app to ~/Library/Containers/<bundle-id>/Data/,
-  // so relative paths land there. The build script knows this location.
+  // macOS sandboxes the app to ~/Library/Containers/<bundle-id>/Data/, so
+  // relative paths land there; on Linux they land in terminal-frontend/.
+  // The build script knows both locations.
   final screenshotsDir = Directory('walkthrough-screenshots');
   final manifestPath = '${screenshotsDir.path}/manifest.json';
   final entries = <Map<String, dynamic>>[];
@@ -267,8 +314,9 @@ void main() {
     entries.add(_entry(counter, filename, subtitle));
 
     // Write manifest after each capture (crash-safe)
-    final manifest = const JsonEncoder.withIndent('  ')
-        .convert({'screenshots': entries});
+    final manifest = const JsonEncoder.withIndent(
+      '  ',
+    ).convert({'screenshots': entries});
     File(manifestPath).writeAsStringSync('$manifest\n');
   }
 
@@ -310,7 +358,9 @@ void main() {
       // -- Scene 2: Products shown in German (member's default language) --
       await capture(tester, 'Products shown in German');
 
-      // -- Scene 3: Open member details modal --
+      // -- Scene 3: Open "Meine Buchungen" — the member's own history,
+      // tab balance and language choice --
+      await seedPastPurchases(db);
       expect(find.text('Jane Smith'), findsOneWidget);
       await tester.tap(find.text('Jane Smith'));
       // Bottom sheet animation needs many frames
@@ -318,7 +368,7 @@ void main() {
 
       // Capture modal with language selection visible (German still active)
       expect(find.text('English'), findsOneWidget);
-      await capture(tester, 'Member details with language selection');
+      await capture(tester, 'Your purchases and language choice');
 
       // -- Scene 4: Tap English — the sheet closes automatically once the
       // language switch succeeds (#294), so shopping continues right away --

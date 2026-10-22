@@ -1,23 +1,21 @@
 import { test, expect } from '../../fixtures/walkthrough';
 import { NewSettlementPage } from '../../pages/NewSettlementPage';
+import { DEV_PRIVATE_KEY } from '../../fixtures/encryption';
+import { TEST_CREDENTIALS } from '../../config/test-credentials';
 
 test.describe.configure({ mode: 'serial' });
 
 test.describe('Admin Panel Walkthrough', () => {
 
-  test.describe('German scene', () => {
-    test.use({ walkthroughLang: 'de' });
-
-    test('01 — Dashboard (German)', async ({
-      page, authenticatedDashboardPage, capture,
-    }) => {
-      await authenticatedDashboardPage.expectMetricsVisible();
-      await authenticatedDashboardPage.expectRecentTransactionsVisible();
-      await authenticatedDashboardPage.expectTerminalStatusVisible();
-      await authenticatedDashboardPage.expectSystemStatusVisible();
-      await authenticatedDashboardPage.expectAlertsVisible();
-      await capture('Dashboard — Deutsch');
-    });
+  test('01 — Dashboard (German)', async ({
+    page, authenticatedDashboardPage, capture,
+  }) => {
+    await authenticatedDashboardPage.expectMetricsVisible();
+    await authenticatedDashboardPage.expectRecentTransactionsVisible();
+    await authenticatedDashboardPage.expectTerminalStatusVisible();
+    await authenticatedDashboardPage.expectSystemStatusVisible();
+    await authenticatedDashboardPage.expectAlertsVisible();
+    await capture('Dashboard — Deutsch');
   });
 
   test('02 — Switch to English', async ({
@@ -25,7 +23,12 @@ test.describe('Admin Panel Walkthrough', () => {
   }) => {
     await authenticatedProfilePage.expectPageVisible();
     await authenticatedProfilePage.expectSectionsVisible();
-    await capture('User Profile');
+    await authenticatedProfilePage.expectLanguageSelected('de');
+    await capture('Profil — Sprache wählen');
+
+    await authenticatedProfilePage.changeLanguage('en');
+    await authenticatedProfilePage.expectLanguageSelected('en');
+    await capture('Profile — now in English');
 
     // Navigate to dashboard to show it in English
     await page.goto('/dashboard');
@@ -228,46 +231,39 @@ test.describe('Admin Panel Walkthrough', () => {
     await authenticatedSettlementsPage.waitForPageLoad();
     await capture('Settlements Overview');
 
-    // Find the first settlement row and trigger SEPA export
+    // Member IBANs are sealed (#393): the export dialog asks for the club's
+    // private key and a fresh credential before the server can build the file.
     const sepaBtn = page.locator('[data-testid^="settlements-export-sepa-btn-"]').first();
-    if (await sepaBtn.isVisible()) {
-      const responsePromise = page.waitForResponse(
-        resp => resp.url().includes('/export/sepa-xml')
-      );
-      await sepaBtn.click();
-      await responsePromise;
-      await page.waitForTimeout(500);
-      await capture('SEPA XML Exported');
-    }
+    await expect(sepaBtn).toBeVisible();
+    const testId = await sepaBtn.getAttribute('data-testid');
+    const settlementId = testId!.replace('settlements-export-sepa-btn-', '');
+
+    await authenticatedSettlementsPage.openExportSepaDialog(settlementId);
+    await capture('SEPA Export — unlock with the club key');
+
+    await authenticatedSettlementsPage.fillExportKeyAndPassword(
+      DEV_PRIVATE_KEY, TEST_CREDENTIALS.admin.password,
+    );
+    const response = await authenticatedSettlementsPage.submitExportSepaDialog();
+    expect(response.status()).toBe(200);
+    await page.waitForTimeout(500);
+    await capture('SEPA XML Exported');
   });
 
-  test('11 — Reports: revenue, ranking, terminal activity', async ({
+  test('11 — Reports: revenue, consumption, terminal activity', async ({
     page, capture,
   }) => {
     await page.goto('/reports');
     await page.waitForLoadState('networkidle');
     await capture('Reports & Analytics');
 
-    const consumptionTab = page.getByRole('tab', { name: /consumption|verbrauch/i });
-    if (await consumptionTab.isVisible()) {
-      await consumptionTab.click();
-      await page.waitForTimeout(500);
-      await capture('Consumption Analysis');
-    }
+    await page.getByTestId('report-tab-consumption').click();
+    await page.waitForTimeout(500);
+    await capture('Consumption Analysis');
 
-    const rankingTab = page.getByRole('tab', { name: /ranking/i });
-    if (await rankingTab.isVisible()) {
-      await rankingTab.click();
-      await page.waitForTimeout(500);
-      await capture('Member Ranking');
-    }
-
-    const terminalTab = page.getByRole('tab', { name: /terminal/i });
-    if (await terminalTab.isVisible()) {
-      await terminalTab.click();
-      await page.waitForTimeout(500);
-      await capture('Terminal Activity');
-    }
+    await page.getByTestId('report-tab-terminal-activity').click();
+    await page.waitForTimeout(500);
+    await capture('Terminal Activity');
   });
 
   test('12 — Settings: admin users, SEPA, terminals', async ({

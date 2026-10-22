@@ -8,7 +8,11 @@
 #   ./scripts/build-terminal-walkthrough.sh --hold 4         # hold each screenshot for 4 seconds (default: 3)
 #   ./scripts/build-terminal-walkthrough.sh --fade 0.8       # crossfade duration in seconds (default: 0.5)
 #
-# Requirements: ffmpeg, jq, flutter
+# Requirements: ffmpeg, jq, flutter (+ xvfb-run on Linux without a display)
+#
+# Runs on the macOS desktop device on a Mac and on the Linux desktop device
+# elsewhere — on Linux under xvfb-run when there is no $DISPLAY, which is how a
+# cloud session or CI runner has to do it.
 
 set -euo pipefail
 
@@ -46,6 +50,9 @@ check_deps() {
   command -v ffmpeg  >/dev/null 2>&1 || missing+=(ffmpeg)
   command -v jq      >/dev/null 2>&1 || missing+=(jq)
   command -v flutter >/dev/null 2>&1 || missing+=(flutter)
+  if [[ "$(uname -s)" == "Linux" && -z "${DISPLAY:-}" ]]; then
+    command -v xvfb-run >/dev/null 2>&1 || missing+=(xvfb)
+  fi
 
   if [[ ${#missing[@]} -gt 0 ]]; then
     err "Missing required tools: ${missing[*]}"
@@ -60,19 +67,30 @@ run_walkthrough() {
   log "Running terminal walkthrough integration test..."
 
   cd "$TERMINAL_DIR"
-  flutter test integration_test/walkthrough_test.dart --device-id macos
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    flutter test integration_test/walkthrough_test.dart --device-id macos
+  elif [[ -n "${DISPLAY:-}" ]]; then
+    flutter test integration_test/walkthrough_test.dart --device-id linux
+  else
+    xvfb-run -a -s "-screen 0 1920x1080x24" \
+      flutter test integration_test/walkthrough_test.dart --device-id linux
+  fi
   cd "$PROJECT_ROOT"
 
-  # Copy screenshots from macOS sandbox container to project tree
-  if [[ ! -d "$MACOS_CONTAINER" ]]; then
-    err "Screenshots not found at $MACOS_CONTAINER"
-    err "The walkthrough test may not have produced screenshots."
-    exit 1
-  fi
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    # Copy screenshots from macOS sandbox container to project tree
+    if [[ ! -d "$MACOS_CONTAINER" ]]; then
+      err "Screenshots not found at $MACOS_CONTAINER"
+      err "The walkthrough test may not have produced screenshots."
+      exit 1
+    fi
 
-  rm -rf "$SCREENSHOTS_DIR"
-  cp -r "$MACOS_CONTAINER" "$SCREENSHOTS_DIR"
-  log "Copied screenshots from macOS container to $SCREENSHOTS_DIR"
+    rm -rf "$SCREENSHOTS_DIR"
+    cp -r "$MACOS_CONTAINER" "$SCREENSHOTS_DIR"
+    log "Copied screenshots from macOS container to $SCREENSHOTS_DIR"
+  fi
+  # On Linux the app is not sandboxed: the test's relative path already is
+  # $SCREENSHOTS_DIR.
 
   if [[ ! -f "$MANIFEST_JSON" ]]; then
     err "Manifest not found at $MANIFEST_JSON"
