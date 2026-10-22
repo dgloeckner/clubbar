@@ -4,6 +4,23 @@ import { withClubConfigLock } from '../../utils/clubConfigLock';
 const API_BASE = 'http://localhost:8080/api';
 
 setup('seed walkthrough data', async ({ authenticatedRequest, authenticatedTerminalRequest }) => {
+  // --- 0. Start in German: scene 02 switches to English via the Profile page ---
+  // The panel's language is the admin's profile setting, so a previous run
+  // that ended in English would otherwise start the video in English.
+  const localeResp = await authenticatedRequest.patch(`${API_BASE}/auth/profile`, {
+    data: { locale: 'de' },
+  });
+  console.log(`Admin locale reset to de: ${localeResp.status()}`);
+
+  // --- 0b. Let the scheduler banner see a backup run ---
+  // Until a scheduled backup has been observed every page carries the setup
+  // instructions (#693). A club that has added its cron never sees them, so
+  // the walkthrough triggers one run through the URL form a panel would use.
+  const cronResp = await authenticatedRequest.post(`${API_BASE}/cron/backup`, {
+    headers: { 'X-Cron-Secret': process.env.CRON_SECRET || 'dev-cron-secret-x' },
+  });
+  console.log(`Backup run triggered: ${cronResp.status()}`);
+
   // --- 1. Get existing products to use real product IDs ---
   const productsResp = await authenticatedRequest.get(`${API_BASE}/admin/products`);
   const productsData = await productsResp.json();

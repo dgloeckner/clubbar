@@ -32,7 +32,6 @@ export interface ScreenshotManifest {
 const SCREENSHOTS_DIR = path.join(process.cwd(), 'walkthrough-screenshots')
 
 export const test = pomTest.extend<{
-  walkthroughLang: string
   showClicks: void
   showCursor: (target: import('@playwright/test').Locator) => Promise<void>
   capture: (subtitle: string) => Promise<void>
@@ -41,26 +40,17 @@ export const test = pomTest.extend<{
   quickPause: () => Promise<void>
 }>({
   /**
-   * Fixture: walkthroughLang
-   *
-   * Controls the admin UI language for this test. Defaults to 'en'.
-   * Override in individual tests with test.use({ walkthroughLang: 'de' }).
-   */
-  walkthroughLang: ['en', { option: true }],
-
-  /**
    * Fixture: showClicks (auto)
    *
    * Shows a persistent yellow cursor dot that follows mouse movement and
-   * pulses on click. Also sets the admin locale in localStorage before
-   * any page navigations so the UI renders in the correct language.
+   * pulses on click.
+   *
+   * The UI language is not set here: the panel takes it from the admin's
+   * profile on every session restore, so a localStorage value would be
+   * overwritten before the first render. The seed step resets the profile to
+   * German and scene 02 switches it to English through the Profile page.
    */
-  showClicks: [async ({ context, walkthroughLang }, use) => {
-    // Set admin locale in localStorage before any page loads
-    await context.addInitScript((lang) => {
-      localStorage.setItem('locale', lang);
-    }, walkthroughLang);
-
+  showClicks: [async ({ context }, use) => {
     await context.addInitScript(() => {
       const setup = () => {
         if (document.getElementById('walkthrough-cursor')) return;
@@ -69,6 +59,12 @@ export const test = pomTest.extend<{
         style.textContent = [
           // Hide loading indicators so video never shows "Laden..."
           '[data-testid$="-loading"], [data-testid$="-loading-indicator"] {',
+          '  display: none !important;',
+          '}',
+          // The dev stack leaves CLUB_TIMEZONE unset on purpose, so the
+          // dashboard warns about it. A club's deployment states its zone;
+          // the warning is about the dev stack, not the product being shown.
+          '[data-testid="dashboard-timezone-warning"] {',
           '  display: none !important;',
           '}',
           '#walkthrough-cursor {',
@@ -168,6 +164,9 @@ export const test = pomTest.extend<{
       counter++
       const filename = `screenshot-${String(counter).padStart(3, '0')}.png`
       const filepath = path.join(SCREENSHOTS_DIR, filename)
+
+      // Never capture a screen still waiting for its data
+      await page.waitForLoadState('networkidle')
 
       // Hide the walkthrough cursor dot before capturing
       await page.evaluate(() => {

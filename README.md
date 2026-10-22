@@ -105,15 +105,20 @@ the database off the host.
 
 ### Terminal App
 
-<video src="https://github.com/user-attachments/assets/750e723f-fc46-4e20-a06f-1b9375203ac2" width="100%" autoplay muted loop playsinline></video>
+[![Terminal walkthrough](./docs/media/terminal-walkthrough.gif)](./docs/media/terminal-walkthrough.mp4)
 
-> Terminal walkthrough: RFID card scan, multilingual product browsing (German → English), category selection (Drinks, Snacks, Sauna), shopping cart, and checkout.
+> Terminal walkthrough: RFID card scan, the member's own purchase history and language choice (German → English), category selection (Drinks, Snacks, Sauna), shopping cart, and checkout. [Watch as video](./docs/media/terminal-walkthrough.mp4).
 
 ### Admin Panel
 
-<video src="https://github.com/user-attachments/assets/d3c429ca-b116-44dc-8490-2c0cb2331de8" width="100%" autoplay muted loop playsinline></video>
+[![Admin Panel walkthrough](./docs/media/admin-walkthrough.gif)](./docs/media/admin-walkthrough.mp4)
 
-> Admin Panel walkthrough: dashboard, member & product management, journal, settlements, SEPA export, reports, settings, and audit log.
+> Admin Panel walkthrough: dashboard, switching the panel language, member & product management, journal, a settlement run and its SEPA export, reports, settings, and audit log. [Watch as video](./docs/media/admin-walkthrough.mp4).
+
+<sub>Both are recorded from the code in this repository — `scripts/build-terminal-walkthrough.sh`
+(Flutter integration test) and `scripts/build-walkthrough-slideshow.sh` (Playwright, against
+`scripts/dev-setup.sh --with-frontend`). Re-run them and replace the files in `docs/media/` when
+the design changes.</sub>
 
 ---
 
