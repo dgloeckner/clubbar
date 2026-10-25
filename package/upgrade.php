@@ -37,17 +37,20 @@ bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Sh
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Config/RetiredFiles.php');
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Security/FileModes.php');
 bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Time/Utc.php');
+bootstrapSharedClass(__DIR__, __DIR__ . '/.upgrade-package.zip', 'backend/src/Shared/Version/PackageVersion.php');
 
 require_once __DIR__ . '/backend/src/Shared/Config/DataDirectory.php';
 require_once __DIR__ . '/backend/src/Shared/Config/RetiredFiles.php';
 require_once __DIR__ . '/backend/src/Shared/Security/FileModes.php';
 // Club Bar keeps every instant in UTC (#365); migrations run from here.
 require_once __DIR__ . '/backend/src/Shared/Time/Utc.php';
+require_once __DIR__ . '/backend/src/Shared/Version/PackageVersion.php';
 
 use App\Shared\Config\DataDirectory;
 use App\Shared\Config\RetiredFiles;
 use App\Shared\Security\FileModes;
 use App\Shared\Time\Utc;
+use App\Shared\Version\PackageVersion;
 
 // This script never goes through bootstrap.php, so it pins its own clock.
 Utc::apply();
@@ -427,17 +430,9 @@ function readZipPackageVersion(string $zipFile): ?string
  */
 function compareVersions(?string $current, ?string $package): string
 {
-    if ($current === null || $package === null) {
-        return 'unknown';
-    }
-    // Dev builds (e.g. "dev-abc123") can't be meaningfully compared
-    if (str_starts_with($current, 'dev') || str_starts_with($package, 'dev')) {
-        return 'unknown';
-    }
-    $cmp = version_compare($package, $current);
-    if ($cmp > 0) return 'upgrade';
-    if ($cmp === 0) return 'same';
-    return 'downgrade';
+    // Tolerates a tag with or without its `v` — see PackageVersion for the
+    // upgrade off `1.1.7` this refused as a downgrade.
+    return PackageVersion::compare($current, $package);
 }
 
 function extractPackage(string $zipFile, string $extractDir): array
