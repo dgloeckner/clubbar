@@ -45,6 +45,14 @@
 # `admin-frontend/package.json` therefore carries an `overrides` entry lifting
 # that one dependency to `^9.0.9`, which is a patch release of the version the
 # parent already asked for. Drop the override when typescript-eslint 8 lands.
+#
+# The same shape again for `undici`: `@scalar/json-magic` (under orval 8.43)
+# pins it at literally `7.29.1`, inside the range of three advisories — one of
+# them high, which fails `npm audit --audit-level=high`. The override lifts it,
+# for that parent only, to `^7.30.1`, the patch release that fixes all three;
+# a global override would also catch the `undici@^8` another dependency asks
+# for. The alternative was orval 8.45.0, published hours before the audit went
+# red. Drop the override once orval's pin is past 7.30.0.
 
 version: 2
 
