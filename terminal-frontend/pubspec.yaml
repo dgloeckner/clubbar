@@ -63,7 +63,7 @@ dev_dependencies:
   drift_dev: ^2.35.1
   build_runner: ^2.16.2
   swagger_dart_code_generator: 4.1.1
-  json_serializable: ^6.13.1
+  json_serializable: ^6.15.2
   chopper_generator: ^8.0.0
 
   # Testing (note: flutter_test pins test_api, use compatible test version)
