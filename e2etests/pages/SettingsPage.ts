@@ -1483,6 +1483,105 @@ export class SettingsPage {
   }
 
   /**
+   * What the terminals table says about a terminal's dispenser (ADR-0057, #954).
+   *
+   * Asserted on the attributes rather than on the badge's label, which is
+   * translated: `unknown`, `none`, `available` or `unavailable`.
+   */
+  async expectTerminalDispenserState(name: string, state: string): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    await expect(this.page.getByTestId(`settings-terminal-dispenser-${terminalId}`)).toHaveAttribute(
+      'data-dispenser-state',
+      state,
+    )
+  }
+
+  /**
+   * The named reason behind an unavailable dispenser — `offline`,
+   * `protocol_mismatch`, `jam`, `hopper_error` or `unspecified_fault`. Empty
+   * for every other state, which is what makes "unavailable without a reason"
+   * impossible to assert accidentally.
+   */
+  async expectTerminalDispenserReason(name: string, reason: string): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    await expect(this.page.getByTestId(`settings-terminal-dispenser-${terminalId}`)).toHaveAttribute(
+      'data-dispenser-reason',
+      reason,
+    )
+  }
+
+  /**
+   * The age rendered beside the status, or `null` when the row shows none.
+   *
+   * ADR-0057 requires the age to be there: a terminal that is off reports
+   * nothing, so a status without one is a claim nobody can check.
+   */
+  async getTerminalDispenserAge(name: string): Promise<string | null> {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) return null
+    const age = this.page.getByTestId(`settings-terminal-dispenser-${terminalId}-age`)
+    return (await age.count()) === 0 ? null : ((await age.textContent())?.trim() ?? null)
+  }
+
+  /** The "since …" stamp an unavailable dispenser carries, or `null`. */
+  async getTerminalDispenserSince(name: string): Promise<string | null> {
+    const terminalId = await this.getTerminalIdByName(name)
+    if (!terminalId) return null
+    const since = this.page.getByTestId(`settings-terminal-dispenser-${terminalId}-since`)
+    return (await since.count()) === 0 ? null : ((await since.textContent())?.trim() ?? null)
+  }
+
+  /** Opens the dispenser detail for a terminal and waits for the dialog. */
+  async openTerminalDispenserDetails(name: string): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    await this.page.getByTestId(`settings-terminal-dispenser-${terminalId}-details`).click()
+    await expect(this.page.getByTestId('terminal-dispenser-panel-content')).toBeVisible()
+  }
+
+  /** One row of the dispenser detail, by the field name in its test id. */
+  async getDispenserDetail(field: string): Promise<string | null> {
+    return (await this.page.getByTestId(`terminal-dispenser-detail-${field}`).textContent())?.trim() ?? null
+  }
+
+  /**
+   * Open the refill dialog for a terminal (#955).
+   *
+   * It hangs off the row's actions rather than the dispenser detail, and that
+   * placement is the point: recording a refill is a fact about the hopper, not
+   * an answer to an alert, and the detail panel has exactly one button — the
+   * one that closes it.
+   */
+  async openTerminalRefill(name: string): Promise<void> {
+    const terminalId = await this.getTerminalIdByName(name)
+    expect(terminalId, `no terminal row named ${name}`).not.toBeNull()
+    await this.page.getByTestId(`settings-terminal-refill-button-${terminalId}`).click()
+    await expect(this.page.getByTestId('terminal-refill-dialog-content')).toBeVisible()
+  }
+
+  /** What the refill dialog offers for the warning tier, as it stands. */
+  async getRefillThresholdValue(): Promise<string> {
+    return await this.page.getByTestId('terminal-refill-threshold-input').inputValue()
+  }
+
+  /** Record a counted refill, optionally moving the warning tier with it. */
+  async recordTerminalRefill(tokens: number, threshold?: number): Promise<void> {
+    await this.page.getByTestId('terminal-refill-tokens-input').fill(String(tokens))
+    if (threshold !== undefined) {
+      await this.page.getByTestId('terminal-refill-threshold-input').fill(String(threshold))
+    }
+    await this.page.getByTestId('terminal-refill-dialog-save').click()
+    await expect(this.page.getByTestId('terminal-refill-dialog-content')).toHaveCount(0)
+  }
+
+  async closeTerminalDispenserDetails(): Promise<void> {
+    await this.page.getByTestId('terminal-dispenser-panel-close').click()
+    await expect(this.page.getByTestId('terminal-dispenser-panel-content')).toHaveCount(0)
+  }
+
+  /**
    * How many rows carry this terminal name. Counting a known name instead of
    * the whole table (Pattern 003) keeps the assertion valid while other workers
    * add rows, and survives a list that is still reloading.

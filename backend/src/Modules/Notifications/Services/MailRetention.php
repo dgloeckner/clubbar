@@ -103,6 +103,12 @@ final class MailRetention
             MailKind::KEY_EXPIRY_WARNING,
             MailKind::TERMINAL_TOKEN_EXPIRY_WARNING,
             MailKind::TERMINAL_ANOMALY_WARNING,
+            // The dispenser notice (#956) keeps the default for the same
+            // reason: what the row holds past delivery is an admin's address,
+            // and the durable record of the episode it reports is the
+            // `dispenser_status` document on the terminal row — which this
+            // never touches, and which the next report overwrites anyway.
+            MailKind::DISPENSER_ATTENTION,
             // The issuance notice (ADR-0043) keeps the default for the same
             // reason: what the row holds past delivery is an address, and the
             // durable record of the minting it announces is the

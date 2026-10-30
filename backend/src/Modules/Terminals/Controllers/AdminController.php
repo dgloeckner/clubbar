@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Terminals\Controllers;
 
 use App\Modules\Auth\Services\StepUpAuthService;
+use App\Modules\Terminals\Services\DispenserFillService;
 use App\Modules\Terminals\Services\TerminalsService;
 use App\Shared\Exceptions\DuplicateResourceException;
 use App\Shared\Validation\Validator;
@@ -33,6 +34,7 @@ class AdminController
         private TerminalsService $terminalsService,
         private Validator $validator,
         private StepUpAuthService $stepUpAuthService,
+        private DispenserFillService $dispenserFillService,
     ) {}
 
     public function index(Request $request, Response $response): Response
@@ -100,13 +102,17 @@ class AdminController
         $adminId = $request->getAttribute('admin_user_id');
 
         // Require at least one updatable field
-        if (!isset($body['name']) && !isset($body['is_active'])) {
-            return $this->validationFailed($response, ['_base' => ['At least one field (name, is_active) must be provided']]);
+        if (!isset($body['name']) && !isset($body['is_active']) && !isset($body['dispenser_low_threshold'])) {
+            return $this->validationFailed($response, ['_base' => ['At least one field (name, is_active, dispenser_low_threshold) must be provided']]);
         }
 
         if (!$this->validator->validate($body, [
             'name' => ['nullable', 'string', 'max:100'],
             'is_active' => ['nullable'],
+            // #955. Zero is allowed and means "warn only once the estimate is
+            // used up"; a negative threshold would be a warning that can never
+            // fire, which is worse than none because it looks configured.
+            'dispenser_low_threshold' => ['nullable', 'integer', 'gte:0', 'lte:100000'],
         ])) {
             return $this->validationFailed($response, $this->validator->errors());
         }
@@ -116,6 +122,7 @@ class AdminController
             $body['name'] ?? null,
             isset($body['is_active']) ? filter_var($body['is_active'], FILTER_VALIDATE_BOOLEAN) : null,
             $adminId,
+            isset($body['dispenser_low_threshold']) ? (int) $body['dispenser_low_threshold'] : null,
         );
 
         return $this->json($response, ['terminal' => $terminal->toArray()]);
@@ -160,6 +167,49 @@ class AdminController
             'message' => 'Token rotated successfully. The new API token will not be shown again. '
                 . 'The current token keeps working until the new one is used at the terminal for the first time.',
         ]);
+    }
+
+    /**
+     * Record that the hopper was counted and now holds this many tokens (#955).
+     *
+     * The estimate is arithmetic rather than a sensor — the machine's *empty*
+     * switch is a factory option this unit does not have — so a refill is the
+     * only moment the count is ever known for certain, and this route is how
+     * that certainty gets in.
+     *
+     * **An exact count, and nothing else.** No "added N" and no "filled to the
+     * top" (owner decision 8): both build on a figure nobody has checked, and
+     * the point of a refill is to put the estimate back on a known value.
+     *
+     * **Not an acknowledgement.** It clears no fault and commands nothing at
+     * the machine: the device has no reset route, and a jam is cleared by a
+     * power cycle (owner decision 3).
+     *
+     * No step-up gate. This mints no credential and reveals nothing; the two
+     * endpoints above have one because they hand out a token.
+     */
+    public function recordDispenserRefill(Request $request, Response $response, array $args): Response
+    {
+        $body = $request->getParsedBody() ?? [];
+
+        if (!$this->validator->validate($body, [
+            // Zero is a legitimate count — a hopper emptied for maintenance —
+            // so the floor is zero rather than one. The ceiling is there
+            // because a typo of a member's card number into this field should
+            // be a validation error rather than a green estimate for a hopper
+            // with a hundred thousand tokens in it.
+            'tokens' => ['required', 'integer', 'gte:0', 'lte:100000'],
+        ])) {
+            return $this->validationFailed($response, $this->validator->errors());
+        }
+
+        $fill = $this->dispenserFillService->recordRefill(
+            $args['id'],
+            (int) $body['tokens'],
+            $request->getAttribute('admin_user_id'),
+        );
+
+        return $this->json($response, ['dispenser_fill' => $fill->toArray()]);
     }
 
     /** Shared step-up gate; on failure fills $failed with the 401 response. */

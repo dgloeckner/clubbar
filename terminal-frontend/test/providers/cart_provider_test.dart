@@ -17,6 +17,13 @@ class MockConfigService extends Mock implements ConfigService {}
 class MockBuildContext extends Mock implements BuildContext {}
 class MockSoundService extends Mock implements SoundService {}
 
+/// The app's one dispenser client, which [CartProvider] now takes instead of
+/// building its own (#946). These tests never let a request out — every one of
+/// them overrides `showDispensingDialog` — so a client pointed at nowhere is
+/// enough; checkout uses it only to mint the transaction id.
+DispenserClient _testDispenserClient() =>
+    DispenserClient(baseUrl: 'http://dispenser.test', signingKey: 'test-key');
+
 /// Drives the dispense branch of [CartProvider.checkout] without a widget tree:
 /// the real implementation puts a dialog on screen, which a unit test has no
 /// way to answer.
@@ -26,6 +33,7 @@ class StubDispenseCartProvider extends CartProvider {
     required super.config,
     required super.soundService,
     required this.dispenseResult,
+    super.dispenserClient,
   });
 
   /// What the dispenser "returns"; null models a cancelled/failed dialog.
@@ -48,6 +56,7 @@ class ScriptedDispenseCartProvider extends CartProvider {
     required super.config,
     required super.soundService,
     required this.outcomes,
+    super.dispenserClient,
   });
 
   /// One entry per checkout. A thunk may throw (the dispense blew up) or
@@ -86,6 +95,14 @@ void main() {
       updatedAt: DateTime.now().toIso8601String(),
     ));
     registerFallbackValue(SoundEvent.productAdd);
+    registerFallbackValue(CartService.describeDispense(
+      dispenserTxId: 'fallback',
+      memberId: 'member',
+      productId: 'product',
+      priceCents: 0,
+      requestedQty: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    ));
   });
 
   group('CartProvider', () {
@@ -382,11 +399,13 @@ void main() {
           service: mockService,
           config: mockConfig,
           soundService: mockSoundService,
+          dispenserClient: _testDispenserClient(),
           dispenseResult: DispenseResult(
             txId: 'tx-1',
             state: dispensed > 0 ? 'done' : 'error',
             quantity: 1,
             dispensed: dispensed,
+            countReliable: true,
           ),
         );
 
@@ -397,7 +416,7 @@ void main() {
 
       when(() => mockConfig.dispenserEnabled).thenReturn(true);
       when(() => mockConfig.dispenserBaseUrl).thenReturn('http://dispenser');
-      when(() => mockConfig.dispenserApiKey).thenReturn('key');
+      when(() => mockConfig.dispenserSigningKey).thenReturn('key');
       when(() => mockSoundService.play(any())).thenAnswer((_) async {});
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (true, null));
@@ -407,7 +426,10 @@ void main() {
             productId: any(named: 'productId'),
             priceCents: any(named: 'priceCents'),
             requestedQty: any(named: 'requestedQty'),
+            sessionId: any(named: 'sessionId'),
           )).thenAnswer((_) async => (true, null));
+      when(() => mockService.dispenserOperation(any()))
+          .thenAnswer((_) async => null);
       when(() => mockService.cleanupDispenserOperation(any()))
           .thenAnswer((_) async => (true, null));
       when(() => mockService.createTransaction(any(), any(),
@@ -437,15 +459,8 @@ void main() {
 
       await provider.checkout(MockBuildContext(), member, 'session-1');
 
-      verifyNever(() => mockService.createTransactionsFromDispenseResult(
-            dispenserTxId: any(named: 'dispenserTxId'),
-            memberId: any(named: 'memberId'),
-            productId: any(named: 'productId'),
-            priceCents: any(named: 'priceCents'),
-            requestedQty: any(named: 'requestedQty'),
-            actualDispensed: any(named: 'actualDispensed'),
-            sessionId: any(named: 'sessionId'),
-          ));
+      verifyNever(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo')));
       verifyNever(() => mockService.createTransaction(any(), any(),
           sessionId: any(named: 'sessionId')));
       expect(provider.lastTransactionId, isNull);
@@ -478,6 +493,35 @@ void main() {
           sessionId: any(named: 'sessionId')));
     });
 
+    /// #947: zero tokens is only a fact when the device says the count is one.
+    test('a zero the dispenser cannot vouch for keeps the tracking record',
+        () async {
+      final provider = StubDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
+        dispenseResult: DispenseResult(
+          txId: 'tx-1',
+          state: 'error',
+          quantity: 1,
+          dispensed: 0,
+          countReliable: false,
+        ),
+      );
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+      expect(provider.lastErrorKey,
+          equals(TerminalErrorKey.dispenserCountUnreliable));
+      expect(provider.items, hasLength(1), reason: 'nothing was charged');
+      verifyNever(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo')));
+    });
+
     test('releases the dispenser tracking record on zero tokens', () async {
       final provider = providerDispensing(0);
       provider.addItem('token-1', 'Token', 200, 1, 'de',
@@ -493,19 +537,11 @@ void main() {
       provider.addItem('token-1', 'Token', 200, 2, 'de',
           requiresDispenser: true);
 
-      when(() => mockService.createTransactionsFromDispenseResult(
-            dispenserTxId: any(named: 'dispenserTxId'),
-            memberId: any(named: 'memberId'),
-            productId: any(named: 'productId'),
-            priceCents: any(named: 'priceCents'),
-            requestedQty: any(named: 'requestedQty'),
-            actualDispensed: any(named: 'actualDispensed'),
-            sessionId: any(named: 'sessionId'),
-          )).thenAnswer((_) async => ('txn-token', null));
+      when(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo'))).thenAnswer((_) async => ('txn-token', null));
       when(() => mockService.updateDispenserOperationState(
             dispenserTxId: any(named: 'dispenserTxId'),
             state: any(named: 'state'),
-            transactionsCreated: any(named: 'transactionsCreated'),
             lastKnownDispensed: any(named: 'lastKnownDispensed'),
           )).thenAnswer((_) async => (true, null));
 
@@ -515,6 +551,78 @@ void main() {
       expect(provider.lastError, isNull);
       expect(provider.lastTransactionId, equals('txn-token'));
       verify(() => mockSoundService.play(SoundEvent.checkoutSuccess)).called(1);
+    });
+
+    /// The dispense as the dialog reports it when its poll deadline passed:
+    /// two tokens seen, and `dispensing` — the last thing the *device* said
+    /// (#946). Before, the dialog turned this into a `done` of its own making.
+    CartProvider providerStillDispensing({bool? countReliable}) =>
+        StubDispenseCartProvider(
+          service: mockService,
+          config: mockConfig,
+          soundService: mockSoundService,
+          dispenserClient: _testDispenserClient(),
+          dispenseResult: DispenseResult(
+            txId: 'tx-1',
+            state: countReliable == null ? 'dispensing' : 'done',
+            quantity: 3,
+            dispensed: 2,
+            // Null means "the poll deadline passed" here: the device never
+            // said `done`, so what it last said about its count still holds.
+            countReliable: countReliable ?? true,
+          ),
+        );
+
+    void billingSucceeds() {
+      when(() => mockService.billDispensedTokens(any(),
+              upTo: any(named: 'upTo')))
+          .thenAnswer((_) async => ('txn-token', null));
+      when(() => mockService.updateDispenserOperationState(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            state: any(named: 'state'),
+            lastKnownDispensed: any(named: 'lastKnownDispensed'),
+          )).thenAnswer((_) async => (true, null));
+    }
+
+    test('a dispense the dialog stopped watching keeps its tracking row',
+        () async {
+      // A polling timeout is the terminal losing sight of the dispenser, not
+      // the dispenser finishing: the tokens still falling need a row to be
+      // reconciled against (finding 5, #946).
+      billingSucceeds();
+      final provider = providerStillDispensing();
+      provider.addItem('token-1', 'Token', 200, 3, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verify(() => mockService.billDispensedTokens(any(), upTo: 2)).called(1);
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+    });
+
+    test('a device that cannot vouch for its count keeps its tracking row too',
+        () async {
+      // `done` with `count_reliable: false` is a dispenser that lost track
+      // across a reset (protocol 2, #948): final, and still not settled.
+      billingSucceeds();
+      final provider = providerStillDispensing(countReliable: false);
+      provider.addItem('token-1', 'Token', 200, 3, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+    });
+
+    test('a dispense the device called done closes its tracking row', () async {
+      billingSucceeds();
+      final provider = providerStillDispensing(countReliable: true);
+      provider.addItem('token-1', 'Token', 200, 3, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verify(() => mockService.cleanupDispenserOperation(any())).called(1);
     });
   });
 
@@ -547,7 +655,7 @@ void main() {
 
       when(() => mockConfig.dispenserEnabled).thenReturn(true);
       when(() => mockConfig.dispenserBaseUrl).thenReturn('http://dispenser');
-      when(() => mockConfig.dispenserApiKey).thenReturn('key');
+      when(() => mockConfig.dispenserSigningKey).thenReturn('key');
       when(() => mockSoundService.play(any())).thenAnswer((_) async {});
       when(() => mockService.validateCartBeforeCheckout(any(), any()))
           .thenAnswer((_) async => (true, null));
@@ -557,11 +665,15 @@ void main() {
             productId: any(named: 'productId'),
             priceCents: any(named: 'priceCents'),
             requestedQty: any(named: 'requestedQty'),
+            sessionId: any(named: 'sessionId'),
           )).thenAnswer((_) async => (true, null));
+      when(() => mockService.dispenserOperation(any()))
+          .thenAnswer((_) async => null);
+      when(() => mockService.billDispensedTokens(any(),
+          upTo: any(named: 'upTo'))).thenAnswer((_) async => ('txn-token', null));
       when(() => mockService.updateDispenserOperationState(
             dispenserTxId: any(named: 'dispenserTxId'),
             state: any(named: 'state'),
-            transactionsCreated: any(named: 'transactionsCreated'),
             lastKnownDispensed: any(named: 'lastKnownDispensed'),
           )).thenAnswer((_) async => (true, null));
       when(() => mockService.cleanupDispenserOperation(any()))
@@ -577,6 +689,7 @@ void main() {
         service: mockService,
         config: mockConfig,
         soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
         outcomes: [
           // First checkout: the dispense attempt blows up as busy.
           () async => throw DispenserBusyException(),
@@ -602,6 +715,107 @@ void main() {
       verifyNever(() => mockService.createTransaction(any(), any(),
           sessionId: any(named: 'sessionId')));
       verifyNever(() => mockSoundService.play(SoundEvent.checkoutSuccess));
+    });
+
+    /// #947: the terminal's own idea of how the checkout ended is not a device
+    /// state, and writing it over `last_known_state` erased the only thing
+    /// that tells the two meanings of a later 404 apart.
+    test('a cancelled checkout writes nothing over what the device said',
+        () async {
+      final provider = ScriptedDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
+        outcomes: [() async => null],
+      );
+
+      provider.addItem('token-1', 'Token', 200, 1, 'de',
+          requiresDispenser: true);
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      verifyNever(() => mockService.updateDispenserOperationState(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            state: any(named: 'state'),
+            transactionsCreated: any(named: 'transactionsCreated'),
+            lastKnownDispensed: any(named: 'lastKnownDispensed'),
+            pollingActive: any(named: 'pollingActive'),
+            lastPolledAt: any(named: 'lastPolledAt'),
+            acknowledged: any(named: 'acknowledged'),
+          ));
+      verifyNever(() => mockService.cleanupDispenserOperation(any()));
+    });
+  });
+
+  /// One dispenser, one dispensable product (#949). The guard lives in
+  /// [CartService.validateCartBeforeCheckout]; what is pinned here is that
+  /// checkout *honours* it before anything irreversible happens — no tracking
+  /// row, no dialog, no request to the device — and that the member is told.
+  group('CartProvider refuses a mixed dispenser cart (#949)', () {
+    late MockCartService mockService;
+    late MockConfigService mockConfig;
+    late MockSoundService mockSoundService;
+
+    final member = MembersCacheData(
+      id: 'member-1',
+      cardUid: 'card-123',
+      firstName: 'John',
+      lastName: 'Doe',
+      preferredLanguage: 'de',
+      isActive: 1,
+      isSepaValid: 1,
+      balanceCents: 0,
+      updatedAt: '2025-02-01T10:00:00Z',
+    );
+
+    setUp(() {
+      mockService = MockCartService();
+      mockConfig = MockConfigService();
+      mockSoundService = MockSoundService();
+
+      when(() => mockConfig.dispenserEnabled).thenReturn(true);
+      when(() => mockSoundService.play(any())).thenAnswer((_) async {});
+      when(() => mockService.validateCartBeforeCheckout(any(), any()))
+          .thenAnswer((_) async => (false, TerminalErrorKey.dispenserMixedProducts));
+    });
+
+    test('nothing is dispensed, tracked or charged, and the cart survives',
+        () async {
+      // An empty outcome list: reaching the dialog at all throws rather than
+      // quietly returning null, so "it never dispensed" is asserted by the
+      // test blowing up if it did.
+      final provider = ScriptedDispenseCartProvider(
+        service: mockService,
+        config: mockConfig,
+        soundService: mockSoundService,
+        dispenserClient: _testDispenserClient(),
+        outcomes: const [],
+      );
+
+      provider.addItem('sauna-token', 'Sauna-Token', 200, 1, 'de',
+          requiresDispenser: true);
+      provider.addItem('wasch-token', 'Wasch-Token', 500, 1, 'de',
+          requiresDispenser: true);
+
+      await provider.checkout(MockBuildContext(), member, 'session-1');
+
+      expect(provider.calls, isZero, reason: 'the device was never asked');
+      expect(provider.lastErrorKey,
+          equals(TerminalErrorKey.dispenserMixedProducts));
+      expect(provider.items, hasLength(2),
+          reason: 'a refused cart is left for the member to fix');
+      verifyNever(() => mockService.createDispenserOperation(
+            dispenserTxId: any(named: 'dispenserTxId'),
+            memberId: any(named: 'memberId'),
+            productId: any(named: 'productId'),
+            priceCents: any(named: 'priceCents'),
+            requestedQty: any(named: 'requestedQty'),
+            sessionId: any(named: 'sessionId'),
+          ));
+      verifyNever(() => mockService.createTransaction(any(), any(),
+          sessionId: any(named: 'sessionId')));
+      verify(() => mockSoundService.play(SoundEvent.checkoutError)).called(1);
+      expect(provider.isLoading, isFalse);
     });
   });
 

@@ -628,7 +628,7 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    |------|----------|-------|
    | `api` | `api-tests` | 2 shards, 318/318 — homogeneous, so count-balancing is time-balancing |
    | `ui` | `admin-chromium`, `admin-mobile` | 2 shards |
-   | `chain` | `api-ordered`, `api-rotation`, `mail-backup`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles`, `mail-digest`, `mail-member`, `mail-anmeldelink` | 1 job, no shard: every project in it is deliberately serial |
+   | `chain` | `api-ordered`, `api-rotation`, `mail-backup`, `mail-chain`, `mail-statement`, `mail-credentials`, `mail-issuance`, `mail-lifecycle`, `mail-jugendschutz`, `mail-roles`, `mail-digest`, `mail-member`, `mail-anmeldelink`, `mail-dispenser` | 1 job, no shard: every project in it is deliberately serial |
 
    Those dependencies are about **one shared database**, not about data, so a
    job of its own satisfies them. `E2E_LANE=chain` is what says so, and it is
@@ -640,7 +640,8 @@ The `sequential-thinking` MCP server provides a structured, multi-step reasoning
    E2E_LANE=chain npx playwright test --project=api-ordered --project=api-rotation \
      --project=mail-backup --project=mail-chain --project=mail-statement --project=mail-credentials --project=mail-issuance \
      --project=mail-lifecycle --project=mail-jugendschutz --project=mail-roles \
-     --project=mail-digest --project=mail-member --project=mail-anmeldelink
+     --project=mail-digest --project=mail-member --project=mail-anmeldelink \
+     --project=mail-dispenser
    npx playwright test --project=api-tests --shard=1/2
    ```
 

@@ -260,7 +260,7 @@ void main() {
           'dispenser': {
             'enabled': true,
             'baseUrl': 'http://dispenser.local',
-            'apiKey': 'dispenser-api-key-123',
+            'signingKey': 'dispenser-signing-key-123',
             'timeoutMs': 5000,
             'pollIntervalMs': 500,
           }
@@ -270,7 +270,7 @@ void main() {
 
         expect(configService.dispenserEnabled, isTrue);
         expect(configService.dispenserBaseUrl, 'http://dispenser.local');
-        expect(configService.dispenserApiKey, 'dispenser-api-key-123');
+        expect(configService.dispenserSigningKey, 'dispenser-signing-key-123');
         expect(configService.dispenserTimeoutMs, 5000);
         expect(configService.dispenserPollIntervalMs, 500);
       });
@@ -287,9 +287,9 @@ void main() {
 
         expect(configService.dispenserEnabled, isFalse);
         expect(configService.dispenserBaseUrl, isNull);
-        expect(configService.dispenserApiKey, isNull);
+        expect(configService.dispenserSigningKey, isNull);
         expect(configService.dispenserTimeoutMs, 3000);
-        expect(configService.dispenserPollIntervalMs, 250);
+        expect(configService.dispenserPollIntervalMs, 500);
       });
 
       test('clear resets dispenser config to defaults', () async {
@@ -301,7 +301,7 @@ void main() {
           'dispenser': {
             'enabled': true,
             'baseUrl': 'http://dispenser.local',
-            'apiKey': 'key-abc',
+            'signingKey': 'key-abc',
           }
         }));
         await configService.load();
@@ -312,9 +312,9 @@ void main() {
 
         expect(configService.dispenserEnabled, isFalse);
         expect(configService.dispenserBaseUrl, isNull);
-        expect(configService.dispenserApiKey, isNull);
+        expect(configService.dispenserSigningKey, isNull);
         expect(configService.dispenserTimeoutMs, 3000);
-        expect(configService.dispenserPollIntervalMs, 250);
+        expect(configService.dispenserPollIntervalMs, 500);
       });
     });
 

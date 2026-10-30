@@ -257,19 +257,67 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       case 'dispensing': return l10n.dispenserStateDispensing;
       case 'done': return l10n.dispenserStateDone;
       case 'error': return l10n.dispenserStateError;
+      case 'fault': return l10n.dispenserStateFault;
       case 'not_found': return l10n.dispenserStateNotFound;
       case 'offline': return l10n.dispenserStateOffline;
       default: return l10n.dispenserStateUnknown;
     }
   }
 
-  bool _isDispenserOffline(DispenserHealth? health) {
-    return health != null &&
-           (health.dispenser == 'offline' || health.status == 'error');
+  /// The dispenser cannot serve a token right now — unreachable, faulted, or
+  /// speaking a protocol this terminal does not (#948). The header says
+  /// *that*; the rows below say *which*.
+  bool _isDispenserUnavailable(DispenserHealth? health) {
+    return health != null && health.isUnavailable;
+  }
+
+  /// Why, in one phrase the member and the volunteer on the phone both read.
+  String _unavailableReasonText(
+      DispenserHealth health, AppLocalizations l10n) {
+    switch (health.unavailableReason) {
+      case DispenserUnavailableReason.offline:
+        return l10n.dispenserUnavailableOffline;
+      case DispenserUnavailableReason.protocolMismatch:
+        return l10n.dispenserUnavailableProtocol;
+      case DispenserUnavailableReason.jam:
+        // "jam or empty": the device has no empty sensor, so a jam and an
+        // empty hopper are the same evidence and the copy says so rather
+        // than guessing (protocol Design Principle 7).
+        return l10n.dispenserUnavailableJam;
+      case DispenserUnavailableReason.hopperError:
+        return l10n.dispenserUnavailableHopperError(health.faultCode);
+      case DispenserUnavailableReason.unspecifiedFault:
+        return l10n.dispenserUnavailableFault;
+      case DispenserUnavailableReason.signingKeyRejected:
+        return l10n.dispenserUnavailableKeyRejected;
+      case null:
+        return '';
+    }
+  }
+
+  /// The one line of instruction that goes with the reason. There is no reset
+  /// button here and there must not be one: a fault is cleared by a power
+  /// cycle and by nothing else (owner decision, #948).
+  String _unavailableInstruction(
+      DispenserHealth health, AppLocalizations l10n) {
+    switch (health.unavailableReason) {
+      case DispenserUnavailableReason.offline:
+        return l10n.dispenserOfflineInstruction;
+      case DispenserUnavailableReason.protocolMismatch:
+        return l10n.dispenserProtocolInstruction;
+      case DispenserUnavailableReason.signingKeyRejected:
+        return l10n.dispenserKeyInstruction;
+      case DispenserUnavailableReason.jam:
+      case DispenserUnavailableReason.hopperError:
+      case DispenserUnavailableReason.unspecifiedFault:
+        return l10n.dispenserFaultInstruction;
+      case null:
+        return '';
+    }
   }
 
   IconData _statusIcon(DispenserHealth? health) {
-    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserUnavailable(health)) {
       return Icons.warning_amber_rounded;
     }
     switch (widget.connectionStatus) {
@@ -283,7 +331,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   }
 
   Color _statusColor(DispenserHealth? health) {
-    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserUnavailable(health)) {
       return AppColors.semanticPending;
     }
     switch (widget.connectionStatus) {
@@ -297,7 +345,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   }
 
   String _statusTitle(DispenserHealth? health, AppLocalizations l10n) {
-    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserOffline(health)) {
+    if (widget.connectionStatus == ConnectionStatus.online && _isDispenserUnavailable(health)) {
       return l10n.statusWarning;
     }
     switch (widget.connectionStatus) {
@@ -511,7 +559,36 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             _buildSection(
               title: l10n.dispenser,
               children: [
-                _infoRow('Status', _dispenserStatusText(health, l10n)),
+                _infoRow('Status', _dispenserStatusText(health, l10n),
+                    valueColor: health.isUnavailable
+                        ? AppColors.semanticDanger
+                        : null),
+                // Why, and the one errand that follows from it. Before #948
+                // this section said "Offline" for a jam, an empty hopper, a
+                // sensor fault and a firmware mismatch alike — and whoever
+                // was called went looking for a network problem.
+                if (health.isUnavailable) ...[
+                  const SizedBox(height: 8),
+                  _infoRow(l10n.dispenserReason,
+                      _unavailableReasonText(health, l10n)),
+                  if (health.contact == DispenserContact.protocolMismatch &&
+                      health.protocol != null) ...[
+                    const SizedBox(height: 8),
+                    _infoRow(
+                      l10n.dispenserProtocol,
+                      l10n.dispenserProtocolDetail(
+                          health.protocol!, dispenserProtocolVersion),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    _unavailableInstruction(health, l10n),
+                    style: TextStyle(
+                      fontSize: AppFontSizes.base,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
                 if (health.totalDispenses > 0 || (health.requestedTokens ?? 0) > 0) ...[
                   const SizedBox(height: 8),
                   _infoRow(
@@ -836,6 +913,12 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // The errand, at the top of the tab a volunteer opens on the phone
+          // to support: reason first, then the one instruction that ends it.
+          if (health.isUnavailable) ...[
+            _buildUnavailableBanner(l10n, health),
+            const SizedBox(height: 20),
+          ],
           _buildUptimeSection(l10n, health),
           const SizedBox(height: 20),
           _buildMachineStateSection(l10n, health),
@@ -846,6 +929,53 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
           if (_pendingOps.isNotEmpty) ...[
             const SizedBox(height: 20),
             _buildPendingOperationsSection(l10n),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnavailableBanner(
+      AppLocalizations l10n, DispenserHealth health) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0x0Fef4444),
+        border: Border.all(color: const Color(0x33ef4444)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _unavailableReasonText(health, l10n),
+            style: TextStyle(
+              fontSize: AppFontSizes.lg,
+              fontWeight: FontWeight.w600,
+              color: AppColors.semanticDanger,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _unavailableInstruction(health, l10n),
+            style: TextStyle(
+              fontSize: AppFontSizes.base,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          if (health.contact == DispenserContact.protocolMismatch &&
+              health.protocol != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              l10n.dispenserProtocolDetail(
+                  health.protocol!, dispenserProtocolVersion),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: AppFontSizes.xs,
+                color: AppColors.borderMuted,
+              ),
+            ),
           ],
         ],
       ),
@@ -912,9 +1042,16 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
     );
   }
 
-  Widget _buildStatusBadge(String status, AppLocalizations l10n) {
+  Widget _buildStatusBadge(DispenserHealth health, AppLocalizations l10n) {
+    // What the *device* says it is, plus the two conditions where it said
+    // nothing the terminal could use.
+    final status = switch (health.contact) {
+      DispenserContact.unreachable => 'offline',
+      DispenserContact.protocolMismatch => 'unknown',
+      DispenserContact.reported => health.state?.wire ?? 'unknown',
+    };
     final isIdle = status == 'idle';
-    final isError = status == 'offline' || status == 'error';
+    final isError = health.isUnavailable;
     final Color bg, border, text;
     if (isError) {
       bg     = const Color(0x19ef4444);
@@ -1033,7 +1170,7 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                   letterSpacing: 0.12,
                 ),
               ),
-              _buildStatusBadge(health.dispenser, l10n),
+              _buildStatusBadge(health, l10n),
             ],
           ),
           const SizedBox(height: 20),
@@ -1235,10 +1372,8 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: error.cleared ? const Color(0x05FFFFFF) : const Color(0x0Fef4444),
-        border: Border.all(
-          color: error.cleared ? const Color(0x0AFFFFFF) : const Color(0x26ef4444),
-        ),
+        color: const Color(0x0Fef4444),
+        border: Border.all(color: const Color(0x26ef4444)),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -1247,15 +1382,15 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: error.cleared ? const Color(0x1434d399) : const Color(0x19ef4444),
+              color: const Color(0x19ef4444),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
               child: Text(
-                error.cleared ? '✓' : '⚠',
+                '⚠',
                 style: TextStyle(
                   fontSize: AppFontSizes.base,
-                  color: error.cleared ? AppColors.semanticSuccessLight : AppColors.semanticDanger,
+                  color: AppColors.semanticDanger,
                 ),
               ),
             ),
@@ -1271,12 +1406,12 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
                     fontWeight: FontWeight.w600,
-                    color: error.cleared ? AppColors.textSecondary : AppColors.semanticDanger,
+                    color: AppColors.semanticDanger,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${_formatErrorTimestamp(error.timestamp)}${error.cleared ? " · ${l10n.dispenserErrorCleared}" : ""}',
+                  _formatErrorTimestamp(error.timestamp),
                   style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: AppFontSizes.xs,
@@ -1446,12 +1581,13 @@ class _StatusInfoDialogState extends State<_StatusInfoDialog> {
   }
 
   String _dispenserStatusText(DispenserHealth health, AppLocalizations l10n) {
-    final isOnline = health.dispenser != 'offline' && health.status != 'error';
-    if (isOnline) {
-      return l10n.dispenserStatusOnline(_translateMachineState(health.dispenser, l10n));
-    } else {
-      return l10n.statusOffline;
+    if (!health.isUnavailable) {
+      return l10n.dispenserStatusOnline(
+          _translateMachineState(health.state?.wire, l10n));
     }
+    // Whether, not why: the reason has its own row right underneath, and one
+    // sentence twice reads as a rendering bug.
+    return l10n.dispenserUnavailableShort;
   }
 
   Widget _infoRow(String label, String value, {Color? valueColor}) {
