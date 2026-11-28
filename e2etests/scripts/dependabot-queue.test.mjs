@@ -28,6 +28,7 @@ import {
   resolveMergeability,
   runQueue,
   summaryMarkdown,
+  updateTypesFromVersions,
   updateTypesIn,
 } from './dependabot-queue.mjs'
 
@@ -85,6 +86,64 @@ test('a group carries every update type its commits contain', () => {
 
 test('a commit with no trailer yields nothing', () => {
   assert.deepEqual(updateTypesIn(['Fix: reach the registrations inbox from a phone']), [])
+})
+
+/** The shape of #1016: a security update, which carries no `update-type:` trailer at all. */
+const securityCommitMessage = (from = '1.16.1', to = '1.16.2') => `build(deps): Bump follow-redirects in /admin-frontend
+
+Bumps [follow-redirects](https://github.com/follow-redirects/follow-redirects) from ${from} to ${to}.
+- [Release notes](https://github.com/follow-redirects/follow-redirects/releases)
+
+---
+updated-dependencies:
+- dependency-name: follow-redirects
+  dependency-version: ${to}
+  dependency-type: indirect
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>`
+
+test('a security update without a trailer is read from the versions it bumps', () => {
+  assert.deepEqual(updateTypesIn([securityCommitMessage('1.16.1', '1.16.2')]), ['patch'])
+  assert.deepEqual(updateTypesIn([securityCommitMessage('1.16.1', '1.17.0')]), ['minor'])
+  assert.deepEqual(updateTypesIn([securityCommitMessage('1.16.1', '2.0.0')]), ['major'])
+  assert.deepEqual(updateTypesIn([securityCommitMessage('v4.7.0', 'v4.7.1')]), ['patch'])
+})
+
+test('below 1.0 a minor step is read as major — that is where semver lets it break', () => {
+  assert.deepEqual(updateTypesFromVersions([securityCommitMessage('0.4.14', '0.5.7')]), ['major'])
+  assert.deepEqual(updateTypesFromVersions([securityCommitMessage('0.4.14', '0.4.15')]), ['patch'])
+})
+
+test('a version the queue cannot read yields nothing, so the pull request is held', () => {
+  assert.deepEqual(updateTypesIn([securityCommitMessage('1.16.1', '1.17.0-rc.1')]), [])
+  assert.deepEqual(updateTypesIn([securityCommitMessage('dbcb813', '81c6f93')]), [])
+  assert.deepEqual(updateTypesIn([securityCommitMessage('1.16.2', '1.16.1')]), [])
+})
+
+test('one unreadable bump among several holds the whole commit', () => {
+  const message = `${securityCommitMessage('1.16.1', '1.16.2')}\nUpdates \`other\` from 2.0.0 to 2.1.0-beta`
+  assert.deepEqual(updateTypesFromVersions([message]), [])
+})
+
+test('the fallback needs Dependabot metadata — a prose "from x to y" is not a bump', () => {
+  assert.deepEqual(updateTypesIn(['Move the timeout from 1.0.0 to 1.0.1 seconds']), [])
+})
+
+test('a trailer always wins over the versions in the prose', () => {
+  assert.deepEqual(updateTypesIn([commitMessage('minor')]), ['minor'])
+})
+
+test('a green security patch without a trailer is ready to merge', () => {
+  const row = classify(pr({ number: 1016 }), details({ commitMessages: [securityCommitMessage()] }))
+  assert.equal(row.state, 'ready')
+  assert.deepEqual(row.updateTypes, ['patch'])
+})
+
+test('a security update that jumps a major is still held for a person', () => {
+  const row = classify(pr({ number: 1016 }), details({ commitMessages: [securityCommitMessage('1.16.1', '2.0.0')] }))
+  assert.equal(row.state, 'held')
+  assert.match(row.reason, /major/)
 })
 
 test('skipped and neutral are green — path filters and CodeQL produce them on every run', () => {

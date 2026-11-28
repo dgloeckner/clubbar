@@ -322,6 +322,11 @@ with nothing looking broken.
 
 - **Patch and minor only.** A major — including one hidden inside a group — waits
   for a person, for the reason `.github/dependabot.yml` already gives.
+  A *security* update carries no `update-type:` trailer, so its type is read from
+  the "from X to Y" versions in the commit body; anything that is not a plain,
+  forward `MAJOR.MINOR.PATCH` step is held, and below 1.0 a minor step counts as
+  major. Holding every security fix is what once turned main's `audit` red and
+  stalled the whole queue behind it for three weeks.
 - **Green means the Build really ran.** `skipped` (build.yaml's path filters) and
   `neutral` (CodeQL's roll-up) pass; a commit carrying no `changes`/`audit` check
   is treated as *unbuilt*, never as green.

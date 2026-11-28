@@ -96,7 +96,54 @@ export function updateTypesIn(commitMessages) {
       types.add(match[1])
     }
   }
+  if (types.size > 0) return [...types]
+  return updateTypesFromVersions(commitMessages)
+}
+
+/**
+ * The fallback for a commit that has Dependabot's `updated-dependencies:` block
+ * but no `update-type:` trailer — which is what a *security* update looks like
+ * (#1016: follow-redirects 1.16.1 → 1.16.2). Without it the queue held every
+ * security fix, the advisory turned main's `audit` red, and that red build then
+ * held every other pull request too: thirteen of them, for three weeks.
+ *
+ * The type is read from the "from X to Y" pairs Dependabot writes in the body.
+ * Every pair must be a plain `MAJOR.MINOR.PATCH` (optionally `v`-prefixed) that
+ * moves forward, or the answer is nothing — and nothing is held. Below 1.0 a
+ * minor step counts as major, because that is where semver lets it break.
+ *
+ * @returns {string[]} 'patch' | 'minor' | 'major', deduplicated; [] when unsure.
+ */
+export function updateTypesFromVersions(commitMessages) {
+  const types = new Set()
+  for (const message of commitMessages ?? []) {
+    const text = String(message)
+    if (!/^updated-dependencies:/m.test(text)) continue
+
+    const pairs = [...text.matchAll(/\bfrom (\S+?) to (\S+?)\.?(?:\s|$)/g)]
+    if (pairs.length === 0) return []
+    for (const [, from, to] of pairs) {
+      const type = semverStep(from, to)
+      if (type === null) return []
+      types.add(type)
+    }
+  }
   return [...types]
+}
+
+const SEMVER = /^v?(\d+)\.(\d+)\.(\d+)$/
+
+/** @returns {'patch'|'minor'|'major'|null} null for anything that is not a forward release-to-release step. */
+function semverStep(from, to) {
+  const a = SEMVER.exec(from)
+  const b = SEMVER.exec(to)
+  if (!a || !b) return null
+  const [ma, mi, pa] = a.slice(1).map(Number)
+  const [mb, mib, pb] = b.slice(1).map(Number)
+
+  if (mb !== ma) return mb > ma ? 'major' : null
+  if (mib !== mi) return mib > mi ? (ma === 0 ? 'major' : 'minor') : null
+  return pb > pa ? 'patch' : null
 }
 
 /**
@@ -166,7 +213,7 @@ export function classify(pr, details, options = {}) {
   const blocking = (pr.labels ?? []).filter((label) => blockingLabels.includes(label))
   if (blocking.length > 0) return held(`labelled ${blocking.join(', ')}`)
 
-  if (updateTypes.length === 0) return held('no update-type trailer — not a Dependabot version bump')
+  if (updateTypes.length === 0) return held('no readable update type — neither a trailer nor plain semver versions')
 
   const disallowed = updateTypes.filter((type) => !allowedUpdateTypes.includes(type))
   if (disallowed.length > 0) return held(`${disallowed.join('/')} update — a person reviews these`)
