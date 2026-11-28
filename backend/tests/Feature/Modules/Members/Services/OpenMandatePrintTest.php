@@ -116,6 +116,29 @@ final class OpenMandatePrintTest extends DatabaseTestCase
         };
     }
 
+    /**
+     * The keyed tests open what a real write sealed, with the published
+     * development key — so the installation has to be sealing under it.
+     *
+     * It always is in CI, where `ensureActiveEncryptionKey()` installs that key
+     * into a fresh database. A long-lived local stack can differ: the
+     * `api-rotation` E2E project moves the installation onto the second dev
+     * keypair and deliberately leaves it there. Run after that, these tests
+     * would fail with "the IBAN is not on the page" — which reads as a broken
+     * print and is a stale fixture. Said by name instead.
+     */
+    private function requireTheDevKeyToBeActive(): void
+    {
+        $active = (new EncryptionKeysRepository($this->db, $this->logger))->findActive();
+
+        if (($active['id'] ?? null) !== self::DEV_KEY_ID) {
+            $this->markTestSkipped(
+                'The active encryption key is not the published dev key (the key-rotation E2E spec leaves '
+                . 'the stack on the rotated one). Re-seed the database to run the keyed print tests.',
+            );
+        }
+    }
+
     /** A valid German IBAN no other row in this database holds. */
     private function uniqueIban(): string
     {
@@ -236,6 +259,8 @@ final class OpenMandatePrintTest extends DatabaseTestCase
      */
     public function test_the_keyed_print_carries_the_iban_that_was_sealed(): void
     {
+        $this->requireTheDevKeyToBeActive();
+
         $first = $this->uniqueIban();
         $second = $this->uniqueIban();
         $a = $this->member(['iban' => $first]);
@@ -258,6 +283,8 @@ final class OpenMandatePrintTest extends DatabaseTestCase
      */
     public function test_both_prints_are_recorded_without_a_new_audit_action(): void
     {
+        $this->requireTheDevKeyToBeActive();
+
         $open = $this->member();
 
         $this->service->render([$open['id']], null, null);

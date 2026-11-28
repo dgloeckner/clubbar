@@ -523,6 +523,81 @@ class MembersServiceTest extends TestCase
         $this->membersService->updateMember('member-1', ['email' => 'new@example.com']);
     }
 
+    // ── the welcome after a signature (ADR-0051, amended 2026-11-28) ─────
+
+    /**
+     * A carded member whose mandate is open, and the same member once the
+     * signature date has been recorded — the save that completes the pair.
+     *
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function beforeAndAfterTheSignature(): array
+    {
+        $unsigned = $this->member('member-1', ['has_iban' => 1, 'mandate_signed_at' => null]);
+
+        return [$unsigned, ['mandate_signed_at' => '2026-11-28'] + $unsigned];
+    }
+
+    public function test_recording_the_signature_on_a_carded_member_queues_the_welcome_alone(): void
+    {
+        [$before, $after] = $this->beforeAndAfterTheSignature();
+        $this->membersRepository->method('findById')->willReturn($before);
+        $this->membersRepository->method('updateById')->willReturn($after);
+        $this->membersRepository->method('hasEarlierSignedMandate')->willReturn(false);
+
+        $this->notificationsService->expects($this->once())->method('notifyMemberWelcome');
+        // Never the card notice: no card moved, so there is no replacement to
+        // fall back to.
+        $this->notificationsService->expects($this->never())->method('notifyMemberCard');
+
+        $this->membersService->updateMember('member-1', ['mandate_signed_at' => '2026-11-28']);
+    }
+
+    public function test_a_bank_change_completed_later_queues_no_welcome(): void
+    {
+        [$before, $after] = $this->beforeAndAfterTheSignature();
+        $this->membersRepository->method('findById')->willReturn($before);
+        $this->membersRepository->method('updateById')->willReturn($after);
+        $this->membersRepository->method('hasEarlierSignedMandate')->willReturn(true);
+
+        $this->notificationsService->expects($this->never())->method('notifyMemberWelcome');
+        $this->notificationsService->expects($this->never())->method('notifyMemberCard');
+
+        $this->membersService->updateMember('member-1', ['mandate_signed_at' => '2026-11-28']);
+    }
+
+    /**
+     * The lookup runs after the write has committed. If it fails, the save
+     * must still succeed — and the welcome is withheld rather than risked
+     * twice.
+     */
+    public function test_a_failing_mandate_history_lookup_neither_fails_the_save_nor_welcomes(): void
+    {
+        [$before, $after] = $this->beforeAndAfterTheSignature();
+        $this->membersRepository->method('findById')->willReturn($before);
+        $this->membersRepository->method('updateById')->willReturn($after);
+        $this->membersRepository->method('hasEarlierSignedMandate')
+            ->willThrowException(new \RuntimeException('connection lost'));
+
+        $this->notificationsService->expects($this->never())->method('notifyMemberWelcome');
+
+        $updated = $this->membersService->updateMember('member-1', ['mandate_signed_at' => '2026-11-28']);
+
+        $this->assertSame('2026-11-28', $updated->mandateSignedAt);
+    }
+
+    /** The history is only asked when it can change the answer. */
+    public function test_the_mandate_history_is_not_read_for_a_save_that_leaves_usability_alone(): void
+    {
+        $member = $this->member('member-1', ['has_iban' => 1]);
+        $this->membersRepository->method('findById')->willReturn($member);
+        $this->membersRepository->method('updateById')->willReturn(['first_name' => 'Maximilian'] + $member);
+
+        $this->membersRepository->expects($this->never())->method('hasEarlierSignedMandate');
+
+        $this->membersService->updateMember('member-1', ['first_name' => 'Maximilian']);
+    }
+
     public function test_anonymizeMember_throws_notFoundException_when_missing(): void
     {
         $this->membersRepository->method('findByIdIncludingDeleted')->willReturn(null);

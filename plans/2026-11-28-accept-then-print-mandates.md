@@ -1,6 +1,6 @@
 # Accept First, Print in Bulk, Sign Later
 
-**Status**: In progress — see the milestones below.
+**Status**: Implemented — M1–M6 complete, each verified (counts under *Verification* below).
 **Design**: ADR-0052 (amended 2026-11-28), ADR-0036 (amended 2026-11-28), ADR-0051 (amended 2026-11-28)
 **Use cases**: UC-A17, UC-A18 (new), UC-A67
 **Branch**: `claude/zealous-goldberg-5i64bw`
@@ -123,4 +123,47 @@ mandate, so cards can be assigned before the paper exists.
 
 ## Verification
 
-Filled in as milestones pass.
+Run locally on the dev stack (`scripts/dev-setup.sh --with-frontend`), 2026-11-28.
+
+| Suite | Result |
+|---|---|
+| Backend Unit (`php8.3 vendor/bin/phpunit --testsuite Unit`) | 3467 passed, 6 skipped (pre-existing) |
+| Backend Feature (in the container) | 911 passed, 1 skipped (pre-existing) |
+| Admin frontend: `tsc --noEmit`, eslint, `test:coverage`, `test:timezones` | clean; vitest 813/813 |
+| E2E `api-tests` (4 workers) | 879 passed, 3 skipped (pre-existing) |
+| E2E `admin-chromium` (4 workers) | 413 passed |
+| E2E `admin-mobile` (4 workers) | 70 passed |
+| E2E chain lane (`E2E_LANE=chain`, all 13 serial projects) | 48 passed — `mail-member` 6/6, `mail-lifecycle` 3/3 |
+| E2E lint, typecheck, `check:ci-lanes` | clean |
+
+0 unexpected, 0 flaky across the Playwright runs.
+
+**One thing a local run can trip over, and CI cannot.** The `api-rotation` chain
+project moves the installation onto the second dev keypair and leaves it there.
+A Feature run started on that database before `EncryptionKeysHttpTest` has put
+`dev-key-2026` back fails the tests that open a freshly sealed IBAN with the
+published dev key — `RegistrationApprovalTest::test_the_copied_ciphertext_still_opens_to_the_submitted_iban`
+(pre-existing) and, before they were given a named skip for exactly this state,
+the two keyed tests in `OpenMandatePrintTest`. Reproduced by swapping the two
+keys' status by hand; CI gives every job its own database.
+
+---
+
+## What was decided along the way
+
+Recorded here because each is the owner's to confirm (they are in the PR too):
+
+1. A batch never records a signature.
+2. "Alle aufnehmen" accepts the registrations **on screen**, not the whole inbox.
+3. A sheet whose IBAN cannot be opened (mandate under a non-active key, or an
+   IBAN longer than the template's comb) is printed blank instead of failing the
+   print; the response and the page report the count.
+4. The welcome's opening sentence now says the signed mandate arrived (de, en).
+5. Address-change notices are silent for a member with a card but no signed
+   mandate — the gate moved with the trigger.
+6. A member is printed on the club's currently configured document; the URL an
+   applicant was shown lived on the registration and is gone with it.
+7. `UC-A17` and ADR-0052 decision 7 describe a legal-representative line and an
+   account-holder signature block. No code composes either — the fill draws
+   `kontoinhaber` where the template has the field. The member-sourced print is
+   equivalent to that; the ADR amendment says so and nothing was changed.

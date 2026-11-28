@@ -419,7 +419,7 @@ class MembersService
                 // card and a signature together. Welcome, and let a refused
                 // insert report that this member has been greeted before.
                 $this->announceCardAssignment($memberId, $recipient, $language, false, $adminUserId);
-            } elseif (!$this->membersRepository->hasEarlierSignedMandate($memberId)) {
+            } elseif (!$this->isBankChange($memberId)) {
                 $this->announceWelcome($memberId, $recipient, $language, $adminUserId);
             }
         }
@@ -469,6 +469,30 @@ class MembersService
                 'member_id' => $memberId,
                 'error' => $e->getMessage(),
             ]);
+        }
+    }
+
+    /**
+     * Whether the mandate that was just completed replaces an earlier signed
+     * one — a member who moved banks, not one being onboarded.
+     *
+     * A lookup, so it can fail; and like every other step here it runs after
+     * the write has committed and must not be able to undo it. If the answer
+     * cannot be had, the member is treated as having been here before: a
+     * welcome that goes missing is the smaller mistake than a second one, and
+     * much smaller than a Kassenwart told their save failed when it did not.
+     */
+    private function isBankChange(string $memberId): bool
+    {
+        try {
+            return $this->membersRepository->hasEarlierSignedMandate($memberId);
+        } catch (\Throwable $e) {
+            $this->logger?->warning('Could not read the mandate history for a member welcome', [
+                'member_id' => $memberId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return true;
         }
     }
 
