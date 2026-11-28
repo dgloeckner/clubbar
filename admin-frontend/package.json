@@ -20,7 +20,7 @@
     "postinstall": "orval"
   },
   "dependencies": {
-    "axios": "^1.21.0",
+    "axios": "^1.21.1",
     "i18next": "^26.7.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
@@ -41,7 +41,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "jsdom": "^31.0.1",
-    "orval": "8.45.0",
+    "orval": "8.49.0",
     "prettier": "^3.1.0",
     "typescript": "^5.2.2",
     "vite": "^8.4.0",
