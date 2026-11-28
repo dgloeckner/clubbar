@@ -19,6 +19,7 @@ use App\Shared\Services\AuditService;
 use App\Shared\Utils\Uuid;
 use Tests\Feature\DatabaseTestCase;
 use Tests\Support\MandateReferences;
+use Tests\Support\PdfText;
 
 /**
  * Printing open mandates, against the real tables and a real sealed box
@@ -171,17 +172,9 @@ final class OpenMandatePrintTest extends DatabaseTestCase
 
     private function text(string $pdf): string
     {
-        $text = $pdf;
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $streams)) {
-            foreach ($streams[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated !== false) {
-                    $text .= $inflated;
-                }
-            }
-        }
-
-        return $text;
+        // One implementation for every test that reads a PDF — and the reason
+        // it is not a regex here is written down there.
+        return PdfText::of($pdf);
     }
 
     private function grouped(string $iban): string

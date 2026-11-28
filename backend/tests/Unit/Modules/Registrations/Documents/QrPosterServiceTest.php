@@ -8,6 +8,7 @@ use App\Modules\Registrations\Documents\QrPosterService;
 use App\Shared\Mail\MailLayout;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\TempTree;
+use Tests\Support\PdfText;
 
 /**
  * The poster that goes on the clubhouse wall (#783).
@@ -220,18 +221,9 @@ final class QrPosterServiceTest extends TestCase
      */
     private function readableText(string $pdf): string
     {
-        $text = $pdf;
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $streams)) {
-            foreach ($streams[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated !== false) {
-                    $text .= $inflated;
-                }
-            }
-        }
-
-        return $text;
+        // One implementation for every test that reads a PDF — and the reason
+        // it is not a regex here is written down there.
+        return PdfText::of($pdf);
     }
 
     /**

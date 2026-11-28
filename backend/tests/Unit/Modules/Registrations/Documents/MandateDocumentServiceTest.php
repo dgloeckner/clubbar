@@ -14,6 +14,7 @@ use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Logging\Logger;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\PdfText;
 
 /**
  * Turning one applicant's row into the club's filled Anmeldung (#780).
@@ -75,18 +76,9 @@ final class MandateDocumentServiceTest extends TestCase
      */
     private function text(string $pdf): string
     {
-        $text = $pdf;
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $streams)) {
-            foreach ($streams[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated !== false) {
-                    $text .= $inflated;
-                }
-            }
-        }
-
-        return $text;
+        // One implementation for every test that reads a PDF — and the reason
+        // it is not a regex here is written down there.
+        return PdfText::of($pdf);
     }
 
     /**
@@ -96,16 +88,7 @@ final class MandateDocumentServiceTest extends TestCase
      */
     private function contentStreams(string $pdf): array
     {
-        $streams = [];
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $matches)) {
-            foreach ($matches[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                $streams[] = $inflated === false ? $stream : $inflated;
-            }
-        }
-
-        return $streams;
+        return PdfText::streams($pdf);
     }
 
     public function test_the_member_document_carries_the_full_iban_grouped_for_reading(): void

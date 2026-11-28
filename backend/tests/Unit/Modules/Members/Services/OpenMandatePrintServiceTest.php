@@ -20,6 +20,7 @@ use App\Shared\Services\AuditService;
 use PDO;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\PdfText;
 
 /**
  * Printing open mandates in bulk (UC-A18).
@@ -112,17 +113,9 @@ final class OpenMandatePrintServiceTest extends TestCase
 
     private function text(string $pdf): string
     {
-        $text = $pdf;
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $streams)) {
-            foreach ($streams[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated !== false) {
-                    $text .= $inflated;
-                }
-            }
-        }
-
-        return $text;
+        // One implementation for every test that reads a PDF — and the reason
+        // it is not a regex here is written down there.
+        return PdfText::of($pdf);
     }
 
     private function pageCount(string $pdf): int

@@ -10,6 +10,7 @@ use App\Modules\Registrations\Documents\TemplateProblem;
 use App\Modules\Registrations\Documents\UnusableTemplateException;
 use App\Shared\Exceptions\BusinessRuleReason;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\PdfText;
 
 /**
  * Filling the club's document, against a real WeasyPrint build (#780).
@@ -770,16 +771,7 @@ final class MandateDocumentFillerTest extends TestCase
 
     private function contentStreams(string $pdf): array
     {
-        $streams = [];
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $matches)) {
-            foreach ($matches[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                $streams[] = $inflated === false ? $stream : $inflated;
-            }
-        }
-
-        return $streams;
+        return PdfText::streams($pdf);
     }
 
     /**
@@ -793,17 +785,8 @@ final class MandateDocumentFillerTest extends TestCase
      */
     private function readableText(string $pdf): string
     {
-        $text = $pdf;
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $streams)) {
-            foreach ($streams[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated !== false) {
-                    $text .= $inflated;
-                }
-            }
-        }
-
-        return $text;
+        // One implementation for every test that reads a PDF — and the reason
+        // it is not a regex here is written down there.
+        return PdfText::of($pdf);
     }
 }

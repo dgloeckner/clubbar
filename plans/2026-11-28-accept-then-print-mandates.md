@@ -127,7 +127,7 @@ Run locally on the dev stack (`scripts/dev-setup.sh --with-frontend`), 2026-11-2
 
 | Suite | Result |
 |---|---|
-| Backend Unit (`php8.3 vendor/bin/phpunit --testsuite Unit`) | 3467 passed, 6 skipped (pre-existing) |
+| Backend Unit (`php8.3 vendor/bin/phpunit --testsuite Unit`) | 3472 passed, 6 skipped (pre-existing) |
 | Backend Feature (in the container) | 911 passed, 1 skipped (pre-existing) |
 | Admin frontend: `tsc --noEmit`, eslint, `test:coverage`, `test:timezones` | clean; vitest 813/813 |
 | E2E `api-tests` (4 workers) | 879 passed, 3 skipped (pre-existing) |
@@ -146,6 +146,18 @@ published dev key — `RegistrationApprovalTest::test_the_copied_ciphertext_stil
 (pre-existing) and, before they were given a named skip for exactly this state,
 the two keyed tests in `OpenMandatePrintTest`. Reproduced by swapping the two
 keys' status by hand; CI gives every job its own database.
+
+**A flake found on the way, and fixed.** Every document test read drawn text
+through its own `~stream\r?\n(.*?)\r?\nendstream~s`. The `\r?` before the
+delimiter swallows the last byte of a compressed stream whenever that byte is a
+carriage return — about one stream in 256 — after which the stream does not
+inflate and its text is silently missing. Measured: 10 of 3000 fills of the
+club fixture. Met: one local run failed `self-registration.spec.ts`'s "the
+admin print leaves the IBAN blank and prints the hint" on exactly that. The new
+print tests would have multiplied the exposure (one drawn stream per member),
+so the pattern now lives once per language — `backend/tests/Support/PdfText.php`
+(with `PdfTextTest` as its regression test) and `e2etests/utils/pdf.ts` — and
+the five PHP tests and the one spec that carried a copy read through those.
 
 ---
 
