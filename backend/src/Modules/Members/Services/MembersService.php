@@ -6,6 +6,7 @@ namespace App\Modules\Members\Services;
 
 use App\Modules\BankCodes\Services\BankCodeService;
 use App\Modules\CreditLimits\Services\CreditLimitConfigService;
+use App\Modules\Members\Domain\MandateCompleteness;
 use App\Modules\Members\DTOs\MemberDto;
 use App\Modules\Members\DTOs\MemberAdminDto;
 use App\Shared\DTOs\PaginatedResultDto;
@@ -251,12 +252,13 @@ class MembersService
             adminUserId: $adminUserId,
         );
 
-        // A member created with a card already on it is onboarded in one step,
-        // so the welcome belongs here as much as in `updateMember()`. Created
-        // without one — the ordinary case under ADR-0021, where the UID is
-        // typed in afterwards — nothing is sent yet, and the member hears from
-        // the club for the first time when the card arrives.
-        if (self::realCardUid($member) !== null) {
+        // A member created with a card *and* a signed mandate is onboarded in
+        // one step, so the welcome belongs here as much as in `updateMember()`
+        // (ADR-0051, amended 2026-11-28). Created with only one of the two —
+        // the ordinary case, whichever half comes first — nothing is sent yet,
+        // and the member hears from the club for the first time on the save
+        // that completes the pair.
+        if (self::isUsable($member)) {
             $this->announceCardAssignment(
                 memberId: $member['id'],
                 recipient: $email,
@@ -355,45 +357,77 @@ class MembersService
      * The mail a member's own record change is worth (ADR-0051), decided after
      * the write and never able to undo it.
      *
-     * Two transitions matter, and the order between them is the decision:
+     * Everything turns on one question asked twice — was this member *usable*
+     * before the save, and are they now? Usable is a real card **and** a
+     * complete mandate ({@see isUsable()}): the state in which the terminal
+     * accepts the card. Until the amendment of 2026-11-28 the question was
+     * "is there a card", and a member accepted ahead of their signature was
+     * told their card was active while the terminal refused it.
      *
-     * 1. **A card arrived.** Empty → set is an onboarding, set → different is a
-     *    replacement. Either way the member now has a card.
-     * 2. **The address moved**, but only for a member who already had a card
-     *    *before* this update. A member the club has never written to must not
-     *    receive an out-of-context notice from a sender they do not recognise —
-     *    the welcome is the first message a member ever gets, and that is what
-     *    makes the rest of these readable.
+     * | before → after | card (re)assigned in this save | card untouched |
+     * |---|---|---|
+     * | usable → anything | replacement notice | — |
+     * | not usable → usable | welcome, falling back to the replacement notice when the member was greeted before | welcome only, and not for a bank change |
+     * | not usable → not usable | nothing | nothing |
      *
-     * So a request that assigns a first card *and* sets a new address sends the
-     * welcome only. There was no prior relationship in which an address could
-     * have moved, and the welcome goes to the new address regardless.
+     * Three of those cells carry a decision:
+     *
+     * - **A card on a member who was never usable says nothing.** They have
+     *   not been greeted, and "your card was replaced" is not a first message.
+     * - **The fallback to the replacement notice needs a card to have moved.**
+     *   It is how a card cleared and later reassigned is recognised (UC-A67
+     *   A4). When the pair was completed by the *signature*, a refused welcome
+     *   means only "already greeted", and nothing is said.
+     * - **A bank change does not greet twice.** The old mandate is ended, the
+     *   new one starts unsigned, and its signature makes the member usable
+     *   again — by which time {@see \App\Modules\Notifications\Services\MailRetention}
+     *   may have pruned the first welcome and its dedup key with it. The
+     *   mandate history answers instead: a member with an earlier signed
+     *   mandate has been here before.
+     *
+     * **The address notices** go to a member who was usable *before* this
+     * save, and only to them. A member the club has never written to must not
+     * receive an out-of-context notice from a sender they do not recognise —
+     * the welcome is the first message a member ever gets, and that is what
+     * makes the rest of these readable. So a save that completes the pair
+     * *and* sets a new address sends the welcome only: there was no prior
+     * relationship in which an address could have moved, and the welcome goes
+     * to the new address regardless.
      */
     private function announceMemberChanges(array $oldMember, array $member, ?string $adminUserId): void
     {
         $previousCard = self::realCardUid($oldMember);
         $currentCard = self::realCardUid($member);
+        $wasUsable = self::isUsable($oldMember);
+        $isUsable = self::isUsable($member);
+        $cardAssigned = $currentCard !== null && $currentCard !== $previousCard;
+
+        $memberId = (string) $member['id'];
+        $recipient = (string) ($member['email'] ?? '');
         $language = (string) ($member['preferred_language'] ?? 'de');
 
-        if ($currentCard !== null && $currentCard !== $previousCard) {
-            $this->announceCardAssignment(
-                memberId: (string) $member['id'],
-                recipient: (string) ($member['email'] ?? ''),
-                language: $language,
-                replacesExistingCard: $previousCard !== null,
-                adminUserId: $adminUserId,
-            );
-
-            // An onboarding, not a move. See the docblock.
-            if ($previousCard === null) {
-                return;
+        if ($wasUsable) {
+            // `$wasUsable` implies a card was on file, so a different one is a
+            // replacement by the transition alone — no queue is consulted.
+            if ($cardAssigned) {
+                $this->announceCardAssignment($memberId, $recipient, $language, true, $adminUserId);
+            }
+        } elseif ($isUsable) {
+            if ($cardAssigned) {
+                // The card arrived on the save that completed the pair — a
+                // first card, a card put back after being cleared, or a new
+                // card and a signature together. Welcome, and let a refused
+                // insert report that this member has been greeted before.
+                $this->announceCardAssignment($memberId, $recipient, $language, false, $adminUserId);
+            } elseif (!$this->membersRepository->hasEarlierSignedMandate($memberId)) {
+                $this->announceWelcome($memberId, $recipient, $language, $adminUserId);
             }
         }
 
-        // Never sent to a member who has not been welcomed. `$previousCard` and
-        // not `$currentCard`: the gate is whether the club had already reached
-        // this member, which the card they held *before* this update answers.
-        if ($previousCard === null) {
+        // Never sent to a member who has not been welcomed. `$wasUsable` and
+        // not `$isUsable`: the gate is whether the club had already reached
+        // this member, which their state *before* this update answers.
+        if (!$wasUsable) {
             return;
         }
 
@@ -416,7 +450,7 @@ class MembersService
 
         try {
             $this->notificationsService->notifyMemberAddressChange(
-                memberId: (string) $member['id'],
+                memberId: $memberId,
                 formerEmail: $formerEmail,
                 newEmail: $newEmail,
                 language: MailLanguage::fromPreferred($language),
@@ -432,7 +466,39 @@ class MembersService
             // smaller problem than a Kassenwart told the edit failed when it
             // did not.
             $this->logger?->warning('Could not queue a member address-change notice', [
-                'member_id' => (string) $member['id'],
+                'member_id' => $memberId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Queue the welcome alone, and never let it fail the save it follows.
+     *
+     * For a member who became usable because their mandate was signed while
+     * the card stayed where it was. No replacement notice stands behind this
+     * one — see {@see announceMemberChanges()}.
+     */
+    private function announceWelcome(
+        string $memberId,
+        string $recipient,
+        string $language,
+        ?string $adminUserId,
+    ): void {
+        if (trim($recipient) === '') {
+            return;
+        }
+
+        try {
+            $this->notificationsService->notifyMemberWelcome(
+                memberId: $memberId,
+                recipient: $recipient,
+                language: MailLanguage::fromPreferred($language),
+                actorAdminUserId: $adminUserId,
+            );
+        } catch (\Throwable $e) {
+            $this->logger?->warning('Could not queue a member welcome', [
+                'member_id' => $memberId,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -498,6 +564,21 @@ class MembersService
         }
 
         return $uid;
+    }
+
+    /**
+     * Whether the terminal would accept this member's card: a real card UID
+     * and a complete mandate (ADR-0020, ADR-0051 as amended 2026-11-28).
+     *
+     * `MandateCompleteness` rather than a check of its own, for the reason
+     * that class exists — "is this mandate usable" is asked in one place, and
+     * the welcome must not greet a member the terminal then refuses.
+     *
+     * @param array<string,mixed> $member A members row joined with its mandate.
+     */
+    private static function isUsable(array $member): bool
+    {
+        return self::realCardUid($member) !== null && MandateCompleteness::isComplete($member);
     }
 
     public function deleteMember(string $memberId, ?string $adminUserId = null): bool

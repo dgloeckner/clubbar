@@ -33,8 +33,11 @@ use App\Shared\Mail\MailMessage;
  * about to be — so naming it adds nothing they cannot read off the plastic;
  * what it would add is a card identifier sitting in a mailbox. The welcome likewise carries no
  * Mandatsreferenz and no Gläubiger-ID: the registration form promises those
- * „mit der Vorabankündigung zum ersten Einzug", and at card time there is often
- * no mandate on file to name.
+ * „mit der Vorabankündigung zum ersten Einzug", and the welcome is not that
+ * message. Since the amendment of 2026-11-28 a signed mandate *is* on file
+ * whenever the welcome is sent — which is why its lede may say so — but naming
+ * its reference here would still move a promise to a channel the club did not
+ * commit to.
  */
 final class MemberCardMail
 {

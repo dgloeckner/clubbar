@@ -34,6 +34,12 @@ use Tests\Feature\DatabaseTestCase;
  *
  * The invariant under test throughout: **the welcome is the first message a
  * member ever receives.** Nothing member-addressed may be queued before it.
+ *
+ * Since the amendment of 2026-11-28 the welcome follows *usability* — a real
+ * card **and** a signed mandate, the state in which the terminal accepts the
+ * card — rather than the card alone. So the fixtures below create members
+ * with a signed mandate unless a test says otherwise, and the section on the
+ * pair is where the two halves are taken apart.
  */
 class MemberLifecycleMailTest extends DatabaseTestCase
 {
@@ -97,12 +103,39 @@ class MemberLifecycleMailTest extends DatabaseTestCase
         return strtoupper(substr(md5(uniqid('card' . $salt, true)), 0, 14));
     }
 
-    private function create(?string $cardUid, ?string $email = null): string
+    private const IBAN = 'DE89370400440532013000';
+    private const OTHER_IBAN = 'DE02120300000000202051';
+
+    /**
+     * A member with a mandate on file — signed unless the test says otherwise.
+     *
+     * @param string|null $signedAt the signature date, or null for a mandate
+     *        that is open but unsigned (a member accepted ahead of the paper)
+     */
+    private function create(?string $cardUid, ?string $email = null, ?string $signedAt = '2026-01-15'): string
     {
         $member = $this->service->createMember(
             firstName: 'Lifecycle',
             lastName: 'Test',
             email: $email ?? ('m' . bin2hex(random_bytes(6)) . '@example.com'),
+            cardUid: $cardUid,
+            language: SupportedLanguage::German,
+            iban: self::IBAN,
+            mandateSignedAt: $signedAt,
+        );
+
+        $this->memberIds[] = $member->id;
+
+        return $member->id;
+    }
+
+    /** A member with no banking data at all — the legacy shape, and a manual create in progress. */
+    private function createWithoutMandate(?string $cardUid): string
+    {
+        $member = $this->service->createMember(
+            firstName: 'Lifecycle',
+            lastName: 'Test',
+            email: 'm' . bin2hex(random_bytes(6)) . '@example.com',
             cardUid: $cardUid,
             language: SupportedLanguage::German,
         );
@@ -168,7 +201,7 @@ class MemberLifecycleMailTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
-    // The card decides when a member is greeted
+    // Card and signed mandate together decide when a member is greeted
     // ------------------------------------------------------------------
 
     /**
@@ -192,10 +225,151 @@ class MemberLifecycleMailTest extends DatabaseTestCase
         $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
     }
 
-    /** Created with a card already on it: onboarded in one step, welcomed here. */
+    /** Created with a card and a signed mandate: onboarded in one step, welcomed here. */
     public function test_creating_a_member_with_a_card_welcomes_them_immediately(): void
     {
         $memberId = $this->create($this->cardUid());
+
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+    }
+
+    // ------------------------------------------------------------------
+    // The pair, taken apart (ADR-0051, amended 2026-11-28)
+    // ------------------------------------------------------------------
+
+    /**
+     * The case the amendment exists for. A member accepted ahead of their
+     * signature is handed a card before the party; "Deine Karte ist aktiv"
+     * would be untrue, because the terminal refuses it until the mandate is
+     * signed (ADR-0020).
+     */
+    public function test_a_card_on_a_member_whose_mandate_is_unsigned_says_nothing(): void
+    {
+        $memberId = $this->create(null, signedAt: null);
+
+        $this->service->updateMember($memberId, ['card_uid' => $this->cardUid()]);
+
+        $this->assertSame([], $this->queuedKinds($memberId));
+    }
+
+    public function test_creating_a_member_with_a_card_but_an_unsigned_mandate_says_nothing(): void
+    {
+        $memberId = $this->create($this->cardUid(), signedAt: null);
+
+        $this->assertSame([], $this->queuedKinds($memberId));
+    }
+
+    /** A card with no mandate at all is the same silence — there is nothing to collect against. */
+    public function test_a_card_on_a_member_with_no_mandate_says_nothing(): void
+    {
+        $memberId = $this->createWithoutMandate($this->cardUid());
+
+        $this->assertSame([], $this->queuedKinds($memberId));
+    }
+
+    /** Card first, signature later: the welcome goes out on the save that completes the pair. */
+    public function test_recording_the_signature_on_a_carded_member_welcomes_them(): void
+    {
+        $memberId = $this->create($this->cardUid(), signedAt: null);
+
+        $this->service->updateMember($memberId, ['mandate_signed_at' => '2026-11-28']);
+
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+    }
+
+    /** The reverse order, through the same door. */
+    public function test_a_card_after_the_signature_welcomes_them(): void
+    {
+        $memberId = $this->create(null, signedAt: null);
+        $this->service->updateMember($memberId, ['mandate_signed_at' => '2026-11-28']);
+        $this->assertSame([], $this->queuedKinds($memberId), 'signed, but no card yet');
+
+        $this->service->updateMember($memberId, ['card_uid' => $this->cardUid()]);
+
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+    }
+
+    /** Both halves in one save is one onboarding and one welcome. */
+    public function test_a_card_and_a_signature_in_one_save_send_one_welcome(): void
+    {
+        $memberId = $this->create(null, signedAt: null);
+
+        $this->service->updateMember($memberId, [
+            'card_uid' => $this->cardUid(),
+            'mandate_signed_at' => '2026-11-28',
+        ]);
+
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+    }
+
+    /**
+     * A card swapped on a member who has never been able to buy. They have not
+     * been greeted, and "your card was replaced" is not a first message.
+     */
+    public function test_replacing_the_card_of_a_member_who_was_never_usable_says_nothing(): void
+    {
+        $memberId = $this->create($this->cardUid('a'), signedAt: null);
+
+        $this->service->updateMember($memberId, ['card_uid' => $this->cardUid('b')]);
+
+        $this->assertSame([], $this->queuedKinds($memberId));
+    }
+
+    /**
+     * The mandate got signed and the card did not move: the welcome is
+     * attempted and nothing else. A refused insert means "already greeted",
+     * and falling back to the replacement notice would announce a card change
+     * nobody made.
+     */
+    public function test_a_signature_never_falls_back_to_the_replacement_notice(): void
+    {
+        $memberId = $this->create($this->cardUid());
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+
+        // The date is withdrawn and recorded again — a correction made in two
+        // saves. The second makes the member usable again with the welcome
+        // still in the queue.
+        $this->service->updateMember($memberId, ['mandate_signed_at' => null]);
+        $this->service->updateMember($memberId, ['mandate_signed_at' => '2026-02-01']);
+
+        $this->assertSame(
+            [MailKind::MEMBER_WELCOME->value],
+            $this->queuedKinds($memberId),
+            'no second welcome, and no replacement notice for a card that did not change',
+        );
+    }
+
+    /**
+     * A bank change ends the mandate and opens an unsigned one; its signature
+     * makes the member usable a second time. By then `MailRetention` may have
+     * pruned the first welcome — and with it the dedup key that would have
+     * refused a second. The mandate history answers instead.
+     */
+    public function test_a_bank_change_does_not_welcome_twice_even_after_the_first_was_pruned(): void
+    {
+        $memberId = $this->create($this->cardUid());
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+
+        // The member moves banks; the new mandate is not signed yet.
+        $this->service->updateMember($memberId, ['iban' => self::OTHER_IBAN, 'mandate_signed_at' => null]);
+
+        // Ninety days pass and retention removes the welcome.
+        $this->db->prepare('DELETE FROM mail_outbox WHERE member_id = ?')->execute([$memberId]);
+
+        $this->service->updateMember($memberId, ['mandate_signed_at' => '2026-11-28']);
+
+        $this->assertSame([], $this->queuedKinds($memberId), 'a second mandate is not a second onboarding');
+    }
+
+    /** Signing a first mandate is not a bank change, however long it took. */
+    public function test_the_guard_does_not_silence_a_first_signature(): void
+    {
+        $memberId = $this->create($this->cardUid(), signedAt: null);
+
+        // An unsigned mandate replaced by another unsigned one: an IBAN typo
+        // corrected before anybody signed anything.
+        $this->service->updateMember($memberId, ['iban' => self::OTHER_IBAN]);
+        $this->service->updateMember($memberId, ['mandate_signed_at' => '2026-11-28']);
 
         $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
     }
@@ -257,7 +431,7 @@ class MemberLifecycleMailTest extends DatabaseTestCase
     }
 
     // ------------------------------------------------------------------
-    // An address change is told at both ends — once the member has a card
+    // An address change is told at both ends — once the member is usable
     // ------------------------------------------------------------------
 
     public function test_an_address_change_writes_to_both_the_old_and_the_new_address(): void
@@ -301,6 +475,34 @@ class MemberLifecycleMailTest extends DatabaseTestCase
         $this->service->updateMember($memberId, ['email' => 'after@example.com']);
 
         $this->assertSame([], $this->queuedKinds($memberId));
+    }
+
+    /**
+     * The same gate under the new trigger: a card is no longer what says the
+     * club has written to this member. Carded but unsigned, they have not been
+     * welcomed, so the address notices stay silent for them too.
+     */
+    public function test_an_address_change_for_a_carded_member_who_is_not_yet_usable_says_nothing(): void
+    {
+        $memberId = $this->create($this->cardUid(), 'before@example.com', signedAt: null);
+
+        $this->service->updateMember($memberId, ['email' => 'after@example.com']);
+
+        $this->assertSame([], $this->queuedKinds($memberId));
+    }
+
+    /** The signature and a new address in one save is an onboarding, exactly as a first card is. */
+    public function test_a_signature_and_a_new_address_together_send_only_the_welcome(): void
+    {
+        $memberId = $this->create($this->cardUid(), 'before@example.com', signedAt: null);
+
+        $this->service->updateMember($memberId, [
+            'mandate_signed_at' => '2026-11-28',
+            'email' => 'after@example.com',
+        ]);
+
+        $this->assertSame([MailKind::MEMBER_WELCOME->value], $this->queuedKinds($memberId));
+        $this->assertSame('after@example.com', $this->recipientsByKind($memberId)[MailKind::MEMBER_WELCOME->value]);
     }
 
     /**

@@ -620,6 +620,31 @@ class MembersRepository
     }
 
     /**
+     * Whether this member has ever held a **signed** mandate that has since
+     * been ended (ADR-0051, amended 2026-11-28).
+     *
+     * An ended mandate keeps its `member_id` — only `active_member_id` is
+     * cleared — so a bank change leaves exactly this trace: an earlier row,
+     * signed, no longer active. That is what tells a member who is completing
+     * their *second* mandate apart from one signing their first, without a
+     * column to record the difference and without asking the mail queue, which
+     * forgets after ninety days ({@see \App\Modules\Notifications\Services\MailRetention}).
+     *
+     * A date corrected on the mandate in hand is an UPDATE of that row, not a
+     * new mandate, and so leaves nothing here — which is right: nothing ended.
+     */
+    public function hasEarlierSignedMandate(string $memberId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM mandates WHERE member_id = ? AND active_member_id IS NULL'
+            . ' AND signed_at IS NOT NULL LIMIT 1'
+        );
+        $stmt->execute([$memberId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /**
      * The sealed IBAN material of a member's active mandate — the ONLY read
      * that touches the ciphertext. Sole consumer is the SEPA export, which
      * opens it with the temporarily supplied private key (ADR-0036). There is

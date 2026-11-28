@@ -65,11 +65,15 @@ mandate, so cards can be assigned before the paper exists.
 - [x] `POST /api/admin/registrations/approve-batch`, `TREASURY`, above `{registrationId}`
 - [x] Unit + Feature tests — Unit suite 3419/3419, `RegistrationApprovalTest` 14/14
 
-### M2 — The welcome follows usability (backend) [ ]
+### M2 — The welcome follows usability (backend) [x]
 
-- [ ] `MembersService` decides on card **and** mandate; bank-change guard
-- [ ] `MemberLifecycleMailTest` rewritten around the new trigger
-- [ ] `member_welcome.*` reviewed against the trigger (de, en)
+- [x] `MembersService` decides on card **and** mandate; bank-change guard
+      (`MembersRepository::hasEarlierSignedMandate()`), welcome-only path
+      (`NotificationsService::notifyMemberWelcome()`)
+- [x] `MemberLifecycleMailTest` rewritten around the new trigger — 11 new cases
+- [x] `member_welcome.*` reviewed against the trigger (de, en): the lede now
+      says the signed mandate arrived; nothing else needed changing
+- [x] Verified: Feature suite 903/903, Unit `Notifications|Members` 719/719
 
 ### M3 — Open mandates as one PDF (backend) [ ]
 

@@ -52,6 +52,10 @@ class MemberLifecycleMailTest extends TestCase
         foreach ($this->parts($mail) as $where => $body) {
             $this->assertStringContainsString('Anna', $body, "$where greets the member by first name");
             $this->assertStringContainsString('freigeschaltet', $body, "$where says the card works");
+            // The welcome goes out once card *and* signed mandate are on file
+            // (ADR-0051, amended 2026-11-28), and says so: a member handed a
+            // card before signing has seen the terminal refuse it.
+            $this->assertStringContainsString('SEPA-Mandat', $body, "$where says the signed mandate arrived");
             // The point of the "what happens next" paragraph: a member who has
             // been told this cannot be surprised by the first Vorabankündigung.
             $this->assertStringContainsString('Vorabankündigung', $body, "$where sets up the announcement");
@@ -125,8 +129,8 @@ class MemberLifecycleMailTest extends TestCase
     /**
      * The registration form promises the mandate reference and creditor id
      * arrive „mit der Vorabankündigung zum ersten Einzug". A welcome carrying
-     * them would move that to a channel the club did not commit to — and at
-     * card time there is often no mandate on file to name.
+     * them would move that to a channel the club did not commit to. It may say
+     * that the signed mandate arrived; it may not name it.
      */
     public function test_the_welcome_carries_no_banking_details(): void
     {
