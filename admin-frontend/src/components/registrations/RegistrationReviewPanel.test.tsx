@@ -174,6 +174,59 @@ describe('the approve dialog', () => {
   })
 })
 
+describe('accepting ahead of the paper', () => {
+  /**
+   * The second way in (ADR-0052, amended 2026-11-28): it needs neither input,
+   * because there is no paper yet to date or attest to.
+   */
+  it('is available without a date or an attestation', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('panel-approve'))
+
+    expect((screen.getByTestId('approve-without-signature') as HTMLButtonElement).disabled).toBe(false)
+    // …while the attested approval beside it is still locked.
+    expect(confirmButton().disabled).toBe(true)
+  })
+
+  it('sends neither a date nor an attestation', async () => {
+    approveRegistration.mockResolvedValue({ id: 'member-1', email: 'lena@example.org' })
+    const { onDone } = renderPanel()
+
+    fireEvent.click(screen.getByTestId('panel-approve'))
+    fireEvent.click(screen.getByTestId('approve-without-signature'))
+
+    await vi.waitFor(() => expect(approveRegistration).toHaveBeenCalledTimes(1))
+    expect(approveRegistration).toHaveBeenCalledWith(registration.id, {})
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalledWith('lena@example.org'))
+  })
+
+  /**
+   * A date typed and then abandoned is not a signature. Sending it without
+   * the attestation would be refused by the server; sending it *with* one
+   * nobody ticked would be worse. So the unsigned acceptance sends nothing.
+   */
+  it('ignores a half-filled date rather than sending half a pair', async () => {
+    approveRegistration.mockResolvedValue({ id: 'member-1', email: 'lena@example.org' })
+    renderPanel()
+
+    fireEvent.click(screen.getByTestId('panel-approve'))
+    fireEvent.change(screen.getByTestId('approve-signed-at'), { target: { value: '30.08.2026' } })
+    fireEvent.click(screen.getByTestId('approve-without-signature'))
+
+    await vi.waitFor(() => expect(approveRegistration).toHaveBeenCalledWith(registration.id, {}))
+  })
+
+  /** The consequence is said before the click, not discovered at the terminal. */
+  it('says what an unsigned member cannot do yet', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('panel-approve'))
+
+    expect(screen.getByTestId('approve-without-signature-section').textContent).toContain(
+      'registrations.approve.withoutSignatureHint'
+    )
+  })
+})
+
 describe('the reject dialog', () => {
   /**
    * There is no rejected state to undo — the row is gone the moment this is

@@ -344,6 +344,19 @@
     "anonymizeSuccess": "Member has been anonymized",
     "anonymizeButton": "Anonymize",
     "openSepaTemplate": "SEPA Template",
+    "printMandates": {
+      "action": "Print open mandates",
+      "title": "Print open mandates",
+      "message": "Creates one PDF with the registration form for every active member whose SEPA mandate has not been signed yet.",
+      "fullIban": "Print the IBAN in full",
+      "fullIbanHint": "Without this, the IBAN line is left blank to be written by hand; the last four digits are printed beside it for checking.",
+      "fullIbanWarning": "The IBANs are decrypted once for this. The printed sheets carry complete IBANs — do not leave them lying around, and file them once signed.",
+      "keyHint": "Choose the key file or paste the key. It is used for this print only and is not stored.",
+      "confirm": "Create PDF",
+      "withoutIban_one": "{{count}} of {{total}} sheets was printed without an IBAN because the bank details cannot be read with this key (for example, sealed under an older key). Have it written in by hand.",
+      "withoutIban_other": "{{count}} of {{total}} sheets were printed without an IBAN because the bank details cannot be read with this key (for example, sealed under an older key). Have them written in by hand.",
+      "failed": "The mandates could not be printed."
+    },
     "sepaTemplateNotConfigured": "No mandate template URL is configured — set one in Settings first.",
     "countFound_one": "{{count}} member found",
     "countFound_other": "{{count}} members found",
@@ -1208,7 +1221,10 @@
       "terminal_token_activated": "Terminal token activated",
       "terminal_token_rotated": "Terminal token rotated",
       "terminal_token_revoked": "Terminal token revoked",
-      "terminal_token_expired": "Terminal token expired"
+      "terminal_token_expired": "Terminal token expired",
+      "registration_approved": "Registration accepted",
+      "registration_printed": "Form printed",
+      "iban_full_view": "Full IBAN"
     },
     "summary": {
       "unknownActor": "An admin",
@@ -1242,7 +1258,13 @@
       "delete": "{{actor}} deleted {{entityType}} {{subject}}",
       "activate": "{{actor}} activated {{entityType}} {{subject}}",
       "deactivate": "{{actor}} deactivated {{entityType}} {{subject}}",
-      "fallback": "{{actor}} performed an action on {{entityType}} {{subject}}"
+      "fallback": "{{actor}} performed an action on {{entityType}} {{subject}}",
+      "registrationApprovedSigned": "{{actor}} approved a registration — signed mandate dated {{date}} confirmed",
+      "registrationApprovedUnsigned": "{{actor}} accepted a registration without a signature — the mandate is still open",
+      "registrationPrinted": "{{actor}} printed the form for a registration (IBAN line blank, {{iban}})",
+      "openMandatePrinted": "{{actor}} printed the open mandate {{reference}} (IBAN line blank, {{iban}})",
+      "openMandatePrintedFullIban": "{{actor}} printed the open mandate {{reference}} with the full IBAN ({{iban}})",
+      "ibanFullView": "{{actor}} viewed a full IBAN"
     }
   },
   "profile": {
@@ -1697,6 +1719,28 @@
       "queued": "The registration link to {{email}} is queued and goes out with the next send run.",
       "failed": "The registration link could not be sent."
     },
+    "acceptAll": {
+      "action": "Accept all",
+      "title": "Accept all registrations shown?",
+      "count_one": "{{count}} registration will be accepted as a member — without a signature.",
+      "count_other": "{{count}} registrations will be accepted as members — without a signature.",
+      "pageOnly": "Only the {{count}} registrations shown here, out of {{total}}, will be accepted.",
+      "unsigned": "The members are created without a signature date. They cannot buy, and are not collected from, until the signed SEPA mandate is on hand and the signature date has been recorded on the member.",
+      "duplicates": "Possible duplicates (email or account already known) are not accepted and stay in the inbox.",
+      "duplicatesShown_one": "{{count}} of the registrations shown is flagged as a possible duplicate and stays in the inbox.",
+      "duplicatesShown_other": "{{count}} of the registrations shown are flagged as possible duplicates and stay in the inbox.",
+      "confirm": "Accept",
+      "working": "Accepting …",
+      "resultAccepted_one": "{{count}} registration accepted.",
+      "resultAccepted_other": "{{count}} registrations accepted.",
+      "resultSkipped_one": "{{count}} skipped and still in the inbox:",
+      "resultSkipped_other": "{{count}} skipped and still in the inbox:",
+      "resultNone": "No registration was accepted.",
+      "resultReason": "{{count}} × {{reason}}",
+      "resultNext": "Next: “Print open mandates” under Members.",
+      "dismiss": "Dismiss",
+      "failed": "The registrations could not be accepted."
+    },
     "empty": {
       "title": "Nothing to review.",
       "body": "Registrations appear here as soon as somebody fills in the form — from the club's QR poster, or from a registration link you sent."
@@ -1722,9 +1766,11 @@
       "reject": "Reject"
     },
     "approve": {
-      "lede": "Approving creates the member and the SEPA mandate. The signed form has to be on hand first.",
       "signedAt": "Signed on",
-      "attestation": "I have the signed SEPA mandate on hand, and the IBAN written on it matches {{last4}}."
+      "attestation": "I have the signed SEPA mandate on hand, and the IBAN written on it matches {{last4}}.",
+      "withoutSignature": "Accept without signature",
+      "withoutSignatureHint": "If the form has not been signed yet, the member can be accepted now. They cannot buy until the signature date has been recorded on the member.",
+      "lede": "Approving creates the member and the SEPA mandate. If the signed form is on hand, enter its date and confirm it."
     },
     "reject": {
       "warning": "The registration is deleted immediately. There is no rejected state and no undo.",

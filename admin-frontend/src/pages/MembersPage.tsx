@@ -58,6 +58,7 @@ import { useListQuery } from '../hooks/useListQuery'
 import { MemberIbanField } from '../components/members/MemberIbanField'
 import { ClearedValueNotice } from '../components/members/ClearedValueNotice'
 import { MemberDataQualityPanel } from '../components/members/MemberDataQualityPanel'
+import { PrintOpenMandatesDialog, type MandatePrintOutcome } from '../components/members/PrintOpenMandatesDialog'
 import { MemberGapChips } from '../components/members/MemberGapChips'
 import {
   MemberStatusStrip,
@@ -244,6 +245,11 @@ export function MembersPage() {
   const [completeness, setCompleteness] = useState<MemberDataCompleteness | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
+  // "Offene Mandate drucken" (UC-A18). The dialog owns the request and the
+  // key; the page only learns what was handed over, so it can say when some
+  // sheets of a keyed print came out without their IBAN after all.
+  const [printingMandates, setPrintingMandates] = useState(false)
+  const [mandatePrintOutcome, setMandatePrintOutcome] = useState<MandatePrintOutcome | null>(null)
 
   // One query, one fetch path: the loader effect and every post-mutation reload
   // go through the same state, so a reload can no longer drop the filters (#121).
@@ -961,6 +967,19 @@ export function MembersPage() {
               {t('members.openSepaTemplate')}
             </PageActionButton>
             <PageActionButton
+              variant="secondary"
+              data-testid="members-print-mandates-button"
+              onClick={() => {
+                setMandatePrintOutcome(null)
+                setPrintingMandates(true)
+              }}
+              iconOnly={isMobile}
+              icon={<DownloadIcon size={18} />}
+              title={t('members.printMandates.action')}
+            >
+              {t('members.printMandates.action')}
+            </PageActionButton>
+            <PageActionButton
               data-testid="members-create-button"
               onClick={() => {
                 setEditingMember(null)
@@ -980,6 +999,29 @@ export function MembersPage() {
       />
 
       <MembersTabs excludedCount={excludedLoading ? undefined : excludedCount} />
+
+      {/* Said on the page, after the dialog has closed: the download itself
+          succeeded, and this is the one thing about it the PDF cannot say for
+          itself — a body that is a document has nowhere to put a remark. */}
+      {mandatePrintOutcome !== null && mandatePrintOutcome.withoutIban > 0 && (
+        <div
+          data-testid="members-mandate-print-warning"
+          role="status"
+          style={{
+            background: theme.badges.warning.bg,
+            border: `1px solid ${theme.badges.warning.border}`,
+            color: theme.badges.warning.text,
+            borderRadius: theme.borderRadius.md,
+            padding: theme.spacing.md,
+            marginBottom: theme.spacing.lg,
+          }}
+        >
+          {t('members.printMandates.withoutIban', {
+            count: mandatePrintOutcome.withoutIban,
+            total: mandatePrintOutcome.sheets,
+          })}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div
@@ -2689,6 +2731,12 @@ export function MembersPage() {
         variant="danger"
         onConfirm={handleDeactivateConfirmed}
         onCancel={() => setDeactivateConfirm(null)}
+      />
+
+      <PrintOpenMandatesDialog
+        isOpen={printingMandates}
+        onClose={() => setPrintingMandates(false)}
+        onPrinted={setMandatePrintOutcome}
       />
 
       {/* Anonymize Confirmation Dialog */}

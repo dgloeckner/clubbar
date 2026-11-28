@@ -138,6 +138,39 @@ export function getAuditLogSummary(entry: AuditLogEntry, t: TFn, language: strin
     }
     case 'mandate_document_delete':
       return t('auditLog.summary.mandateDocumentDelete', { actor })
+    case 'registration_approved': {
+      // Two different acts under one action since ADR-0052 was amended
+      // (2026-11-28): an attested approval, and an acceptance ahead of the
+      // paper. The entry carries both keys on both paths, so the sentence can
+      // say which — an auditor must not have to infer "unsigned" from a
+      // missing date.
+      const signedAt = asString(newValues?.['mandate_signed_at'])
+      return signedAt
+        ? t('auditLog.summary.registrationApprovedSigned', { actor, date: signedAt })
+        : t('auditLog.summary.registrationApprovedUnsigned', { actor })
+    }
+    case 'registration_printed': {
+      // The same action for a pending registration's form and for a member's
+      // open mandate (UC-A18); `variant` tells them apart. Only ever the
+      // masked IBAN — it is all the entry holds (ADR-0005).
+      const iban = asString(newValues?.['iban']) ?? ''
+      if (newValues?.['variant'] === 'open_mandate') {
+        const reference = asString(newValues?.['mandate_reference']) ?? subject
+        return t('auditLog.summary.openMandatePrinted', { actor, reference, iban })
+      }
+      return t('auditLog.summary.registrationPrinted', { actor, iban })
+    }
+    case 'iban_full_view': {
+      // ADR-0036's exceptional full-IBAN display. Today its one source is the
+      // keyed print of open mandates; anything else falls back to a sentence
+      // that still says what happened rather than "performed an action".
+      if (newValues?.['variant'] === 'open_mandate_full_iban') {
+        const reference = asString(newValues?.['mandate_reference']) ?? subject
+        const iban = asString(newValues?.['iban']) ?? ''
+        return t('auditLog.summary.openMandatePrintedFullIban', { actor, reference, iban })
+      }
+      return t('auditLog.summary.ibanFullView', { actor })
+    }
     case 'create':
       return t('auditLog.summary.create', { actor, entityType, subject })
     case 'update':

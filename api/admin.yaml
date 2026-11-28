@@ -1095,6 +1095,154 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /admin/members/mandate-documents:
+    post:
+      tags: [Members]
+      summary: Print every open mandate as one PDF
+      description: |
+        Returns **one PDF** containing the club's Anmeldung, filled, for every
+        active, non-anonymized member whose active mandate has no signature
+        date — the people a signature is still owed by (UC-A18; ADR-0052 as
+        amended 2026-11-28). Each member gets the whole document: a template
+        of *n* pages and *m* members is *n × m* pages, each member's pages
+        together and in order.
+
+        The template is the club's configured document
+        (`sepa_config.mandate_template_url`), fetched for this one request and
+        never stored. Nothing about the output is stored either (ADR-0037).
+
+        **Two prints, and the difference is one field.**
+
+        | Request | IBAN line | Needs |
+        |---|---|---|
+        | no `private_key` | Blank, for a hand-written number, with `endet auf ****3000` beside it | The session |
+        | `private_key` | Printed in full | A step-up credential, and the club's private key |
+
+        **The keyed print is the SEPA export's path, step for step** (ADR-0036
+        as amended 2026-11-28). The server holds no private key; the key is
+        supplied in the JSON body for the length of this request — never as a
+        multipart upload, which PHP would write to a temporary file — validated
+        against the registered ACTIVE public half, used through a per-member
+        opener right where each IBAN is drawn so that no plaintext collection
+        is ever assembled, and wiped before the response is written. A fresh
+        step-up credential is required on top of the session, the response is
+        `Cache-Control: no-store`, and the route carries the step-up rate
+        limit.
+
+        **One member never fails the batch.** A mandate sealed under a key
+        other than the active one cannot be opened with the key in hand — an
+        ordinary state in the middle of a key rotation — and an IBAN longer
+        than the template's comb cannot be written into it. Those members'
+        sheets are printed in the blank layout, and
+        `X-Mandate-Sheets-Without-Iban` says how many.
+
+        **Audited per member**, with the masked IBAN only: `iban_full_view` for
+        a sheet carrying the full IBAN, `registration_printed` (variant
+        `open_mandate`) for a blank one — both against the member.
+
+        This is a POST although it changes nothing, because the keyed variant
+        carries a secret in its body.
+
+        **Roles**: `admin`, `kassenwart`.
+      operationId: printOpenMandates
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                member_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  description: >
+                    Narrow the print to these members. A member named here who
+                    is not waiting for a signature is simply not in the
+                    document. Omit to print every open mandate.
+                  items:
+                    type: string
+                    format: uuid
+                private_key:
+                  type: string
+                  description: |
+                    The club's archived private key: 32 raw bytes, base64-encoded,
+                    as produced by `tools/keypair-generator.html`. Sending it
+                    asks for the full-IBAN print and makes `current_password`
+                    required. An empty value is refused rather than read as the
+                    blank print.
+                current_password:
+                  type: string
+                  format: password
+                  description: The caller's own password, for the step-up check. Required with `private_key`.
+                totp_code:
+                  type: string
+                  description: The caller's current TOTP code. Required with `private_key` when they have 2FA enrolled.
+      responses:
+        '200':
+          description: The PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="offene-mandate-2026-11-28.pdf"'
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+            X-Mandate-Sheets:
+              description: How many members are in the document.
+              schema:
+                type: integer
+                example: 40
+            X-Mandate-Sheets-Without-Iban:
+              description: |
+                How many sheets of a keyed print were left blank after all.
+                Always `0` for the blank print.
+              schema:
+                type: integer
+                example: 0
+        '401':
+          description: |
+            Not authenticated, or — for the keyed print — the step-up credential
+            was refused (`invalid_credentials`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '409':
+          description: |
+            Nobody is waiting for a signature (`no_open_mandates`); the club's
+            document could not be fetched or used (`document_template_*`); or
+            the encryption key is not operational.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: |
+            A malformed `member_ids` list, an empty `private_key`, or a private
+            key that is not the club's (`private_key_mismatch`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many failed step-up attempts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /admin/members/mandate-missing:
     get:
       tags: [Members]
@@ -1767,6 +1915,60 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /admin/registrations/approve-batch:
+    post:
+      tags: [Registration review]
+      summary: Accept many registrations at once, each ahead of its signature
+      description: |
+        The batch form of `POST /admin/registrations/{registrationId}/approve`
+        without a signature date (ADR-0052, amended 2026-11-28; UC-A17). Every
+        accepted registration becomes a member whose mandate is open and
+        **unsigned** — SEPA-invalid, refused at the terminal and left out of
+        every collection until the signature date is recorded on the member.
+
+        **The ids are explicit.** There is no "everything pending" form of this
+        request, so nothing becomes a member that the admin did not have on
+        screen when they confirmed. At most 200 ids.
+
+        **A batch never fails for one row.** Each registration is accepted in a
+        transaction of its own, and one that cannot be accepted is reported
+        under `skipped` with a reason code while the rest proceed:
+
+        | `reason` | Meaning |
+        |---|---|
+        | `registration_possible_duplicate` | The submission matches an existing member by email or by IBAN. Left in the inbox for a person to judge. The flags are evaluated **once, before anything is written** — two siblings on one parent's account inside one batch therefore both pass |
+        | `registration_member_email_exists` | The hard rule of the single approval: a member already exists at this address — including one this same batch created a moment earlier |
+        | `registration_gone` | Approved or rejected by somebody else since the list was loaded |
+        | `registration_not_accepted` | Could not be written; the row is still pending and the cause is in the application log |
+
+        No welcome mail is sent by this endpoint (see the single approval).
+
+        **Roles**: `admin`, `kassenwart`.
+      operationId: approveRegistrationsBatch
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistrationBatchApprovalRequest'
+      responses:
+        '200':
+          description: |
+            What became of each named registration. A success even when
+            `skipped` is the longer list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationBatchApprovalResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/InsufficientRole'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /admin/registrations/{registrationId}:
     parameters:
       - $ref: '#/components/parameters/registrationId'
@@ -1839,26 +2041,37 @@ paths:
 
     post:
       tags: [Registration review]
-      summary: Approve a registration — the attestation
+      summary: Approve a registration — with the attestation, or ahead of the paper
       description: |
         Creates the member and their mandate, atomically, and deletes the
         pending row. This is the **only** path from a pending registration to a
         `members` row.
 
-        `signed_mandate_confirmed` is the point of the endpoint, not a
-        formality: it records an admin stating that the signed SEPA mandate is
-        in hand and — where the club printed the form with the IBAN comb left
-        blank for a hand-written number — that the number on it matches
-        `iban_masked`. Omitting it is a `422`; sending `false` is a `409`
-        carrying `registration_attestation_required`, because a stated refusal
-        to attest is a different conversation from a request that said nothing.
+        **The signature is optional as a pair** (ADR-0052, amended 2026-11-28):
+
+        | Request carries | Outcome |
+        |---|---|
+        | `mandate_signed_at` and `signed_mandate_confirmed: true` | The attested approval. The mandate is signed and the member is SEPA-valid |
+        | neither (or a blank date with `false`) | Accepted ahead of the paper. The mandate is opened with **no signature date**; the member is SEPA-invalid — the terminal refuses the card (ADR-0020) and no collection includes them — until the date is recorded with `PATCH /admin/members/{memberId}` |
+        | `mandate_signed_at` alone | `422` — a date that says nothing about the attestation |
+        | `mandate_signed_at` and `signed_mandate_confirmed: false` | `409` `registration_attestation_required` — a stated refusal to attest is a different conversation from a request that said nothing |
+        | `signed_mandate_confirmed: true` alone | `422` — an attestation with no date to attach it to |
+
+        Where a date is sent, `signed_mandate_confirmed` is the point of the
+        endpoint, not a formality: it records an admin stating that the signed
+        SEPA mandate is in hand and — where the club printed the form with the
+        IBAN comb left blank for a hand-written number — that the number on it
+        matches `iban_masked`.
+
+        The audit entry (`registration_approved`) carries `mandate_signed_at`
+        and `signed_mandate_confirmed` on both paths, so it says which happened.
 
         The sealed IBAN moves to the mandate **verbatim**, key id included: the
         ciphertext can only be opened by the key that sealed it, so re-labelling
         it would produce a mandate nobody could collect on.
 
-        No welcome mail is sent. That belongs to the card assignment (ADR-0021,
-        UC-A67), which is a separate, deliberate step.
+        No welcome mail is sent. The welcome goes out once the member has both
+        a card and a signed mandate (ADR-0051 as amended 2026-11-28, UC-A67).
 
         **Roles**: `admin`, `kassenwart`.
       operationId: approveRegistration
@@ -1885,7 +2098,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: |
-            The attestation was explicitly refused
+            A signature date was sent with the attestation explicitly refused
             (`registration_attestation_required`), or the club already has a
             member at this email address (`registration_member_email_exists`).
           content:
@@ -9869,21 +10082,81 @@ components:
 
     RegistrationApprovalRequest:
       type: object
-      required: [mandate_signed_at, signed_mandate_confirmed]
+      description: |
+        The signature, as a pair: send both fields for an attested approval, or
+        neither to accept the registration ahead of its paper. One without the
+        other is refused — see `POST …/approve`.
       properties:
         mandate_signed_at:
           type: string
           format: date
+          nullable: true
           description: >
             The date on the paper. Must not be in the future; today is the
-            ordinary case, an admin approving at the desk.
+            ordinary case, an admin approving at the desk. Omitted (or blank)
+            when the paper has not been signed yet: the member is then created
+            with no signature date.
         signed_mandate_confirmed:
           type: boolean
           description: >
-            The attestation. Must be sent, and must be `true` for the approval
-            to proceed: the admin is stating that they hold the signed SEPA
-            mandate and that the IBAN on it matches `iban_masked`. Never a
-            client-side default.
+            The attestation. Required whenever `mandate_signed_at` is sent, and
+            must then be `true` for the approval to proceed: the admin is
+            stating that they hold the signed SEPA mandate and that the IBAN on
+            it matches `iban_masked`. Never a client-side default.
+
+    RegistrationBatchApprovalRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: >
+            The registrations to accept, named one by one. An id sent twice is
+            accepted once.
+          items:
+            type: string
+            format: uuid
+
+    RegistrationBatchApprovalResult:
+      type: object
+      required: [accepted, skipped]
+      properties:
+        accepted:
+          type: array
+          description: The registrations that became members, in the order they were named.
+          items:
+            type: object
+            required: [registration_id, member_id]
+            properties:
+              registration_id:
+                type: string
+                format: uuid
+              member_id:
+                type: string
+                format: uuid
+                description: The member that was created. Their mandate has no signature date.
+        skipped:
+          type: array
+          description: The registrations left as they were, each with the reason.
+          items:
+            type: object
+            required: [registration_id, reason]
+            properties:
+              registration_id:
+                type: string
+                format: uuid
+              reason:
+                type: string
+                description: >
+                  A reason code, translatable as `errors.reasons.<code>` like
+                  any refusal.
+                enum:
+                  - registration_possible_duplicate
+                  - registration_member_email_exists
+                  - registration_gone
+                  - registration_not_accepted
 
     SelfRegistrationSettings:
       type: object
@@ -10184,7 +10457,7 @@ components:
           nullable: true
         action:
           type: string
-          enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, transaction_price_divergence, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete]
+          enum: [create, update, delete, activate, deactivate, anonymize, login, logout, login_failed, export, transaction_storno, transaction_price_divergence, settlement_create, settlement_cancel, settlement_export, settlement_submit, settlement_reverse, collection_hold_placed, collection_hold_cleared, totp_enrolled, totp_reset, mandate_document_upload, mandate_document_delete, registration_approved, registration_printed, iban_full_view]
         entity_type:
           type: string
         entity_id:
