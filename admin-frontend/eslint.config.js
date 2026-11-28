@@ -1,0 +1,90 @@
+// ESLint flat config (eslint 10 no longer reads .eslintrc). A one-to-one
+// translation of the former .eslintrc.cjs: the same rule sets, the same
+// overrides, nothing newly enabled.
+import js from '@eslint/js'
+import tsPlugin from '@typescript-eslint/eslint-plugin'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import globals from 'globals'
+
+// Raw hex color literals bypass the design system (#124) and drift from
+// the token values over time. Enforced only for files already migrated
+// onto `theme`/`tableColors` — add a file here once it is hex-free, and
+// add any new color to `src/styles/design-system.ts` (theme.colors) or
+// `src/styles/tableTokens.ts` rather than reintroducing a literal.
+const HEX_FREE_FILES = [
+  'src/pages/LoginPage.tsx',
+  'src/pages/ProductsPage.tsx',
+  'src/components/common/Button.tsx',
+  'src/components/common/PillActionButton.tsx',
+  'src/components/forms/CategorySelect.tsx',
+  'src/components/forms/IconSelect.tsx',
+  'src/components/forms/LanguageSelector.tsx',
+  'src/components/forms/LanguageTabsInput.tsx',
+  'src/components/forms/PillFilter.tsx',
+  'src/components/tables/CategoryFilter.tsx',
+  'src/components/tables/ListLoadingOverlay.tsx',
+  'src/components/tables/PaginationToolbar.tsx',
+  'src/components/members/MembersTabs.tsx',
+  'src/pages/SettlementsPage.tsx',
+  'src/pages/NewSettlementPage.tsx',
+  'src/components/modals/UndoSettlementDialog.tsx',
+  'src/pages/AuditLogPage.tsx',
+  'src/pages/ProfilePage.tsx',
+  'src/pages/SettingsPage.tsx',
+  'src/pages/CategoriesPage.tsx',
+  'src/pages/ReportsPage.tsx',
+  'src/pages/JournalPage.tsx',
+  'src/utils/transactions.ts',
+  'src/pages/MembersPage.tsx',
+  'src/pages/ExcludedFromCollectionPage.tsx',
+  'src/components/layout/MobileToolbar.tsx',
+  'src/components/forms/PeriodPicker.tsx',
+  'src/components/common/Tooltip.tsx',
+  'src/components/forms/ProductPreview.tsx',
+  'src/components/tables/SortableTableHeader.tsx',
+  'src/components/tables/MobileFilterRow.tsx',
+  'src/components/common/LoadingIndicator.tsx',
+  'src/components/common/PageActionButton.tsx',
+  'src/components/layout/PageHeader.tsx',
+]
+
+export default [
+  { ignores: ['dist', 'coverage', 'eslint.config.js'] },
+  js.configs.recommended,
+  ...tsPlugin.configs['flat/recommended'],
+  {
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: { ...globals.browser, ...globals.es2020 },
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      // The two rules react-hooks 4's `recommended` held. Version 7's
+      // `recommended` adds the React Compiler rule set on top; turning that on
+      // is its own change, not part of a toolchain bump.
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+  {
+    files: HEX_FREE_FILES,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Literal[value=/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/]",
+          message:
+            'Raw hex color literals are banned in migrated files (#124) — add a token to theme.colors (design-system.ts) or tableTokens.ts and reference it instead.',
+        },
+      ],
+    },
+  },
+]

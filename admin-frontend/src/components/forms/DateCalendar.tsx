@@ -150,7 +150,7 @@ export function DateCalendar({
 
   const handleGridKeyDown = (event: React.KeyboardEvent) => {
     const key = event.key
-    let next: string | null = null
+    let next: string | null
 
     if (key === 'ArrowLeft') next = shiftIsoByDays(focusedIso, -1)
     else if (key === 'ArrowRight') next = shiftIsoByDays(focusedIso, 1)
