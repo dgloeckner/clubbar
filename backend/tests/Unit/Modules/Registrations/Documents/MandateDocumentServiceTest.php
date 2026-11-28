@@ -7,12 +7,14 @@ namespace Tests\Unit\Modules\Registrations\Documents;
 use App\Modules\Registrations\Documents\MandateDocumentFiller;
 use App\Modules\Registrations\Documents\PdfAcroFormFields;
 use App\Modules\Registrations\Documents\MandateDocumentService;
+use App\Modules\Registrations\Documents\MandateDocumentVariant;
 use App\Modules\Registrations\Documents\TemplateFetcher;
 use App\Modules\Settlements\Repositories\SepaConfigRepository;
 use App\Shared\Exceptions\BusinessRuleException;
 use App\Shared\Exceptions\BusinessRuleReason;
 use App\Shared\Logging\Logger;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\PdfText;
 
 /**
  * Turning one applicant's row into the club's filled Anmeldung (#780).
@@ -74,18 +76,9 @@ final class MandateDocumentServiceTest extends TestCase
      */
     private function text(string $pdf): string
     {
-        $text = $pdf;
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $streams)) {
-            foreach ($streams[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated !== false) {
-                    $text .= $inflated;
-                }
-            }
-        }
-
-        return $text;
+        // One implementation for every test that reads a PDF — and the reason
+        // it is not a regex here is written down there.
+        return PdfText::of($pdf);
     }
 
     /**
@@ -95,16 +88,7 @@ final class MandateDocumentServiceTest extends TestCase
      */
     private function contentStreams(string $pdf): array
     {
-        $streams = [];
-
-        if (preg_match_all('~stream\r?\n(.*?)\r?\nendstream~s', $pdf, $matches)) {
-            foreach ($matches[1] as $stream) {
-                $inflated = @gzuncompress($stream);
-                $streams[] = $inflated === false ? $stream : $inflated;
-            }
-        }
-
-        return $streams;
+        return PdfText::streams($pdf);
     }
 
     public function test_the_member_document_carries_the_full_iban_grouped_for_reading(): void
@@ -343,6 +327,169 @@ final class MandateDocumentServiceTest extends TestCase
      * The admin asked explicitly and is looking at the answer, so they get a
      * refusal they can act on rather than a blank page.
      */
+    // ── open mandates, many members in one document (UC-A18) ─────────────
+
+    /**
+     * A member joined with their open mandate — the third print source. The
+     * same keys a pending registration carries, minus the notice URL, which a
+     * member row has no column for.
+     *
+     * @param array<string, mixed> $overrides
+     * @return array<string, mixed>
+     */
+    private function member(string $id, array $overrides = []): array
+    {
+        return $overrides + [
+            'id' => $id,
+            'first_name' => 'Lena',
+            'last_name' => 'Brandt',
+            'email' => 'lena@example.org',
+            'date_of_birth' => '1998-04-02',
+            'account_holder_name' => null,
+            'mandate_reference' => 'CB-000041',
+            'iban_last4' => '3000',
+        ];
+    }
+
+    public function test_the_batch_is_the_whole_document_once_per_member(): void
+    {
+        $document = $this->service->forOpenMandates([
+            $this->member('m-1'),
+            $this->member('m-2', ['first_name' => 'Jonas', 'mandate_reference' => 'CB-000042']),
+        ]);
+
+        self::assertSame(6, $this->pageCount($document->pdf), 'Three template pages, two members.');
+        self::assertSame(2, $document->sheetCount());
+    }
+
+    /** Without a way to read an IBAN, every sheet is the blank layout the admin print has always been. */
+    public function test_the_batch_is_blank_by_default(): void
+    {
+        $document = $this->service->forOpenMandates([$this->member('m-1')]);
+
+        self::assertStringNotContainsString('DE89', $this->text($document->pdf));
+        self::assertStringContainsString('endet auf ****3000', $this->text($document->pdf));
+        self::assertSame(['m-1' => MandateDocumentVariant::ADMIN_PRINT], $document->variants);
+        self::assertSame(0, $document->fullIbanCount());
+    }
+
+    public function test_a_member_whose_iban_can_be_read_gets_it_printed_in_full(): void
+    {
+        $document = $this->service->forOpenMandates(
+            [$this->member('m-1')],
+            static fn(array $member): ?string => self::IBAN,
+        );
+
+        self::assertStringContainsString('DE89 3704 0044 0532 0130 00', $this->text($document->pdf));
+        self::assertStringNotContainsString('endet auf', $this->text($document->pdf));
+        self::assertSame(['m-1' => MandateDocumentVariant::ADMIN_PRINT_FULL], $document->variants);
+    }
+
+    /**
+     * A mandate sealed under a key that is not the active one cannot be
+     * opened. That member's sheet is printed blank; nobody else's print fails
+     * for it — and the result says which was which, because the audit trail
+     * has to record what left the building rather than what was asked for.
+     */
+    public function test_one_unreadable_iban_blanks_one_sheet_and_not_the_batch(): void
+    {
+        $document = $this->service->forOpenMandates(
+            [
+                $this->member('readable', ['mandate_reference' => 'CB-000041']),
+                $this->member('sealed-under-another-key', ['iban_last4' => '2051', 'mandate_reference' => 'CB-000042']),
+            ],
+            static fn(array $member): ?string => $member['id'] === 'readable' ? self::IBAN : null,
+        );
+
+        $text = $this->text($document->pdf);
+        self::assertStringContainsString('DE89 3704 0044 0532 0130 00', $text);
+        self::assertStringContainsString('endet auf ****2051', $text);
+        self::assertSame([
+            'readable' => MandateDocumentVariant::ADMIN_PRINT_FULL,
+            'sealed-under-another-key' => MandateDocumentVariant::ADMIN_PRINT,
+        ], $document->variants);
+        self::assertSame(1, $document->fullIbanCount());
+    }
+
+    /**
+     * Field parity with the registration print: a member accepted last week
+     * gets, field for field, the sheet their registration would have produced.
+     */
+    public function test_a_member_sheet_carries_the_same_fields_as_a_registration_sheet(): void
+    {
+        $fields = [
+            'first_name' => 'Magdalena',
+            'last_name' => 'Brandt',
+            'email' => 'magdalena@example.org',
+            'date_of_birth' => '2011-06-15',
+            'account_holder_name' => 'Petra Brandt',
+            'mandate_reference' => 'CB-000077',
+            'iban_last4' => '3000',
+        ];
+
+        $fromRegistration = $this->text($this->service->forAdminPrint($this->registration($fields)));
+        $fromMember = $this->text($this->service->forOpenMandates([$this->member('m-1', $fields)])->pdf);
+
+        foreach (['Magdalena', 'Brandt', 'magdalena@example.org', '15.06.2011', 'Petra Brandt', 'CB-000077',
+            'endet auf ****3000', 'Ruderclub Musterstadt e.V.', 'DE98ZZZ09999999999'] as $value) {
+            self::assertSame(
+                str_contains($fromRegistration, $value),
+                str_contains($fromMember, $value),
+                "The two prints disagree about '{$value}'.",
+            );
+        }
+        self::assertStringContainsString('Petra Brandt', $fromMember, 'The account holder is printed where one was given.');
+    }
+
+    /** One fetch for the whole batch — forty members must not be forty requests to the club's webhost. */
+    public function test_the_template_is_fetched_once_for_the_whole_batch(): void
+    {
+        $this->service->forOpenMandates([$this->member('m-1'), $this->member('m-2'), $this->member('m-3')]);
+
+        self::assertSame(1, $this->fetcher->calls);
+    }
+
+    /**
+     * A member row records no notice URL — what an applicant was shown lived
+     * on the pending registration and went with it — so the sheet is the
+     * document the club publishes today.
+     */
+    public function test_the_batch_uses_the_configured_document(): void
+    {
+        $this->service->forOpenMandates([$this->member('m-1')]);
+
+        self::assertSame('https://club.example/configured-today.pdf', $this->fetcher->lastUrl);
+    }
+
+    /** The plaintext is asked for as a sheet is reached, never ahead of it. */
+    public function test_an_iban_is_read_only_as_its_sheet_is_drawn(): void
+    {
+        $asked = [];
+
+        $this->service->forOpenMandates(
+            [$this->member('m-1'), $this->member('m-2')],
+            function (array $member) use (&$asked): ?string {
+                $asked[] = $member['id'];
+
+                return self::IBAN;
+            },
+        );
+
+        self::assertSame(['m-1', 'm-2'], $asked, 'Once per member, in sheet order.');
+    }
+
+    public function test_the_batch_refuses_out_loud_when_the_document_cannot_be_fetched(): void
+    {
+        $this->fetcher->body = null;
+
+        try {
+            $this->service->forOpenMandates([$this->member('m-1')]);
+            self::fail('An unreachable document must be refused.');
+        } catch (BusinessRuleException $e) {
+            self::assertSame(BusinessRuleReason::DOCUMENT_TEMPLATE_UNREACHABLE, $e->getReason());
+        }
+    }
+
     public function test_the_admin_path_refuses_out_loud_when_the_document_cannot_be_fetched(): void
     {
         $this->fetcher->body = null;

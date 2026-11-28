@@ -170,4 +170,83 @@ describe('getAuditLogSummary', () => {
     expect(result).toBeTruthy()
     expect(totpResult).toContain('"actor":"auditLog.summary.unknownActor"')
   })
+  describe('accept first, print in bulk, sign later (ADR-0052 amended 2026-11-28)', () => {
+    it('says an approval was attested when the entry carries a signature date', () => {
+      const result = getAuditLogSummary(
+        entry({
+          action: 'registration_approved',
+          entity_type: 'registration' as AuditLogEntry['entity_type'],
+          new_values: { mandate_signed_at: '2026-11-28', signed_mandate_confirmed: true, iban: '****3000' },
+        }),
+        fakeT,
+        'en',
+      )
+      expect(result).toBe(
+        'auditLog.summary.registrationApprovedSigned::{"actor":"admin@example.com","date":"2026-11-28"}',
+      )
+    })
+
+    it('says a registration was accepted without a signature when the date is null', () => {
+      const result = getAuditLogSummary(
+        entry({
+          action: 'registration_approved',
+          entity_type: 'registration' as AuditLogEntry['entity_type'],
+          new_values: { mandate_signed_at: null, signed_mandate_confirmed: false, iban: '****3000' },
+        }),
+        fakeT,
+        'en',
+      )
+      expect(result).toBe('auditLog.summary.registrationApprovedUnsigned::{"actor":"admin@example.com"}')
+    })
+
+    it('tells a blank open-mandate print apart from a pending registration\'s print', () => {
+      const registration = getAuditLogSummary(
+        entry({
+          action: 'registration_printed',
+          entity_type: 'registration' as AuditLogEntry['entity_type'],
+          new_values: { variant: 'admin_print', iban: '****3000' },
+        }),
+        fakeT,
+        'en',
+      )
+      const member = getAuditLogSummary(
+        entry({
+          action: 'registration_printed',
+          new_values: { variant: 'open_mandate', mandate_reference: 'CB-000042', iban: '****3000' },
+        }),
+        fakeT,
+        'en',
+      )
+
+      expect(registration).toBe(
+        'auditLog.summary.registrationPrinted::{"actor":"admin@example.com","iban":"****3000"}',
+      )
+      expect(member).toBe(
+        'auditLog.summary.openMandatePrinted::{"actor":"admin@example.com","reference":"CB-000042","iban":"****3000"}',
+      )
+    })
+
+    it('names a keyed mandate print as a full-IBAN print, with the masked value only', () => {
+      const result = getAuditLogSummary(
+        entry({
+          action: 'iban_full_view',
+          new_values: { variant: 'open_mandate_full_iban', mandate_reference: 'CB-000042', iban: '****3000' },
+        }),
+        fakeT,
+        'en',
+      )
+      expect(result).toBe(
+        'auditLog.summary.openMandatePrintedFullIban::{"actor":"admin@example.com","reference":"CB-000042","iban":"****3000"}',
+      )
+    })
+
+    it('still says what happened for a full-IBAN view from any other source', () => {
+      const result = getAuditLogSummary(
+        entry({ action: 'iban_full_view', new_values: null }),
+        fakeT,
+        'en',
+      )
+      expect(result).toBe('auditLog.summary.ibanFullView::{"actor":"admin@example.com"}')
+    })
+  })
 })

@@ -609,8 +609,56 @@ class NotificationsService
      */
 
     /**
+     * Greet a member who has just become able to use the bar — and do nothing
+     * else (ADR-0051, amended 2026-11-28).
+     *
+     * The welcome on its own, with no replacement notice behind it. This is
+     * what a save that completed the pair *without touching the card* asks for:
+     * the mandate was signed, the card was already there. A refused insert then
+     * means the member has been greeted before and there is nothing further to
+     * say — telling them "your card was replaced" would be a statement about a
+     * card nobody changed.
+     *
+     * `UNIQUE (kind, subject_id, dedup_key)` is what refuses, so two
+     * overlapping saves cannot both decide they are the first.
+     *
+     * @return bool Whether a welcome was queued by this call.
+     */
+    public function notifyMemberWelcome(
+        string $memberId,
+        string $recipient,
+        MailLanguage $language,
+        ?string $actorAdminUserId = null,
+    ): bool {
+        $recipient = trim($recipient);
+        if ($recipient === '') {
+            return false;
+        }
+
+        $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forMemberOccasion(
+            kind: MailKind::MEMBER_WELCOME,
+            memberId: $memberId,
+            recipient: $recipient,
+            language: $language,
+            // A constant, not a moment: a member is welcomed once, and this
+            // is the key that says so.
+            occasion: self::WELCOME_OCCASION,
+        ));
+
+        if ($queued) {
+            $this->auditMemberNotice(MailKind::MEMBER_WELCOME, $memberId, self::WELCOME_OCCASION, $actorAdminUserId);
+        }
+
+        return $queued;
+    }
+
+    /**
      * A member's card was assigned: greet them, or tell them the old card has
      * stopped working (ADR-0051).
+     *
+     * Since the amendment of 2026-11-28 the caller only reaches this for a
+     * member who is *usable* — a card **and** a signed mandate — so "greet"
+     * here means what the message says: the card works.
      *
      * Which of the two it is is read from the transition wherever the
      * transition can say — `$replacesExistingCard` is true when a card was
@@ -626,6 +674,10 @@ class NotificationsService
      * common replacement independent of {@see MailRetention}. A welcome pruned
      * at ninety days would otherwise turn every later replacement back into a
      * greeting.
+     *
+     * The fallback from welcome to replacement belongs to this method and not
+     * to {@see notifyMemberWelcome()}: it is only true when a card was actually
+     * (re)assigned.
      *
      * Best effort, and never a gate. It queues; it does not send (ADR-0038
      * rule 3), and the card assignment it announces is already committed.
@@ -645,22 +697,11 @@ class NotificationsService
             return null;
         }
 
-        if (!$replacesExistingCard) {
-            $queued = $this->mailOutboxRepository->enqueue(MailRequestDto::forMemberOccasion(
-                kind: MailKind::MEMBER_WELCOME,
-                memberId: $memberId,
-                recipient: $recipient,
-                language: $language,
-                // A constant, not a moment: a member is welcomed once, and this
-                // is the key that says so.
-                occasion: self::WELCOME_OCCASION,
-            ));
-
-            if ($queued) {
-                $this->auditMemberNotice(MailKind::MEMBER_WELCOME, $memberId, self::WELCOME_OCCASION, $actorAdminUserId);
-
-                return MailKind::MEMBER_WELCOME;
-            }
+        if (
+            !$replacesExistingCard
+            && $this->notifyMemberWelcome($memberId, $recipient, $language, $actorAdminUserId)
+        ) {
+            return MailKind::MEMBER_WELCOME;
         }
 
         // Either the card genuinely replaces one, or the welcome came back as a

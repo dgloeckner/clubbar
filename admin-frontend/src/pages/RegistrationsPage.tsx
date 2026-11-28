@@ -33,11 +33,13 @@ import { useNavigate } from 'react-router-dom'
 
 import { getRegistrationReview } from '../api/generated/registration-review/registration-review'
 import type { PendingRegistration } from '../api/generated/model/pendingRegistration'
+import type { RegistrationBatchApprovalResult } from '../api/generated/model/registrationBatchApprovalResult'
 import { PageActionButton } from '../components/common/PageActionButton'
 import { MobileToolbar } from '../components/layout/MobileToolbar'
 import { PageHeader } from '../components/layout/PageHeader'
 import { PaginationToolbar } from '../components/tables/PaginationToolbar'
 import { SortableTableHeader } from '../components/tables/SortableTableHeader'
+import { AcceptAllDialog, AcceptAllResult } from '../components/registrations/AcceptAllRegistrations'
 import { RegistrationReviewPanel } from '../components/registrations/RegistrationReviewPanel'
 import { SendRegistrationLinkModal } from '../components/registrations/SendRegistrationLinkModal'
 import { useApiError } from '../hooks/useApiError'
@@ -71,6 +73,19 @@ export function RegistrationsPage() {
    * the form.
    */
   const [sendingLink, setSendingLink] = useState(false)
+
+  /**
+   * "Alle aufnehmen" (UC-A17; ADR-0052 amended 2026-11-28): accept the rows on
+   * screen in one request, each without a signature.
+   *
+   * The dialog's error stays in the dialog and the result becomes a notice on
+   * the page: a batch never fails for one row, so what comes back is two
+   * counts, and the admin reads them against the list they just emptied.
+   */
+  const [acceptingAll, setAcceptingAll] = useState(false)
+  const [batchBusy, setBatchBusy] = useState(false)
+  const [batchError, setBatchError] = useState<string | null>(null)
+  const [batchResult, setBatchResult] = useState<RegistrationBatchApprovalResult | null>(null)
 
   const list = useListQuery<PendingRegistration, RegistrationFilters, RegistrationSortKey>({
     // `useListQuery` owns page, page size, sort, search, the debounce, request
@@ -117,6 +132,37 @@ export function RegistrationsPage() {
     },
     [list, navigate]
   )
+
+  /**
+   * Explicit ids, and only the ones on screen. There is deliberately no "all
+   * pending" request to make: nothing may become a member that the admin did
+   * not have in front of them when they confirmed.
+   */
+  const acceptAll = useCallback(async () => {
+    const ids = list.items.map((registration) => registration.id).filter((id): id is string => !!id)
+    if (ids.length === 0) return
+
+    setBatchBusy(true)
+    setBatchError(null)
+
+    try {
+      const result = await getRegistrationReview().approveRegistrationsBatch({ ids })
+      setAcceptingAll(false)
+      setBatchResult(result)
+      // Reload rather than drop the accepted rows locally: what is left is
+      // whatever the server left, and the next page moves up to fill the gap.
+      await list.reload()
+    } catch (error) {
+      // In the dialog, which is what the admin is looking at.
+      setBatchError(apiErrorMessage(error, t('registrations.acceptAll.failed')))
+    } finally {
+      setBatchBusy(false)
+    }
+  }, [apiErrorMessage, list, t])
+
+  const flaggedCount = list.items.filter(
+    (registration) => registration.duplicate_email || registration.duplicate_iban
+  ).length
 
   const columns = 6
 
@@ -195,14 +241,35 @@ export function RegistrationsPage() {
         title={t('registrations.title')}
         subtitle={t('registrations.subtitle')}
         actions={
-          <PageActionButton
-            data-testid="registrations-send-link-button"
-            onClick={() => setSendingLink(true)}
-          >
-            {t('registrations.sendLink.action')}
-          </PageActionButton>
+          <>
+            {/* Outlined, beside the filled send button: on most days the inbox
+                is empty and sending a link is the one thing to do here. With
+                nothing on screen there is nothing to accept, so it is disabled
+                rather than hidden — a control that comes and goes with the
+                list reads as a page that has changed. */}
+            <PageActionButton
+              variant="secondary"
+              data-testid="registrations-accept-all-button"
+              disabled={list.items.length === 0}
+              onClick={() => {
+                setBatchError(null)
+                setBatchResult(null)
+                setAcceptingAll(true)
+              }}
+            >
+              {t('registrations.acceptAll.action')}
+            </PageActionButton>
+            <PageActionButton
+              data-testid="registrations-send-link-button"
+              onClick={() => setSendingLink(true)}
+            >
+              {t('registrations.sendLink.action')}
+            </PageActionButton>
+          </>
         }
       />
+
+      {batchResult && <AcceptAllResult result={batchResult} onDismiss={() => setBatchResult(null)} />}
 
       {list.error && (
         <div
@@ -466,6 +533,19 @@ export function RegistrationsPage() {
       )}
 
       <SendRegistrationLinkModal isOpen={sendingLink} onClose={() => setSendingLink(false)} />
+
+      <AcceptAllDialog
+        isOpen={acceptingAll}
+        shownCount={list.items.length}
+        totalCount={list.total}
+        flaggedCount={flaggedCount}
+        busy={batchBusy}
+        error={batchError}
+        onConfirm={acceptAll}
+        onCancel={() => {
+          if (!batchBusy) setAcceptingAll(false)
+        }}
+      />
 
       {selected && (
         <RegistrationReviewPanel

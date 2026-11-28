@@ -242,6 +242,12 @@ class MembersRepository
      * SEPA-invalid, invisible to the next collection, and — since approval
      * deletes the pending row — no longer recoverable from anywhere.
      *
+     * `signed_at` may be null. Since the amendment of 2026-11-28 a registration
+     * can be accepted before its paper is signed; the mandate is then opened
+     * complete in every respect but that one date, which
+     * {@see MandateCompleteness} reads — so the member exists, and can neither
+     * buy nor be collected from until it is recorded.
+     *
      * @param array<string, mixed> $member  the members-row fields
      * @param array<string, mixed> $mandate reference, sealed quartet, bank name, signed_at
      * @return array<string, mixed> the member as `findById()` sees them
@@ -263,8 +269,9 @@ class MembersRepository
             )->execute([
                 $id,
                 // Always null here. A self-registered member gets their card
-                // in a second, deliberate step (ADR-0021), which is also what
-                // sends the welcome mail — approval is not an onboarding.
+                // in a second, deliberate step (ADR-0021) — approval is not an
+                // onboarding. The welcome follows once a card *and* a signed
+                // mandate are both on file (ADR-0051, amended 2026-11-28).
                 null,
                 $member['first_name'],
                 $member['last_name'],
@@ -620,11 +627,87 @@ class MembersRepository
     }
 
     /**
+     * Whether this member has ever held a **signed** mandate that has since
+     * been ended (ADR-0051, amended 2026-11-28).
+     *
+     * An ended mandate keeps its `member_id` — only `active_member_id` is
+     * cleared — so a bank change leaves exactly this trace: an earlier row,
+     * signed, no longer active. That is what tells a member who is completing
+     * their *second* mandate apart from one signing their first, without a
+     * column to record the difference and without asking the mail queue, which
+     * forgets after ninety days ({@see \App\Modules\Notifications\Services\MailRetention}).
+     *
+     * A date corrected on the mandate in hand is an UPDATE of that row, not a
+     * new mandate, and so leaves nothing here — which is right: nothing ended.
+     */
+    public function hasEarlierSignedMandate(string $memberId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT 1 FROM mandates WHERE member_id = ? AND active_member_id IS NULL'
+            . ' AND signed_at IS NOT NULL LIMIT 1'
+        );
+        $stmt->execute([$memberId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /**
+     * Every active member whose mandate is open but **unsigned** — the people
+     * a signature is still owed by (UC-A18).
+     *
+     * Three conditions, and each excludes somebody the print must not reach:
+     *
+     * - `deleted_at IS NULL` — an anonymized member has no name to print;
+     * - `is_active = 1` — a deactivated member is not being onboarded;
+     * - an **inner** join on the active mandate with `signed_at IS NULL` — a
+     *   member with no mandate at all has nothing to sign *yet* (there is no
+     *   reference to print on the sheet), and one whose mandate is signed is
+     *   done.
+     *
+     * The ciphertext is deliberately not selected, for the reason
+     * `MANDATE_COLUMNS` gives: it is read through {@see findSealedIban()} and
+     * nowhere else. `encryption_key_id` is not secret and travels with the
+     * row so a caller can tell, without touching the sealed material, which
+     * mandates today's key could open.
+     *
+     * Ordered the way the roster reads — last name, first name — because the
+     * output is a stack of paper somebody hands out by calling names.
+     *
+     * @param list<string>|null $memberIds narrow to these members; null for all
+     * @return list<array<string, mixed>>
+     */
+    public function findOpenMandates(?array $memberIds = null): array
+    {
+        $where = 'm.deleted_at IS NULL AND m.is_active = 1 AND md.signed_at IS NULL';
+        $params = [];
+
+        if ($memberIds !== null) {
+            if ($memberIds === []) {
+                return [];
+            }
+            $where .= ' AND m.id IN (' . implode(',', array_fill(0, count($memberIds), '?')) . ')';
+            $params = array_values($memberIds);
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT m.id, m.first_name, m.last_name, m.email, m.date_of_birth, m.account_holder_name, '
+            . 'md.reference AS mandate_reference, md.iban_last4, md.encryption_key_id '
+            . 'FROM members m JOIN mandates md ON md.active_member_id = m.id '
+            . "WHERE {$where} "
+            . 'ORDER BY m.last_name ASC, m.first_name ASC, m.id ASC'
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
      * The sealed IBAN material of a member's active mandate — the ONLY read
-     * that touches the ciphertext. Sole consumer is the SEPA export, which
-     * opens it with the temporarily supplied private key (ADR-0036). There is
-     * no other way back to the plaintext: no column holds it, and this process
-     * has no key.
+     * that touches the ciphertext. Its consumers are the two places the
+     * club's private key is supplied to open it (ADR-0036): the SEPA export,
+     * and — since the amendment of 2026-11-28 — the keyed print of open
+     * mandates. There is no other way back to the plaintext: no column holds
+     * it, and this process has no key.
      */
     public function findSealedIban(string $memberId): ?array
     {

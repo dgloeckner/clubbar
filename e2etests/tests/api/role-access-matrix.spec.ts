@@ -117,12 +117,23 @@ const MATRIX: Entry[] = [
   { method: 'GET', path: '/admin/members/credit-balances', roles: TREASURY },
   { method: 'GET', path: '/admin/members/collection-holds', roles: TREASURY },
   { method: 'GET', path: '/admin/members/mandate-missing', roles: TREASURY },
+  // Printing open mandates (UC-A18). `refusalOnly`: reached with an empty body
+  // this is not a no-op — it would render every open mandate in the database
+  // and write an audit entry per member. The allowed direction, and the keyed
+  // variant, are driven for real in `accept-then-print.spec.ts` against
+  // members that spec created.
+  { method: 'POST', path: '/admin/members/mandate-documents', roles: TREASURY, refusalOnly: true },
   { method: 'GET', path: `/admin/members/${NOWHERE}`, roles: TREASURY },
   { method: 'PATCH', path: `/admin/members/${NOWHERE}`, roles: TREASURY },
   { method: 'DELETE', path: `/admin/members/${NOWHERE}`, roles: ADMIN_ONLY },
   { method: 'POST', path: `/admin/members/${NOWHERE}/export`, roles: ADMIN_ONLY },
   { method: 'POST', path: `/admin/members/${NOWHERE}/anonymize`, roles: ADMIN_ONLY },
   { method: 'POST', path: `/admin/members/${NOWHERE}/collection-hold/clear`, roles: TREASURY },
+
+  // ── the registration inbox's batch acceptance (ADR-0052, amended) ────────
+  // An empty body names no registration, so reaching it answers 422 and
+  // accepts nobody.
+  { method: 'POST', path: '/admin/registrations/approve-batch', roles: TREASURY },
 
   // ── the drinks list ──────────────────────────────────────────────────────
   { method: 'GET', path: '/admin/categories', roles: BAR },

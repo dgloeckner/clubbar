@@ -30,10 +30,10 @@ Admin selects member from list
 | First name | |
 | Last name | |
 | Date of birth | Not in the future. May be corrected but not cleared — a blank one means an anonymized member ([ADR-0045](../../adr/0045-age-restricted-products.md)) |
-| Email | Cannot be cleared while the member is active ([#362](https://github.com/dgloeckner/clubbar/issues/362)). **Changing it writes to both the old and the new address** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) — but only once the member has a card |
-| Card UID | 8–20 uppercase hex, unique. **The first one welcomes the member; any later one tells them the old card has stopped working** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) |
+| Email | Cannot be cleared while the member is active ([#362](https://github.com/dgloeckner/clubbar/issues/362)). **Changing it writes to both the old and the new address** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) — but only once the member has a card and a signed mandate |
+| Card UID | 8–20 uppercase hex, unique. **On a member with a signed mandate, the first one welcomes them and any later one tells them the old card has stopped working; without a signed mandate a card says nothing yet** ([UC-A67](./UC-A67-member-lifecycle-mail.md), amended 2026-11-28) |
 | IBAN | Overwrite-only — see *Banking fields* below. Validation on change |
-| Mandate date | Required if IBAN set |
+| Mandate date | The date on the signed paper; not in the future. May be empty: the mandate is then open, and the member cannot buy or be collected from until it is filled ([ADR-0020](../../adr/0020-sepa-mandate-requirement-terminal-access.md)). **For a member accepted ahead of their signature ([UC-A17](./UC-A17-review-pending-registrations.md)), recording it is where the admin attests to the signed paper** — and, with a card on file, it is the save that welcomes the member |
 | Mandate reference | SEPA identifier; assigned by the server unless one is supplied |
 | Preferred language | |
 

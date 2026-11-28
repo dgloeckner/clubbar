@@ -169,6 +169,34 @@ enum BusinessRuleReason: string
      */
     case REGISTRATION_MEMBER_EMAIL_EXISTS = 'registration_member_email_exists';
 
+    // Batch acceptance (ADR-0052, amended 2026-11-28). None of these is thrown
+    // at a caller: a batch never fails for one row, so each is the *reason
+    // code* a skipped registration carries in the response. They live here
+    // rather than in a list of their own so the panel translates a skip with
+    // the same `errors.reasons.<code>` lookup it uses for a refusal.
+    /**
+     * The submission matches an existing member by email or by IBAN.
+     *
+     * One at a time the warning is in front of whoever decides. In a batch
+     * nobody is looking at any single row, so the row is left in the inbox
+     * for a person rather than accepted on autopilot.
+     */
+    case REGISTRATION_POSSIBLE_DUPLICATE = 'registration_possible_duplicate';
+    /** Approved or rejected by somebody else since the list was loaded. */
+    case REGISTRATION_GONE = 'registration_gone';
+    /** Could not be accepted for a reason the log names; the row is still pending. */
+    case REGISTRATION_NOT_ACCEPTED = 'registration_not_accepted';
+
+    // Printing open mandates (UC-A18).
+    /**
+     * Nobody is waiting for a signature.
+     *
+     * Named rather than answered with an empty PDF: a file with no pages opens
+     * as a viewer error, and "there is nothing to print" is the one thing the
+     * admin needs to hear.
+     */
+    case NO_OPEN_MANDATES = 'no_open_mandates';
+
     // The club's onboarding document (#780). Every one of these is actionable
     // in a sentence — which is the point: "your template is invalid" costs a
     // club an afternoon of auditing field names that were never wrong.

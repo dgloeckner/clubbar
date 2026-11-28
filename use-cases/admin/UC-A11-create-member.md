@@ -50,14 +50,14 @@ Creates a new member account.
 | Last name | Yes | Non-empty, max 100 chars | |
 | Date of birth | Yes | Date, not in the future | Jugendschutz ([ADR-0045](../../adr/0045-age-restricted-products.md)); erasable — anonymization nulls it |
 | Email | **Yes** | Valid email format | Required since [#362](https://github.com/dgloeckner/clubbar/issues/362); the column stays nullable only so erasure can clear it, and it cannot be cleared while the member is active |
-| Card UID | No | 8–20 uppercase hex, unique | Usually entered afterwards ([ADR-0021](../../adr/0021-rfid-card-assignment-workflow.md)). **Assigning it is what welcomes the member** ([UC-A67](./UC-A67-member-lifecycle-mail.md)) |
+| Card UID | No | 8–20 uppercase hex, unique | Usually entered afterwards ([ADR-0021](../../adr/0021-rfid-card-assignment-workflow.md)). **Together with a signed mandate it is what welcomes the member** ([UC-A67](./UC-A67-member-lifecycle-mail.md), amended 2026-11-28) |
 | IBAN | No | Valid IBAN format + checksum | Optional since [#131](https://github.com/dgloeckner/clubbar/issues/131); without it the member cannot be collected from |
 | Mandate date | With IBAN | Date, not in future | |
 | Language | Yes | ISO 639-1 code from enabled list | Selects the language of every mail the member receives (de/en; fr falls back to German) |
 
 **Email**: required because the Vorabankündigung and the settlement statement are a contractual promise (Nutzungsordnung § 7 Abs. 3) — a member cannot be onboarded without an address to announce to.
 
-**No mail is sent by creating the record.** A member with no card cannot start a Session or run up a Deckel; the welcome waits for the card ([UC-A67](./UC-A67-member-lifecycle-mail.md)). Creating a member *with* a card in the same request welcomes them immediately.
+**No mail is sent by creating the record.** A member who cannot yet buy has nothing to be welcomed to; the welcome waits until they have both a card and a signed mandate ([UC-A67](./UC-A67-member-lifecycle-mail.md), amended 2026-11-28). Creating a member *with* a card and a signed mandate in the same request welcomes them immediately.
 
 ## Postconditions
 - Member created with UUID
@@ -65,7 +65,7 @@ Creates a new member account.
 - Tab balance = 0
 - Member is active
 - Audit log entry created
-- A `member_welcome` is queued **only** if a card UID was supplied ([UC-A67](./UC-A67-member-lifecycle-mail.md))
+- A `member_welcome` is queued **only** if a card UID and a signed mandate (IBAN and signature date) were both supplied ([UC-A67](./UC-A67-member-lifecycle-mail.md))
 
 ## Error Cases
 

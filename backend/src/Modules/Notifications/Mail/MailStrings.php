@@ -583,9 +583,15 @@ final class MailStrings
             'member_welcome.preheader' => 'Deine Mitgliedskarte ist freigeschaltet.',
             'member_welcome.eyebrow'   => 'Willkommen',
             'member_welcome.title'     => 'Deine Karte ist aktiv',
-            'member_welcome.lede'      => 'deine Mitgliedskarte ist jetzt <strong>freigeschaltet</strong> — '
+            // Sent once card *and* signed mandate are both on file (ADR-0051,
+            // amended 2026-11-28), so the lede names both: a member who was
+            // handed a card before signing has already seen the terminal
+            // refuse it, and this is the message that says what changed.
+            'member_welcome.lede'      => 'dein unterschriebenes SEPA-Mandat liegt uns vor, und deine '
+                                        . 'Mitgliedskarte ist jetzt <strong>freigeschaltet</strong> — '
                                         . 'du kannst damit am Tresen bezahlen.',
-            'member_welcome.lede_text' => 'deine Mitgliedskarte ist jetzt freigeschaltet — du kannst damit '
+            'member_welcome.lede_text' => 'dein unterschriebenes SEPA-Mandat liegt uns vor, und deine '
+                                        . 'Mitgliedskarte ist jetzt freigeschaltet — du kannst damit '
                                         . 'am Tresen bezahlen.',
             'member_welcome.body'      => 'Halte die Karte einfach an das Lesegerät, wähle aus, was du '
                                         . 'nimmst, und bestätige. Bezahlt wird nicht sofort: Was du '
@@ -1110,10 +1116,10 @@ final class MailStrings
             'member_welcome.preheader' => 'Your membership card has been activated.',
             'member_welcome.eyebrow'   => 'Welcome',
             'member_welcome.title'     => 'Your card is active',
-            'member_welcome.lede'      => 'your membership card is now <strong>active</strong> — you can '
-                                        . 'use it to pay at the bar.',
-            'member_welcome.lede_text' => 'your membership card is now active — you can use it to pay at '
-                                        . 'the bar.',
+            'member_welcome.lede'      => 'we have your signed SEPA mandate, and your membership card is '
+                                        . 'now <strong>active</strong> — you can use it to pay at the bar.',
+            'member_welcome.lede_text' => 'we have your signed SEPA mandate, and your membership card is '
+                                        . 'now active — you can use it to pay at the bar.',
             'member_welcome.body'      => 'Hold the card against the reader, choose what you are having, '
                                         . 'and confirm. Nothing is paid on the spot: what you take runs '
                                         . 'up on your tab.',

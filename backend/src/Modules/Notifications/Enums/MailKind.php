@@ -363,14 +363,16 @@ enum MailKind: string
     case ADMIN_TOTP_RESET = 'admin_totp_reset';
 
     /**
-     * A member's card has been assigned for the first time: they can use the
-     * bar, and this is the first message they have ever had from the club.
+     * A member has become able to use the bar — a card **and** a signed
+     * mandate are both on file — and this is the first message they have ever
+     * had from the club.
      *
-     * **Not sent when the record is created.** A member row with no card is
-     * paperwork — no session can start, no Deckel can move — and a welcome to
-     * something the member cannot yet enter announces nothing. ADR-0021 makes
-     * the assignment a `PATCH` that usually happens after creation, so the two
-     * moments are genuinely separate and only the second one is the onboarding.
+     * **Not sent when the record is created**, unless both are already there.
+     * A member row with no card is paperwork — no session can start, no Deckel
+     * can move — and so, since the amendment of 2026-11-28, is a card without
+     * a signed mandate: the terminal refuses it (ADR-0020), and a welcome to
+     * something the member cannot yet enter announces nothing. Whichever half
+     * comes second, the save that completes the pair is the onboarding.
      *
      * That timing is also what makes the rest of this group safe: the welcome
      * is the first mail a member receives, so nothing member-addressed arrives
@@ -379,7 +381,10 @@ enum MailKind: string
      * The `dedup_key` is the constant `welcome`, so the unique index makes this
      * fire at most once per member — and the duplicate it refuses is the
      * fallback signal that an assignment is a replacement rather than an
-     * onboarding ({@see self::MEMBER_CARD_REPLACED}).
+     * onboarding ({@see self::MEMBER_CARD_REPLACED}). The key lives only as
+     * long as the row does, which {@see \App\Modules\Notifications\Services\MailRetention}
+     * bounds at ninety days; a bank change long after that is kept from
+     * greeting twice by the mandate history instead (ADR-0051).
      */
     case MEMBER_WELCOME = 'member_welcome';
 

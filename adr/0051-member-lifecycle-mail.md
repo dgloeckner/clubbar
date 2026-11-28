@@ -6,6 +6,8 @@
 
 **Amends**: [ADR-0038](./0038-transactional-mail-outbox-on-shared-hosting.md) (four new consumers, and the first member-addressed kinds that are not about money)
 
+**Amended**: 2026-11-28 — the welcome is sent when a member has a card **and** a signed mandate, not when the card alone arrives (see *Amended 2026-11-28* below; the Decision statement and decisions 1, 2 and 5 are annotated to match)
+
 ---
 
 ## Context
@@ -48,14 +50,20 @@ are all still to come.
 
 ## Decision
 
-**A member is written to when their card is assigned, and the card gates every
-member-addressed lifecycle notice. Four kinds, all queued through the ADR-0038
-outbox, none of them sent inline.**
+**A member is written to when they become able to use the bar — a card and a
+signed mandate both on file — and that state gates every member-addressed
+lifecycle notice. Four kinds, all queued through the ADR-0038 outbox, none of
+them sent inline.**
+
+~~A member is written to when their card is assigned, and the card gates every
+member-addressed lifecycle notice.~~ — the trigger as first decided. Amended
+2026-11-28; where the sections below say "card" as the gate, read "card and
+signed mandate".
 
 | Kind | Recipient | Occasion |
 |---|---|---|
-| `member_welcome` | the member | their **first** card |
-| `member_card_replaced` | the member | any **later** card assignment |
+| `member_welcome` | the member | the save that first leaves them with a card **and** a signed mandate |
+| `member_card_replaced` | the member | a different card on a member who was already usable |
 | `member_email_changed` | the address being **left** | the address moved |
 | `member_email_activated` | the address being **taken up** | the address moved |
 
@@ -77,6 +85,12 @@ money mail would reach them either.
 A request that assigns a first card **and** a new address sends the welcome
 only. There was no prior relationship for an address to move within, and the
 welcome goes to the new address regardless.
+
+> **2026-11-28.** The same holds, with the gate widened: a member who is not
+> yet *usable* — no card, or a card without a signed mandate — is told nothing,
+> and the address pair goes to a member who was usable before the edit. A
+> request that completes the pair and sets a new address sends the welcome
+> only.
 
 ### 2. Welcome or replacement is read from the transition, not from the queue
 
@@ -106,6 +120,11 @@ The welcome's dedup key is the constant `welcome`; the replacement's is
 `replaced:<stamp>` — an occasion, because two replacements are two things to be
 told about. Neither carries the card UID: it would put a card identifier in the
 queue for no gain.
+
+> **2026-11-28.** The flowchart above describes the case in which **a card was
+> written** on the save that made the member usable. The amendment below adds
+> the case in which the *signature* completed the pair, where there is no
+> fallback to the replacement notice at all.
 
 ### 3. Both ends of an address change, and they are different messages
 
@@ -167,6 +186,12 @@ The banking details are the deliberate omission. The registration form promises
 they reach the member *„mit der Vorabankündigung zum ersten Einzug per E-Mail"*
 — moving them into a welcome would change a channel the club has written down,
 and at card time there is frequently no mandate on file to name.
+
+> **2026-11-28.** The second reason no longer holds: a signed mandate is on
+> file whenever the welcome is sent, and its opening sentence now says that the
+> signed mandate has arrived. The first reason stands, and so does the
+> omission — the welcome confirms *that* there is a mandate and names neither
+> its reference nor the Gläubiger-ID.
 
 Setting up the Vorabankündigung is the paragraph that earns the mail's keep: a
 member who has been told a collection will be announced seven days ahead cannot
@@ -237,6 +262,131 @@ placeholder read as a card would turn an erasure into an onboarding.
   stated in the message itself (*„Du musst nichts bestätigen"*) rather than left
   to be inferred, because a member who waits for a confirmation link that never
   comes is worse off than one who was told there is nothing to do.
+
+## Amended 2026-11-28: the welcome follows usability, not the card
+
+### What the first version got wrong, once members could exist unsigned
+
+[ADR-0052](./0052-member-self-registration-via-qr-code.md) was amended on the
+same day so that a registration can be accepted *before* the SEPA paper is
+signed. The owner wants cards assigned ahead of the evening the papers are
+signed at. Under the trigger as first decided, each of those members would be
+told **"Deine Karte ist aktiv — du kannst damit am Tresen bezahlen"** at the
+moment their card UID was typed in, and the terminal would refuse them: without
+a signature date the mandate is not usable
+([ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md)), and the
+terminal blocks without a grace period.
+
+**Decision, by the owner:** the welcome is sent when a member has **both** a card
+and a signed mandate.
+
+### The rule
+
+A member is **usable** when they have a real card (not the `ANON-` placeholder
+erasure writes) and a complete mandate — the same single definition of
+"complete" that the terminal, the roster and the SEPA export read. Every edit is
+judged by that state before and after it:
+
+| Before the save | After the save | A card was assigned or changed in this save | The card was not touched |
+|---|---|---|---|
+| usable | (anything) | `member_card_replaced` | nothing |
+| not usable | usable | `member_welcome`; if the member was greeted before, `member_card_replaced` instead | `member_welcome` — attempted, and nothing else; not sent at all after a bank change |
+| not usable | not usable | nothing | nothing |
+
+```mermaid
+flowchart TD
+    S[member saved] --> U{usable before<br/>this save?}
+    U -- yes --> C1{different card<br/>in this save?}
+    C1 -- yes --> R[member_card_replaced]
+    C1 -- no --> N1[nothing]
+    U -- no --> N{usable now?}
+    N -- no --> N2[nothing]
+    N -- yes --> C2{card assigned<br/>in this save?}
+    C2 -- yes --> W1{welcome insert<br/>accepted?}
+    W1 -- yes --> V[member_welcome]
+    W1 -- refused --> R
+    C2 -- no --> B{an earlier signed<br/>mandate exists?}
+    B -- yes --> N3[nothing — a bank change]
+    B -- no --> W2{welcome insert<br/>accepted?}
+    W2 -- yes --> V
+    W2 -- refused --> N4[nothing — greeted before]
+```
+
+### The edge cases, and why each falls where it does
+
+| Situation | Outcome | Why |
+|---|---|---|
+| Created with a card **and** a signed mandate | Welcome at creation | Onboarded in one step |
+| Card first, signature later | Welcome on the save that records the signature | The order the amendment exists for |
+| Signature first, card later | Welcome on the save that assigns the card | The order of the first version, unchanged in effect |
+| A card on a member with an unsigned (or no) mandate | Nothing | They cannot buy yet; "your card is active" would be untrue |
+| A different card on a member who was **already usable** | `member_card_replaced`, as before | Read from the transition; independent of the queue |
+| A different card on a member who was **never usable** | Nothing | They have not been greeted, and "your card was replaced" is not a first message |
+| A card cleared and later reassigned (UC-A67 A4) | `member_card_replaced` | Unchanged: the refused welcome reports an earlier greeting, and a card *was* reassigned |
+| The mandate is signed, the card untouched, and the welcome insert is refused | Nothing | The fallback to the replacement notice is only true when a card moved. Announcing a replaced card after a date correction would be a statement about something nobody did |
+| **Bank change**: the old mandate is ended, the new one is unsigned, and is signed later | Nothing | See below |
+
+**A bank change does not greet twice.** A member who moves banks is unusable
+between the new mandate being opened and its signature being recorded, and
+becomes usable again when it is. `MailRetention` prunes a delivered welcome at
+ninety days, and the dedup key goes with the row — so the queue cannot be what
+refuses a second greeting a year later. The mandate history can: an ended
+mandate stays attached to its member, so a member who is completing a mandate
+*and* has an earlier signed one behind it has been here before. No new column
+records "has been welcomed"; the history that already exists answers it.
+
+### The address pair
+
+Decision 1's invariant — the welcome is the first message a member ever
+receives — is kept by moving its gate with the trigger. The two address notices
+go to a member who was **usable before the edit**, and only to them. A member
+holding a card but no signed mandate has not been welcomed, so an address change
+on them is silent, as it is for a member with no card.
+
+### The texts
+
+Reviewed against the new trigger (German and English). The body already said
+only true things — the card works, it may not have arrived yet, how the Deckel
+accrues, the Vorabankündigung — because the old trigger merely *assumed* what the
+new one guarantees. One sentence changed: the opening now says the signed
+mandate has arrived as well, since a member handed a card before signing has
+already seen the terminal refuse it, and this is the message that says what
+changed.
+
+### Consequences of the amendment
+
+**Positive**
+
+- The welcome is true when it arrives: the member it reaches can buy.
+- Cards can be prepared before the paper exists without mailing anybody.
+- The first message a member receives now also confirms the club has their
+  signed mandate — which, for somebody who posted a form, is worth knowing.
+
+**Negative, and accepted**
+
+- **A long-standing member who has a card but no signed mandate may be welcomed
+  when their mandate is finally signed.** Under the first version they were
+  greeted at card time; if that was more than ninety days ago the queue no
+  longer knows. Accepted by the owner: the message is true on the day it
+  arrives, and until that day the terminal has been refusing them.
+- **Such a member gets no address-change notices until then.** The gate moved
+  with the trigger. The notices' purpose — catching an address changed on the
+  wrong row — is not served for a member in that state; they are also a member
+  no collection can reach, so no Vorabankündigung depends on the address yet.
+- **The bank-change guard can silence a first welcome** in one sequence: a
+  member whose *first* mandate was signed while they had no card, who then
+  changed banks, was given a card, and signed the second mandate. They were
+  never usable before and are not greeted now. The guard reads "an earlier
+  signed mandate exists", which stands in for "has been welcomed" without a
+  column to record it; this is the case where the two differ. Accepted as rare,
+  and as failing towards silence.
+- **A signature date cleared and re-entered across the ninety-day boundary can
+  greet twice**, for the same reason a card cleared and reassigned can
+  (*Consequences*, above). Correcting a date in one save does not pass through
+  "unsigned" and is unaffected.
+- **Two more questions per member edit**: whether the mandate is complete (read
+  from the row already in hand) and, on the one path that needs it, whether an
+  earlier signed mandate exists (one indexed lookup).
 
 ## Alternatives considered
 

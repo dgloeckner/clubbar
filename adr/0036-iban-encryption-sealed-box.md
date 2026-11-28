@@ -6,6 +6,8 @@
 
 **Amends**: [ADR-0005](./0005-iban-storage-and-validation.md) (revokes its rejection of at-rest encryption; its validation and audit-masking decisions stand)
 
+**Amended**: 2026-11-28 — printing open mandates with the full IBAN is a second place the private key is supplied (see *Amended 2026-11-28* under *API surface*)
+
 ---
 
 ## Context
@@ -21,6 +23,10 @@ Three code paths genuinely need the plaintext IBAN: SEPA pain.008 XML generation
 ## Decision
 
 **IBANs are encrypted at application level with libsodium sealed boxes (`sodium_crypto_box_seal`). The server stores only the public key and can therefore encrypt but never decrypt. The private key is generated offline, archived by the club outside the hosting environment, and supplied temporarily — behind fresh TOTP step-up re-authentication — only for key activation (as proof of possession, see below), SEPA export, exceptional full-IBAN display, and key rotation.**
+
+> **2026-11-28.** "Exceptional full-IBAN display" now has its one concrete form:
+> printing a member's still-unsigned mandate with the IBAN filled in. See the
+> amendment under *API surface*.
 
 ### Threat model
 
@@ -154,7 +160,62 @@ sequenceDiagram
 
 ### API surface
 
-Full IBANs leave the system in exactly one place: the SEPA XML handed to the bank. Member list/detail/preview, settlement CSV and the GDPR export carry `iban_last4` (+ mandate reference — sufficient for revision per the retention design; the member knows their own IBAN). The edit form is overwrite-only: it shows `****3000`, an empty field keeps the stored value. Exceptional full-IBAN display is a privileged operation with the same step-up + private-key flow, audited as `IBAN_FULL_VIEW`.
+~~Full IBANs leave the system in exactly one place: the SEPA XML handed to the bank.~~ Full IBANs leave the system in two places, each only with the club's private key supplied for that one request: the SEPA XML handed to the bank, and — since 2026-11-28 — the printed mandate of a member who has not signed yet (amendment below). Member list/detail/preview, settlement CSV and the GDPR export carry `iban_last4` (+ mandate reference — sufficient for revision per the retention design; the member knows their own IBAN). The edit form is overwrite-only: it shows `****3000`, an empty field keeps the stored value. Exceptional full-IBAN display is a privileged operation with the same step-up + private-key flow, audited as `IBAN_FULL_VIEW`.
+
+#### Amended 2026-11-28: the mandate print is a second place the key is supplied
+
+[ADR-0052](./0052-member-self-registration-via-qr-code.md) kept this ADR
+exception-free by printing an admin's copy of a mandate with the IBAN line
+**blank**: the member writes the number by hand and the admin checks it against
+`****last4`. That holds for one applicant at a desk. The owner's decision of
+2026-11-28 lets a club accept many registrations first and print every open
+mandate at once, and at forty members the blank line means forty hand-copied
+22-character numbers — the transcription error this system otherwise removes.
+
+**Decision:** an admin may print the open mandates with the IBAN filled in, by
+supplying the club's private key for that one request. This is the "exceptional
+full-IBAN display" the Decision already names and the audit log already has an
+action for; nothing about the server's capabilities changes.
+
+It is deliberately the SEPA export's path, not a new one:
+
+| Property | SEPA export | Mandate print with full IBAN |
+|---|---|---|
+| How the key arrives | In the JSON body of one request — never a multipart upload, which would be written to a temporary file | The same |
+| What must be proven first | A fresh step-up: the caller's password, and their TOTP code when enrolled | The same |
+| Which key | The ACTIVE one, validated by deriving its public half and comparing — never by trial decryption | The same |
+| How the plaintext is used | Opened per member, right where it goes into the output; no collection of plaintexts is ever assembled | The same — opened as that member's sheet is drawn |
+| Lifetime of the key on the server | The one request; wiped before the response is written | The same |
+| Response | `Cache-Control: no-store` | The same |
+| Refusals | A rejected credential, and a key that is not the club's, are distinct named answers | The same |
+| Brute-force limit | The step-up rate limit | The same |
+| Who may | `admin`, `kassenwart` | The same — no wider |
+| Audit | One entry for the export, with how many IBANs were opened | One entry **per member** whose IBAN was printed (`IBAN_FULL_VIEW`), carrying the masked value only |
+
+Two things differ, and both follow from what is being produced:
+
+- **A mandate sealed under a key that is not the active one is printed blank**,
+  not refused. The export can only run on a consistent key; a stack of sheets
+  can sensibly have one with an empty IBAN line, and one member's mandate from
+  before a rotation must not cost the others their print. The response says how
+  many sheets were left blank.
+- **The print without a key still exists and is the default.** It needs no
+  decryption, no step-up and no key, exactly as before.
+
+**The trade-off, stated plainly.** The export's plaintext goes into a file that
+is uploaded to a bank. The print's plaintext goes onto **paper**, and paper is
+handed across a bar, left on tables and carried home. Until each sheet is signed
+and filed, a readable IBAN exists next to a name, a birth date and an email
+address, outside every control this ADR describes:
+
+| What this does *not* protect against | What limits it |
+|---|---|
+| A printed sheet left lying in the clubhouse | It is the member's own form, on its way to being signed by them and filed by the club, and the mandate paper has always carried the IBAN once filled in — by hand or by print. Nothing here stores the PDF (ADR-0037) |
+| The PDF on the admin's machine after printing | `no-store` keeps it out of caches; a saved download is the admin's to delete. This is the "administrator workstation" residual risk above, for a print instead of an export |
+| An admin choosing the keyed print out of habit | It is a choice per print, off by default, behind a step-up, and every sheet is an audit entry naming the member |
+
+What the threat model's table promises is unchanged: a database, a dump, a
+backup, `config.php` or the whole webspace still yields no readable IBAN.
 
 ### Deviations from the handoff document
 
@@ -270,6 +331,7 @@ the existing outbox.
 
 - ❌ **Losing the last valid private key makes all IBANs sealed under it unrecoverable.** The club's key archive is now part of the backup story; recovery copies must be tested periodically (operational procedure in `docs/deployment.md`).
 - ❌ SEPA export gains a step: the treasurer must supply the private key (step-up + file/paste) on each export.
+- ❌ Since 2026-11-28 the key may also be fetched for a mandate print, so it leaves the archive on more occasions than collection day — and what that print produces is paper carrying full IBANs until it is signed and filed. Off by default and audited per member; see the amendment.
 - ❌ The treasurer's workstation becomes security-relevant during key operations — documented residual risk.
 - ❌ Rolling back to a pre-encryption release is unsafe: old code would look for a plaintext column that no longer exists, and the values cannot be recovered from the ciphertext without the private key. A DB backup taken before the upgrade, or a SEPA export taken with the key, is the only path back.
 - ❌ Activating a key needs the private half to hand, so the archive has to be reachable at the moment a key is put in force — not only at export. That is the intended cost: it is the same moment at which an unopenable key would otherwise become the one sealing everything.

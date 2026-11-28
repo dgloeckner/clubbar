@@ -1,7 +1,13 @@
 /**
  * The member lifecycle chain, end to end (ADR-0051).
  *
- *     card assigned / address changed → bin/cron.php → Mailpit
+ *     card + signed mandate / address changed → bin/cron.php → Mailpit
+ *
+ * Since the amendment of 2026-11-28 the welcome follows *usability* — a card
+ * **and** a signed mandate — rather than the card alone, so a member accepted
+ * ahead of their signature can be handed a card before the paper exists and is
+ * greeted when the pair is complete. The members below therefore have a signed
+ * mandate unless a test says otherwise.
  *
  * The unit tests pin what each message *says* and the feature tests pin which
  * one a given record change produces. What neither can show is that a
@@ -114,10 +120,14 @@ test.describe('Member lifecycle mail — card, address, cron, delivered message'
     await disposeMailpit?.()
   })
 
-  /** Create a member through the real endpoint. `cardUid: null` leaves them uncarded. */
+  /**
+   * Create a member through the real endpoint. `card: null` leaves them
+   * uncarded; `signedAt: null` leaves their mandate open but unsigned — the
+   * state a registration accepted ahead of its paper is in.
+   */
   async function createMember(
     request: ApiRequestLike,
-    options: { email: string; card?: string | null; language?: 'de' | 'en' },
+    options: { email: string; card?: string | null; language?: 'de' | 'en'; signedAt?: string | null },
   ): Promise<string> {
     const response = await request.post('/api/admin/members', {
       data: {
@@ -128,7 +138,7 @@ test.describe('Member lifecycle mail — card, address, cron, delivered message'
         preferred_language: options.language ?? 'de',
         card_uid: options.card ?? null,
         iban: FACTORY_IBAN,
-        mandate_signed_at: '2024-01-01',
+        mandate_signed_at: options.signedAt === undefined ? '2024-01-01' : options.signedAt,
       },
     })
     expect(response.status(), await response.text()).toBe(201)
@@ -171,6 +181,9 @@ test.describe('Member lifecycle mail — card, address, cron, delivered message'
 
     for (const [where, body] of Object.entries(parts(message))) {
       expect(body, `${where} says the card works`).toContain('freigeschaltet')
+      // Both halves of the pair are named: the welcome goes out once the
+      // signed mandate *and* the card are on file.
+      expect(body, `${where} says the signed mandate arrived`).toContain('SEPA-Mandat')
       // The paragraph that earns the mail its keep: a member told this cannot
       // be surprised by the first collection.
       expect(body, `${where} sets up the Vorabankündigung`).toContain('Vorabankündigung')
@@ -185,6 +198,49 @@ test.describe('Member lifecycle mail — card, address, cron, delivered message'
     }
 
     // A second real drain: one welcome, still.
+    drainMailQueue()
+    expect(await mail.messagesTo(email)).toHaveLength(1)
+  })
+
+  /**
+   * The order the amendment exists for (ADR-0051, 2026-11-28): the card is
+   * assigned before the party, the paper is signed at it.
+   *
+   * Until the signature date is recorded the terminal refuses the card
+   * (ADR-0020), so a "Deine Karte ist aktiv" at card time would be untrue. The
+   * welcome is held back until the save that completes the pair — and then it
+   * is delivered once, however often the queue is drained.
+   */
+  test('a card handed out before the signature is not announced until the mandate is signed', async ({
+    authenticatedRequest,
+  }) => {
+    const email = address('unsigned')
+    const memberId = await createMember(authenticatedRequest, { email, card: null, signedAt: null })
+
+    // The card arrives first. Nothing is said: the member cannot buy yet.
+    await patchMember(authenticatedRequest, memberId, { card_uid: cardUid() })
+    drainMailQueue()
+    await mail.expectNothingFor(email)
+
+    // A different card, still before the signature. They have never been
+    // greeted, and "your card was replaced" is not a first message.
+    await patchMember(authenticatedRequest, memberId, { card_uid: cardUid() })
+    drainMailQueue()
+    await mail.expectNothingFor(email)
+
+    // The paper comes back signed, and the Kassenwart records the date.
+    await patchMember(authenticatedRequest, memberId, { mandate_signed_at: '2026-11-28' })
+    drainMailQueue()
+
+    const message = await mail.waitForMessage(email)
+    expect(message.Subject).toContain('Willkommen')
+    for (const [where, body] of Object.entries(parts(message))) {
+      expect(body, `${where} says the card works`).toContain('freigeschaltet')
+      expect(body, `${where} says the signed mandate arrived`).toContain('SEPA-Mandat')
+    }
+
+    // One welcome, after a second real drain — and no replacement notice for
+    // the card that was swapped before anybody had been written to.
     drainMailQueue()
     expect(await mail.messagesTo(email)).toHaveLength(1)
   })

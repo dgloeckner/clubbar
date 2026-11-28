@@ -59,6 +59,9 @@ class AdminController
      */
     private const BLANK_MEANS_NULL = ['account_holder_name'];
 
+    /** A registration id is a UUID; anything else in a batch is a malformed request, not a missing row. */
+    private const ID_SHAPE = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+
     public function __construct(
         private RegistrationReviewService $registrations,
         private RegistrationLinkService $links,
@@ -115,40 +118,104 @@ class AdminController
     }
 
     /**
-     * POST …/approve — the attestation, and the only door to a member row.
+     * POST …/approve — the only door to a member row, with or without the paper.
      *
-     * `signed_mandate_confirmed` is required and must be exactly true. It is
-     * not a checkbox the frontend can default: it is an admin stating they hold
-     * the signed SEPA mandate, and — where the club printed the form with the
-     * IBAN comb left blank for a hand-written number — that the number written
-     * on it matches the `****last4` on file.
+     * The signature is optional **as a pair** (ADR-0052, amended 2026-11-28):
      *
-     * `boolean` rather than `accepted`, and then compared here: a false sent
-     * explicitly is a *stated* refusal to attest, and the service answers it
-     * with a translatable reason rather than with a field-level validation
-     * error about a checkbox.
+     * - `mandate_signed_at` with `signed_mandate_confirmed` — the attested
+     *   approval, unchanged. The flag is required whenever a date is sent and
+     *   is not a checkbox the frontend can default: it is an admin stating they
+     *   hold the signed SEPA mandate, and — where the club printed the form
+     *   with the IBAN comb left blank for a hand-written number — that the
+     *   number written on it matches the `****last4` on file.
+     * - neither — the member is created with no signature date and cannot buy
+     *   or be collected from until one is recorded on them.
+     *
+     * The two halves that do not make a pair are refused here, as validation:
+     * a date that says nothing about the attestation, and an attestation with
+     * no date to attach it to. Neither is a statement anybody could have meant.
+     *
+     * `boolean` rather than `accepted`, and then compared in the service: a
+     * false sent explicitly *beside a date* is a stated refusal to attest, and
+     * the service answers it with a translatable reason rather than with a
+     * field-level validation error about a checkbox.
      */
     public function approve(Request $request, Response $response, array $args): Response
     {
         $body = $request->getParsedBody() ?? [];
 
+        // A date field the admin left empty arrives as "" — the same "no
+        // value" the member form sends, and it means the same here.
+        $hasDate = ($body['mandate_signed_at'] ?? null) !== null && $body['mandate_signed_at'] !== '';
+        if (!$hasDate) {
+            unset($body['mandate_signed_at']);
+        }
+
         $valid = $this->validator->validate($body, [
-            'mandate_signed_at' => ['required', 'date', 'past_date'],
-            'signed_mandate_confirmed' => ['required', 'boolean'],
+            'mandate_signed_at' => ['nullable', 'date', 'past_date'],
+            'signed_mandate_confirmed' => $hasDate ? ['required', 'boolean'] : ['nullable', 'boolean'],
         ]);
 
         if (!$valid) {
             return $this->validationFailed($response, $this->validator->errors());
         }
 
+        $confirmed = filter_var($body['signed_mandate_confirmed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (!$hasDate && $confirmed) {
+            return $this->validationFailed($response, [
+                'mandate_signed_at' => ['mandate_signed_at is required when the signed mandate is confirmed'],
+            ]);
+        }
+
         $member = $this->registrations->approve(
             $args['registrationId'],
-            (string) $body['mandate_signed_at'],
-            filter_var($body['signed_mandate_confirmed'], FILTER_VALIDATE_BOOLEAN),
+            $hasDate ? (string) $body['mandate_signed_at'] : null,
+            $confirmed,
             $request->getAttribute('admin_user_id'),
         );
 
         return $this->json($response, $member->toArray(), 201);
+    }
+
+    /**
+     * POST /registrations/approve-batch — accept many, each without a signature.
+     *
+     * The ids are named one by one: there is deliberately no "all pending"
+     * form of this request, so nothing becomes a member that the admin did not
+     * have on screen when they confirmed.
+     *
+     * 200, not 201 and not 207: the answer is a report — which became members,
+     * which were left in the inbox and why — and it is a success even when the
+     * second list is the longer one. A batch never fails for one row.
+     */
+    public function approveBatch(Request $request, Response $response): Response
+    {
+        $body = $request->getParsedBody() ?? [];
+        $ids = $body['ids'] ?? null;
+
+        // Checked by hand: the shared Validator speaks about scalars, and what
+        // has to be true here is about a list — that it is one, that it is not
+        // empty, that it is not unbounded, and that every entry is an id.
+        $problem = match (true) {
+            !is_array($ids) || !array_is_list($ids) || $ids === [] => 'ids must be a non-empty list of registration ids',
+            count($ids) > RegistrationReviewService::BATCH_LIMIT => sprintf(
+                'ids may name at most %d registrations',
+                RegistrationReviewService::BATCH_LIMIT,
+            ),
+            array_filter($ids, static fn($id): bool => !is_string($id) || preg_match(self::ID_SHAPE, $id) !== 1) !== []
+                => 'every entry of ids must be a registration id',
+            default => null,
+        };
+
+        if ($problem !== null) {
+            return $this->validationFailed($response, ['ids' => [$problem]]);
+        }
+
+        return $this->json($response, $this->registrations->approveBatch(
+            $ids,
+            $request->getAttribute('admin_user_id'),
+        ));
     }
 
     /**

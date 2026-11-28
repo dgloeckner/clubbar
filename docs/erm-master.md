@@ -469,7 +469,7 @@ A mandate is **one record**, or the member has none. Rows are **append-only** �
 | iban_fingerprint | CHAR(64) | NULL | Keyed BLAKE2b of the normalized IBAN, hex. Sealed boxes are randomized, so this is how a bank change is told from a correction without decrypting. The key lives in `config.php`, never in the DB |
 | encryption_key_id | CHAR(36) | FK → encryption_keys.id, NULL | Which key generation this row is sealed under; what a rotation walks |
 | bank_name | VARCHAR(255) | NULL | Resolved from the BLZ at write time — the last moment the plaintext exists. A sealed row can never answer this question again |
-| signed_at | DATE | NULL | Mandate signature date. Deliberately nullable in Phase 0 — the schema migration relocates existing data without changing the eligibility predicate; making a signature date a precondition of SEPA validity is a separate, later change |
+| signed_at | DATE | NULL | Mandate signature date. Deliberately nullable in Phase 0 — the schema migration relocates existing data without changing the eligibility predicate; making a signature date a precondition of SEPA validity is a separate, later change. *That later change has since been made:* a NULL here means the mandate is not usable — the member is SEPA-invalid, refused at the terminal and left out of every collection (ADR-0020, `MandateCompleteness`). Since 2026-11-28 it is also the state a registration accepted ahead of its paper is created in (ADR-0052 as amended); recording the date completes the same row. No schema change |
 | ended_at | DATETIME | NULL | When the mandate stopped being in force |
 | ended_reason | ENUM | NULL | `bank_change` · `revoked` · `offboarded` |
 | created_by_admin_id | BINARY(16) | FK → admin_users.id, NULL | Admin who recorded it |

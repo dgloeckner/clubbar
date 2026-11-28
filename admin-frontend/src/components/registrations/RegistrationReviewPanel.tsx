@@ -11,6 +11,15 @@
  * until it is ticked, and the server refuses without it anyway: the disabled
  * state is a courtesy, never the gate.
  *
+ * ## Accepting ahead of the paper is a second button, not a relaxed first one
+ *
+ * Since ADR-0052 was amended (2026-11-28) a registration may be accepted
+ * before the form is signed. That is offered *beside* the attested approval
+ * rather than by letting the approve button work without its two inputs: the
+ * two acts are different statements, and an admin who typed a date and forgot
+ * the tick must not find they accepted without a signature instead. The
+ * unsigned acceptance sends neither field — never the half-filled date.
+ *
  * ## Rejection is a deletion, and says so
  *
  * There is no "rejected" state to undo. The row is gone the moment the button
@@ -113,6 +122,22 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
         mandate_signed_at: signedAt,
         signed_mandate_confirmed: attested,
       })
+
+      return member.email ?? undefined
+    })
+
+  /**
+   * Accept ahead of the paper: neither a date nor an attestation is sent, so
+   * the member is created with an open, unsigned mandate and cannot buy until
+   * the signature date is recorded on them.
+   *
+   * Deliberately ignores whatever is in the date field. A date typed and then
+   * abandoned is not a signature, and sending it without the attestation would
+   * be refused anyway.
+   */
+  const acceptWithoutSignature = () =>
+    run(async () => {
+      const member = await getRegistrationReview().approveRegistration(registration.id ?? '', {})
 
       return member.email ?? undefined
     })
@@ -306,6 +331,25 @@ export function RegistrationReviewPanel({ registration, onClose, onDone, onError
                 {t('registrations.actions.approve')}
               </button>
             </div>
+
+            {/* The other way in, set apart from the attested approval above
+                rather than sharing its row: a separate statement with a
+                separate consequence, which the hint spells out before the
+                button rather than after the click. */}
+            <div style={unsignedSectionStyle} data-testid="approve-without-signature-section">
+              <p style={{ ...hintStyle, margin: 0 }}>{t('registrations.approve.withoutSignatureHint')}</p>
+              <div style={{ ...actionsStyle, marginTop: theme.spacing.md }}>
+                <button
+                  type="button"
+                  onClick={acceptWithoutSignature}
+                  disabled={busy}
+                  data-testid="approve-without-signature"
+                  style={secondaryButtonStyle}
+                >
+                  {t('registrations.approve.withoutSignature')}
+                </button>
+              </div>
+            </div>
           </>
         )}
 
@@ -418,6 +462,12 @@ const actionsStyle: React.CSSProperties = {
   flexWrap: 'wrap',
   gap: theme.spacing.sm,
   marginTop: theme.spacing.xl,
+}
+
+const unsignedSectionStyle: React.CSSProperties = {
+  marginTop: theme.spacing.xl,
+  paddingTop: theme.spacing.lg,
+  borderTop: `1px solid ${theme.colors.border.light}`,
 }
 
 const buttonBase: React.CSSProperties = {

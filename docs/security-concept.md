@@ -170,7 +170,11 @@ flowchart LR
   it never holds the private key at rest.
 - The private key is supplied only transiently, behind a step-up TOTP
   challenge, for the three operations that genuinely need a readable IBAN:
-  SEPA export, an exceptional full-IBAN view, and key rotation.
+  SEPA export, an exceptional full-IBAN view, and key rotation. Since
+  2026-11-28 the full-IBAN view has its one concrete form: printing the
+  still-unsigned mandates of members with the IBAN filled in (UC-A18,
+  ADR-0036 as amended) — off by default, audited per member, and the one
+  place a readable IBAN leaves the system on paper.
 - Keys have a 365-day cryptoperiod with staged warnings (INFO ≤90d, WARNING
   ≤30d, CRITICAL ≤7d) delivered by email, not just a dashboard badge nobody
   is looking at.

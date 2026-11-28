@@ -121,6 +121,12 @@ final class RouteRoleMap
         'GET /api/admin/members/collection-holds' => self::TREASURY,
         'GET /api/admin/members/mandate-missing' => self::TREASURY,
         'GET /api/admin/members/completeness' => self::TREASURY,
+        // Printing open mandates (UC-A18). Member management, so TREASURY by
+        // rule 2 — and no wider than the one other route the club's private
+        // key is handed to, `POST …/export/sepa-xml` below, which is TREASURY
+        // too. The keyed variant asks for a step-up on top; the grant is the
+        // same for both variants because the route is.
+        'POST /api/admin/members/mandate-documents' => self::TREASURY,
         'GET /api/admin/members/{memberId}' => self::TREASURY,
         'PATCH /api/admin/members/{memberId}' => self::TREASURY,
         'DELETE /api/admin/members/{memberId}' => self::ADMIN_ONLY,
@@ -157,6 +163,10 @@ final class RouteRoleMap
         // below) is a different one. It hands over no secret: what travels is
         // the URL a wall in the clubhouse already publishes.
         'POST /api/admin/registrations/link' => self::TREASURY,
+        // The batch form of the approval below, and the same grant for the
+        // same reason: it creates the members a Kassenwart may already create
+        // one by one (ADR-0052, amended 2026-11-28).
+        'POST /api/admin/registrations/approve-batch' => self::TREASURY,
         'GET /api/admin/registrations/{registrationId}' => self::TREASURY,
         'PATCH /api/admin/registrations/{registrationId}' => self::TREASURY,
         'POST /api/admin/registrations/{registrationId}/approve' => self::TREASURY,

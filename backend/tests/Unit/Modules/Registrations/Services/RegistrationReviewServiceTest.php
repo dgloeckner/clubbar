@@ -443,6 +443,277 @@ final class RegistrationReviewServiceTest extends TestCase
         $this->service->approve('11111111-2222-4333-8444-555555555555', '2026-08-30', true, self::ADMIN);
     }
 
+    // ── accepting ahead of the paper (ADR-0052, amended 2026-11-28) ──────
+
+    /**
+     * The whole of "accepted without a signature" in the data is one NULL: the
+     * mandate is opened with everything it had, except a signature date.
+     * `MandateCompleteness` reads that column, so the member cannot buy or be
+     * collected from until somebody records it.
+     */
+    public function test_an_acceptance_without_a_date_opens_the_mandate_unsigned(): void
+    {
+        $id = $this->pending();
+        $this->members->method('findExistingEmails')->willReturn([]);
+
+        $this->members->expects(self::once())->method('createFromSealedMandate')->with(
+            self::anything(),
+            self::callback(static fn(array $mandate): bool =>
+                array_key_exists('signed_at', $mandate)
+                && $mandate['signed_at'] === null
+                && $mandate['iban_ciphertext'] === 'v1:c2VhbGVkLWF0LXN1Ym1pc3Npb24'
+                && $mandate['encryption_key_id'] === 'key-of-the-day-it-was-sealed'),
+        )->willReturn($this->memberRow());
+
+        $this->service->approve($id, null, false, self::ADMIN);
+
+        self::assertNull($this->registrations->findById($id));
+    }
+
+    /** No date means no attestation is asked — there is no paper to attest to. */
+    public function test_an_acceptance_without_a_date_needs_no_attestation(): void
+    {
+        $id = $this->pending();
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->expects(self::once())->method('createFromSealedMandate')->willReturn($this->memberRow());
+
+        $this->service->approve($id, null, false, self::ADMIN);
+    }
+
+    /** A blank date is no date — the form sends `""`, not an absent key. */
+    public function test_a_blank_date_is_treated_as_no_date(): void
+    {
+        $id = $this->pending();
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->expects(self::once())->method('createFromSealedMandate')->with(
+            self::anything(),
+            self::callback(static fn(array $mandate): bool => $mandate['signed_at'] === null),
+        )->willReturn($this->memberRow());
+
+        $this->service->approve($id, '', false, self::ADMIN);
+    }
+
+    /**
+     * The audit entry has to *say* which of the two happened. Both keys are
+     * written on both paths, so nobody reading the log has to infer an
+     * unsigned acceptance from a key being absent.
+     */
+    public function test_the_audit_entry_says_whether_the_paper_was_attested(): void
+    {
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->method('createFromSealedMandate')->willReturn($this->memberRow());
+
+        $recorded = [];
+        $this->audit->method('log')->willReturnCallback(
+            function (...$args) use (&$recorded): void {
+                $recorded[] = $args;
+            }
+        );
+
+        $this->service->approve($this->pending(), null, false, self::ADMIN);
+        $this->service->approve(
+            $this->pending(['email' => 'second@example.org']),
+            '2026-08-30',
+            true,
+            self::ADMIN,
+        );
+
+        // `newValues` is the fifth parameter of AuditService::log().
+        $unsigned = $recorded[0]['newValues'] ?? $recorded[0][4];
+        self::assertArrayHasKey('mandate_signed_at', $unsigned);
+        self::assertNull($unsigned['mandate_signed_at']);
+        self::assertFalse($unsigned['signed_mandate_confirmed']);
+
+        $signed = $recorded[1]['newValues'] ?? $recorded[1][4];
+        self::assertSame('2026-08-30', $signed['mandate_signed_at']);
+        self::assertTrue($signed['signed_mandate_confirmed']);
+    }
+
+    // ── accepting in bulk ────────────────────────────────────────────────
+
+    public function test_a_batch_accepts_every_named_registration_unsigned(): void
+    {
+        $first = $this->pending(['email' => 'a@example.org']);
+        $second = $this->pending(['email' => 'b@example.org']);
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->method('findExistingIbanFingerprints')->willReturn([]);
+
+        $signedAt = [];
+        $this->members->expects(self::exactly(2))->method('createFromSealedMandate')->willReturnCallback(
+            function (array $member, array $mandate) use (&$signedAt): array {
+                $signedAt[] = $mandate['signed_at'];
+
+                return ['id' => 'member-for-' . $member['email']] + $this->memberRow();
+            }
+        );
+
+        $result = $this->service->approveBatch([$first, $second], self::ADMIN);
+
+        self::assertSame([
+            ['registration_id' => $first, 'member_id' => 'member-for-a@example.org'],
+            ['registration_id' => $second, 'member_id' => 'member-for-b@example.org'],
+        ], $result['accepted']);
+        self::assertSame([], $result['skipped']);
+        self::assertSame([null, null], $signedAt, 'A batch never records a signature.');
+        self::assertNull($this->registrations->findById($first));
+        self::assertNull($this->registrations->findById($second));
+    }
+
+    /**
+     * One at a time the duplicate warning is in front of whoever decides. In a
+     * batch nobody is looking at any single row — so a flagged one stays in the
+     * inbox for a person, and the rest go through.
+     */
+    public function test_a_batch_leaves_a_possible_duplicate_in_the_inbox(): void
+    {
+        $clean = $this->pending(['email' => 'new@example.org', 'iban_fingerprint' => str_repeat('1', 64)]);
+        $knownEmail = $this->pending(['email' => 'known@example.org', 'iban_fingerprint' => str_repeat('2', 64)]);
+        $knownIban = $this->pending(['email' => 'other@example.org', 'iban_fingerprint' => str_repeat('3', 64)]);
+
+        $this->members->method('findExistingEmails')->willReturnCallback(
+            static fn(array $emails): array => array_values(array_intersect($emails, ['known@example.org'])),
+        );
+        $this->members->method('findExistingIbanFingerprints')->willReturn([str_repeat('3', 64)]);
+        $this->members->expects(self::once())->method('createFromSealedMandate')->willReturn($this->memberRow());
+
+        $result = $this->service->approveBatch([$clean, $knownEmail, $knownIban], self::ADMIN);
+
+        self::assertSame([$clean], array_column($result['accepted'], 'registration_id'));
+        self::assertSame([
+            ['registration_id' => $knownEmail, 'reason' => 'registration_possible_duplicate'],
+            ['registration_id' => $knownIban, 'reason' => 'registration_possible_duplicate'],
+        ], $result['skipped']);
+        self::assertNotNull($this->registrations->findById($knownEmail));
+        self::assertNotNull($this->registrations->findById($knownIban));
+    }
+
+    /**
+     * Two siblings on a parent's account share an IBAN fingerprint. Evaluated
+     * row by row, the second would be flagged against the first — a member this
+     * very request created. The flags are therefore asked **once**, before
+     * anything is written.
+     */
+    public function test_the_duplicate_flags_are_evaluated_once_before_anything_is_accepted(): void
+    {
+        $shared = str_repeat('9', 64);
+        $lena = $this->pending(['email' => 'lena@example.org', 'iban_fingerprint' => $shared]);
+        $jonas = $this->pending(['email' => 'jonas@example.org', 'iban_fingerprint' => $shared]);
+
+        $created = false;
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->expects(self::once())->method('findExistingIbanFingerprints')->willReturnCallback(
+            // What the real repository would answer: nothing before the batch,
+            // the shared account as soon as the first sibling is a member.
+            static function () use (&$created, $shared): array {
+                return $created ? [$shared] : [];
+            }
+        );
+        $this->members->method('createFromSealedMandate')->willReturnCallback(
+            function () use (&$created): array {
+                $created = true;
+
+                return $this->memberRow();
+            }
+        );
+
+        $result = $this->service->approveBatch([$lena, $jonas], self::ADMIN);
+
+        self::assertCount(2, $result['accepted'], 'Both siblings pass.');
+        self::assertSame([], $result['skipped']);
+    }
+
+    /**
+     * The hard rule is *not* evaluated up front: two submissions at one address
+     * inside a batch must not both become members, so the second meets the
+     * member the first just created and is skipped with the rule's own code.
+     */
+    public function test_a_batch_skips_a_row_the_email_rule_refuses(): void
+    {
+        $first = $this->pending(['email' => 'shared@example.org']);
+        $second = $this->pending(['email' => 'shared@example.org']);
+
+        $created = false;
+        $this->members->method('findExistingIbanFingerprints')->willReturn([]);
+        $this->members->method('findExistingEmails')->willReturnCallback(
+            static function (array $emails) use (&$created): array {
+                // One address asked about is the per-row hard rule; a list is
+                // the up-front flag pass.
+                return $created && count($emails) === 1 ? $emails : [];
+            }
+        );
+        $this->members->method('createFromSealedMandate')->willReturnCallback(
+            function () use (&$created): array {
+                $created = true;
+
+                return $this->memberRow();
+            }
+        );
+
+        $result = $this->service->approveBatch([$first, $second], self::ADMIN);
+
+        self::assertSame([$first], array_column($result['accepted'], 'registration_id'));
+        self::assertSame(
+            [['registration_id' => $second, 'reason' => 'registration_member_email_exists']],
+            $result['skipped'],
+        );
+    }
+
+    /** Acted on by somebody else since the list was loaded: said, not thrown. */
+    public function test_a_batch_reports_a_row_that_has_vanished(): void
+    {
+        $here = $this->pending();
+        $gone = '11111111-2222-4333-8444-555555555555';
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->method('findExistingIbanFingerprints')->willReturn([]);
+        $this->members->method('createFromSealedMandate')->willReturn($this->memberRow());
+
+        $result = $this->service->approveBatch([$gone, $here], self::ADMIN);
+
+        self::assertSame([$here], array_column($result['accepted'], 'registration_id'));
+        self::assertSame([['registration_id' => $gone, 'reason' => 'registration_gone']], $result['skipped']);
+    }
+
+    /**
+     * One row that cannot be written does not undo the others, and does not
+     * turn the whole answer into an error with the earlier acceptances
+     * unreported.
+     */
+    public function test_one_failing_row_does_not_fail_the_batch(): void
+    {
+        $bad = $this->pending(['email' => 'bad@example.org']);
+        $good = $this->pending(['email' => 'good@example.org']);
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->method('findExistingIbanFingerprints')->willReturn([]);
+        $this->members->method('createFromSealedMandate')->willReturnCallback(
+            function (array $member): array {
+                if ($member['email'] === 'bad@example.org') {
+                    throw new \RuntimeException('mandate reference taken');
+                }
+
+                return $this->memberRow();
+            }
+        );
+
+        $result = $this->service->approveBatch([$bad, $good], self::ADMIN);
+
+        self::assertSame([$good], array_column($result['accepted'], 'registration_id'));
+        self::assertSame([['registration_id' => $bad, 'reason' => 'registration_not_accepted']], $result['skipped']);
+        self::assertNotNull($this->registrations->findById($bad), 'The failed row is still pending.');
+        self::assertNull($this->registrations->findById($good));
+    }
+
+    public function test_an_id_named_twice_is_accepted_once(): void
+    {
+        $id = $this->pending();
+        $this->members->method('findExistingEmails')->willReturn([]);
+        $this->members->method('findExistingIbanFingerprints')->willReturn([]);
+        $this->members->expects(self::once())->method('createFromSealedMandate')->willReturn($this->memberRow());
+
+        $result = $this->service->approveBatch([$id, $id], self::ADMIN);
+
+        self::assertCount(1, $result['accepted']);
+    }
+
     // ── rejecting ────────────────────────────────────────────────────────
 
     public function test_rejection_deletes_the_row_and_records_the_reason(): void

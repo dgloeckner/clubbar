@@ -233,13 +233,105 @@ final class AdminControllerTest extends TestCase
         self::assertSame(201, $response->getStatusCode());
     }
 
-    public function test_an_approval_without_a_signature_date_is_refused(): void
+    /**
+     * An attestation with no date to attach it to. Not the unsigned acceptance
+     * — that says nothing about paper at all — but half of the attested one,
+     * and silently dropping the half that was sent would record "accepted
+     * without a signature" for an admin who said they were holding one.
+     */
+    public function test_an_attestation_without_a_signature_date_is_refused(): void
     {
         $response = $this->send('POST', ['signed_mandate_confirmed' => true], '/approve');
 
         self::assertSame(422, $response->getStatusCode());
         self::assertArrayHasKey('mandate_signed_at', $this->decode($response)['messages']);
         self::assertNull($this->service->approveArgs);
+    }
+
+    // ── accepting ahead of the paper (ADR-0052, amended 2026-11-28) ──────
+
+    /**
+     * The signature is optional as a pair: with neither half, the member is
+     * created unsigned and nobody is asked to attest to paper that does not
+     * exist yet.
+     */
+    public function test_an_approval_with_neither_date_nor_attestation_is_an_unsigned_acceptance(): void
+    {
+        $response = $this->send('POST', [], '/approve');
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertNull($this->service->approveArgs['signedAt']);
+        self::assertFalse($this->service->approveArgs['confirmed']);
+    }
+
+    /** A date field left empty arrives as `""`, and an unticked box as `false`. */
+    public function test_a_blank_date_and_an_unticked_box_are_the_same_unsigned_acceptance(): void
+    {
+        $response = $this->send('POST', [
+            'mandate_signed_at' => '',
+            'signed_mandate_confirmed' => false,
+        ], '/approve');
+
+        self::assertSame(201, $response->getStatusCode());
+        self::assertNull($this->service->approveArgs['signedAt']);
+        self::assertFalse($this->service->approveArgs['confirmed']);
+    }
+
+    // ── accepting in bulk ────────────────────────────────────────────────
+
+    /** @param array<string, mixed> $body */
+    private function batch(array $body): Response
+    {
+        $request = (new ServerRequestFactory())
+            ->createServerRequest('POST', '/api/admin/registrations/approve-batch')
+            ->withParsedBody($body)
+            ->withAttribute('admin_user_id', self::ADMIN);
+
+        return $this->controller->approveBatch($request, new Response());
+    }
+
+    public function test_a_batch_reaches_the_service_with_its_ids_and_the_acting_admin(): void
+    {
+        $other = '55555555-5555-4555-8555-555555555555';
+
+        $response = $this->batch(['ids' => [self::ID, $other]]);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame([self::ID, $other], $this->service->batchArgs['ids']);
+        self::assertSame(self::ADMIN, $this->service->batchArgs['adminUserId']);
+        self::assertSame(self::ID, $this->decode($response)['accepted'][0]['registration_id']);
+        self::assertSame([], $this->decode($response)['skipped']);
+    }
+
+    /**
+     * There is no "everything pending" form of this request. An absent or
+     * empty list is refused rather than read as "all", so nothing is accepted
+     * that the admin did not have on screen.
+     *
+     * @return array<string, array{array<string, mixed>}>
+     */
+    public static function unusableBatches(): array
+    {
+        return [
+            'no ids at all' => [[]],
+            'an empty list' => [['ids' => []]],
+            'a single id, not a list' => [['ids' => self::ID]],
+            'a map' => [['ids' => ['a' => self::ID]]],
+            'something that is not an id' => [['ids' => [self::ID, 'all']]],
+            'a number' => [['ids' => [42]]],
+            'more than the cap' => [['ids' => array_fill(0, 201, self::ID)]],
+        ];
+    }
+
+    /** @param array<string, mixed> $body */
+    #[DataProvider('unusableBatches')]
+    public function test_an_unusable_batch_never_reaches_the_service(array $body): void
+    {
+        $response = $this->batch($body);
+
+        self::assertSame(422, $response->getStatusCode());
+        self::assertArrayHasKey('ids', $this->decode($response)['messages']);
+        self::assertNull($this->service->batchArgs);
     }
 
     // ── rejecting ────────────────────────────────────────────────────────
@@ -392,9 +484,22 @@ final class RecordingReviewService extends RegistrationReviewService
         return self::row();
     }
 
+    /** @var array<string, mixed>|null */
+    public ?array $batchArgs = null;
+
+    public function approveBatch(array $ids, ?string $adminUserId = null): array
+    {
+        $this->batchArgs = compact('ids', 'adminUserId');
+
+        return [
+            'accepted' => [['registration_id' => $ids[0], 'member_id' => '77777777-7777-7777-7777-777777777777']],
+            'skipped' => [],
+        ];
+    }
+
     public function approve(
         string $id,
-        string $mandateSignedAt,
+        ?string $mandateSignedAt,
         bool $attestationConfirmed,
         ?string $adminUserId = null,
     ): MemberAdminDto {

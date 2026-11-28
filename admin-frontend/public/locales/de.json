@@ -170,12 +170,16 @@
       "members_already_reversed": "Für {{member_count}} der ausgewählten Mitglieder wurde in dieser Abrechnung bereits eine Rückgabe erfasst.",
       "no_collectable_members_for_filters": "Zu den gewählten Filtern gibt es keine einziehbaren Mitglieder – alle Treffer haben Guthaben, sind vom Einzug ausgesetzt oder haben kein aktives SEPA-Mandat.",
       "no_members_named": "Es wurden keine Mitglieder ausgewählt.",
+      "no_open_mandates": "Es gibt keine offenen Mandate: Kein aktives Mitglied wartet auf eine Unterschrift.",
       "no_unsettled_transactions": "Es wurden keine offenen Buchungen gefunden.",
       "no_unsettled_transactions_for_filters": "Zu den gewählten Filtern gibt es keine offenen Buchungen.",
       "registration_attestation_required": "Die Freigabe verlangt die Bestätigung, dass das unterschriebene SEPA-Mandat vorliegt und die darauf angegebene IBAN zur hinterlegten Endziffernfolge passt.",
       "registration_disabled": "Die Anmeldung ist derzeit nicht möglich. {{reason}}",
+      "registration_gone": "Diese Anmeldung wurde inzwischen von jemand anderem bearbeitet.",
       "registration_member_email_exists": "Unter {{email}} gibt es bereits ein Mitglied. Prüfen Sie, ob es dieselbe Person ist – eine Freigabe würde ein zweites Mitgliedskonto anlegen.",
+      "registration_possible_duplicate": "Mögliche Dublette: E-Mail-Adresse oder Bankverbindung stimmen mit einem vorhandenen Mitglied überein. Bitte einzeln prüfen.",
       "registration_no_secret": "Es gibt noch kein Aushang-Geheimnis. Erzeugen Sie zuerst eines – ohne Geheimnis führt der QR-Code auf dem Aushang ins Leere.",
+      "registration_not_accepted": "Diese Anmeldung konnte nicht aufgenommen werden und liegt weiter im Eingang. Bitte einzeln öffnen und erneut versuchen.",
       "registration_reason_required": "Zum Abschalten gehört ein Satz für die Menschen, die vor dem Aushang stehen. Formulieren Sie kurz, warum die Anmeldung pausiert.",
       "registration_secret_unreadable": "Das hinterlegte Aushang-Geheimnis lässt sich nicht mehr entschlüsseln. Erzeugen Sie ein neues Geheimnis und drucken Sie den Aushang neu.",
       "sepa_config_incomplete": "Die SEPA-Konfiguration ist unvollständig. Vervollständigen Sie sie in den Einstellungen, bevor Sie exportieren.",
@@ -340,6 +344,19 @@
     "anonymizeSuccess": "Mitglied wurde anonymisiert",
     "anonymizeButton": "Anonymisieren",
     "openSepaTemplate": "SEPA-Vorlage",
+    "printMandates": {
+      "action": "Offene Mandate drucken",
+      "title": "Offene Mandate drucken",
+      "message": "Erzeugt ein PDF mit dem Anmeldeformular für jedes aktive Mitglied, dessen SEPA-Mandat noch nicht unterschrieben ist.",
+      "fullIban": "IBAN im Klartext drucken",
+      "fullIbanHint": "Ohne diese Auswahl bleibt die IBAN-Zeile zum handschriftlichen Eintragen frei; daneben stehen die letzten vier Stellen zum Abgleich.",
+      "fullIbanWarning": "Dafür werden die IBANs einmalig entschlüsselt. Die gedruckten Bögen tragen vollständige IBANs – bitte nicht liegen lassen und nach der Unterschrift ablegen.",
+      "keyHint": "Schlüsseldatei auswählen oder den Schlüssel einfügen. Er wird nur für diesen Druck verwendet und nicht gespeichert.",
+      "confirm": "PDF erzeugen",
+      "withoutIban_one": "{{count}} von {{total}} Bögen wurde ohne IBAN gedruckt, weil sich die Bankverbindung mit diesem Schlüssel nicht lesen lässt (z. B. unter einem älteren Schlüssel versiegelt). Dort bitte handschriftlich eintragen lassen.",
+      "withoutIban_other": "{{count}} von {{total}} Bögen wurden ohne IBAN gedruckt, weil sich die Bankverbindung mit diesem Schlüssel nicht lesen lässt (z. B. unter einem älteren Schlüssel versiegelt). Dort bitte handschriftlich eintragen lassen.",
+      "failed": "Die Mandate konnten nicht gedruckt werden."
+    },
     "sepaTemplateNotConfigured": "Es ist keine URL für das Mandatsformular hinterlegt — bitte zuerst in den Einstellungen konfigurieren.",
     "countFound_one": "{{count}} Mitglied gefunden",
     "countFound_other": "{{count}} Mitglieder gefunden",
@@ -1204,7 +1221,10 @@
       "terminal_token_activated": "Terminal-Token aktiviert",
       "terminal_token_rotated": "Terminal-Token rotiert",
       "terminal_token_revoked": "Terminal-Token widerrufen",
-      "terminal_token_expired": "Terminal-Token abgelaufen"
+      "terminal_token_expired": "Terminal-Token abgelaufen",
+      "registration_approved": "Anmeldung aufgenommen",
+      "registration_printed": "Formular gedruckt",
+      "iban_full_view": "IBAN im Klartext"
     },
     "summary": {
       "unknownActor": "Ein Administrator",
@@ -1238,7 +1258,13 @@
       "delete": "{{actor}} hat {{entityType}} {{subject}} gelöscht",
       "activate": "{{actor}} hat {{entityType}} {{subject}} aktiviert",
       "deactivate": "{{actor}} hat {{entityType}} {{subject}} deaktiviert",
-      "fallback": "{{actor}} hat eine Aktion für {{entityType}} {{subject}} durchgeführt"
+      "fallback": "{{actor}} hat eine Aktion für {{entityType}} {{subject}} durchgeführt",
+      "registrationApprovedSigned": "{{actor}} hat eine Anmeldung freigegeben – unterschriebenes Mandat vom {{date}} bestätigt",
+      "registrationApprovedUnsigned": "{{actor}} hat eine Anmeldung ohne Unterschrift aufgenommen – das Mandat ist noch offen",
+      "registrationPrinted": "{{actor}} hat das Formular zu einer Anmeldung gedruckt (IBAN-Zeile frei, {{iban}})",
+      "openMandatePrinted": "{{actor}} hat das offene Mandat {{reference}} gedruckt (IBAN-Zeile frei, {{iban}})",
+      "openMandatePrintedFullIban": "{{actor}} hat das offene Mandat {{reference}} mit vollständiger IBAN gedruckt ({{iban}})",
+      "ibanFullView": "{{actor}} hat eine vollständige IBAN eingesehen"
     }
   },
   "profile": {
@@ -1693,6 +1719,28 @@
       "queued": "Der Anmeldelink an {{email}} ist in der Warteschlange und geht mit dem nächsten Versandlauf raus.",
       "failed": "Der Anmeldelink konnte nicht gesendet werden."
     },
+    "acceptAll": {
+      "action": "Alle aufnehmen",
+      "title": "Alle angezeigten Anmeldungen aufnehmen?",
+      "count_one": "{{count}} Anmeldung wird als Mitglied aufgenommen – ohne Unterschrift.",
+      "count_other": "{{count}} Anmeldungen werden als Mitglieder aufgenommen – ohne Unterschrift.",
+      "pageOnly": "Es werden nur die {{count}} hier angezeigten von insgesamt {{total}} Anmeldungen aufgenommen.",
+      "unsigned": "Die Mitglieder entstehen ohne Unterschriftsdatum. Sie können erst buchen und werden erst eingezogen, wenn das unterschriebene SEPA-Mandat vorliegt und das Unterschriftsdatum am Mitglied eingetragen ist.",
+      "duplicates": "Mögliche Dubletten (E-Mail oder Konto bereits bekannt) werden nicht aufgenommen und bleiben im Eingang.",
+      "duplicatesShown_one": "{{count}} der angezeigten Anmeldungen ist als mögliche Dublette markiert und bleibt im Eingang.",
+      "duplicatesShown_other": "{{count}} der angezeigten Anmeldungen sind als mögliche Dubletten markiert und bleiben im Eingang.",
+      "confirm": "Aufnehmen",
+      "working": "Wird aufgenommen …",
+      "resultAccepted_one": "{{count}} Anmeldung aufgenommen.",
+      "resultAccepted_other": "{{count}} Anmeldungen aufgenommen.",
+      "resultSkipped_one": "{{count}} übersprungen und weiter im Eingang:",
+      "resultSkipped_other": "{{count}} übersprungen und weiter im Eingang:",
+      "resultNone": "Es wurde keine Anmeldung aufgenommen.",
+      "resultReason": "{{count}} × {{reason}}",
+      "resultNext": "Als Nächstes: unter Mitglieder „Offene Mandate drucken“.",
+      "dismiss": "Schließen",
+      "failed": "Die Anmeldungen konnten nicht aufgenommen werden."
+    },
     "empty": {
       "title": "Nichts zu prüfen.",
       "body": "Anmeldungen erscheinen hier, sobald jemand das Formular ausgefüllt hat — über den QR-Aushang im Verein oder über einen zugeschickten Anmeldelink."
@@ -1718,9 +1766,11 @@
       "reject": "Ablehnen"
     },
     "approve": {
-      "lede": "Mit der Freigabe entstehen Mitglied und SEPA-Mandat. Vorher muss das unterschriebene Formular vorliegen.",
       "signedAt": "Unterschrieben am",
-      "attestation": "Das unterschriebene SEPA-Mandat liegt mir vor, und die darauf angegebene IBAN passt zu {{last4}}."
+      "attestation": "Das unterschriebene SEPA-Mandat liegt mir vor, und die darauf angegebene IBAN passt zu {{last4}}.",
+      "withoutSignature": "Ohne Unterschrift aufnehmen",
+      "withoutSignatureHint": "Liegt das Formular noch nicht unterschrieben vor, kann das Mitglied schon jetzt aufgenommen werden. Es kann erst buchen, wenn das Unterschriftsdatum am Mitglied eingetragen ist.",
+      "lede": "Mit der Freigabe entstehen Mitglied und SEPA-Mandat. Liegt das unterschriebene Formular vor, tragen Sie das Datum ein und bestätigen es."
     },
     "reject": {
       "warning": "Die Anmeldung wird sofort gelöscht. Es gibt keinen abgelehnten Zustand und kein Zurück.",

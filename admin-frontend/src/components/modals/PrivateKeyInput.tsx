@@ -21,12 +21,18 @@ export interface PrivateKeyInputProps {
   /** The key as base64, or '' when nothing usable has been supplied yet. */
   value: string
   onChange: (privateKeyBase64: string) => void
+  /**
+   * What the key is being asked for, in a sentence. Defaults to the SEPA
+   * export's wording; the mandate print (UC-A18) hands in its own, because
+   * "used for this export only" is not true of a print.
+   */
+  hint?: string
 }
 
 /** 32 raw bytes, base64-encoded — what tools/keypair-generator.html emits. */
 const BASE64_KEY = /^[A-Za-z0-9+/]{43}=$/
 
-export function PrivateKeyInput({ value, onChange }: PrivateKeyInputProps) {
+export function PrivateKeyInput({ value, onChange, hint }: PrivateKeyInputProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileError, setFileError] = useState<string | null>(null)
@@ -59,7 +65,7 @@ export function PrivateKeyInput({ value, onChange }: PrivateKeyInputProps) {
           color: theme.colors.text.secondary,
         }}
       >
-        {t('settlements.export.keyHint')}
+        {hint ?? t('settlements.export.keyHint')}
       </p>
 
       <input

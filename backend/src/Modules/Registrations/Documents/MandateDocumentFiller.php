@@ -119,12 +119,40 @@ class MandateDocumentFiller
      */
     public function fill(string $template, array $values): string
     {
+        return $this->fillMany($template, [$values]);
+    }
+
+    /**
+     * The club's document once per person, as **one** PDF (UC-A18).
+     *
+     * The same fill, repeated: for each set of values, import page 1, draw the
+     * values on it, then append pages 2..n — and only then start the next
+     * person. The order that is load-bearing inside one document (see the
+     * class docblock) is load-bearing here per person: FPDF cannot go back to
+     * somebody's first page once their second exists.
+     *
+     * The template is parsed once and each of its pages is embedded once,
+     * however many people the output holds — FPDI imports a page as a form
+     * XObject and every later use only references it. Two hundred members on a
+     * four-page Anmeldung is therefore four imported pages and two hundred
+     * small text streams, not eight hundred page copies.
+     *
+     * `$valueSets` is deliberately an **iterable**. The keyed print (ADR-0036)
+     * hands in a generator that opens one member's IBAN as that member's sheet
+     * is reached, so a plaintext exists for the length of one iteration and no
+     * list of them is ever assembled.
+     *
+     * @param iterable<array<string, string>> $valueSets one entry per person
+     * @throws UnusableTemplateException the template cannot be read at all, or
+     *         one person's IBAN does not fit its comb
+     * @throws \LogicException an empty iterable — a document about nobody
+     */
+    public function fillMany(string $template, iterable $valueSets): string
+    {
         $fields = PdfAcroFormFields::scan($template);
         if ($fields === []) {
             throw new UnusableTemplateException(PdfAcroFormFields::diagnose($template));
         }
-
-        $this->assertCombCanHoldTheIban($fields, $values);
 
         $source = $this->sourceFile($template);
 
@@ -134,59 +162,110 @@ class MandateDocumentFiller
 
             $pageOne = $pdf->importPage(1);
             $size = $pdf->getTemplateSize($pageOne);
-            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-            $pdf->useTemplate($pageOne);
 
-            $pdf->SetFont('Helvetica', '', self::FONT_SIZE);
-            $pdf->SetTextColor(26, 26, 46);
+            /** @var array<int, string> $furtherPages imported once, on first need */
+            $furtherPages = [];
+            $people = 0;
 
-            foreach ($fields as $name => [$x1, $y1, $x2, $y2]) {
-                $value = $this->valueFor($name, $fields, $values);
-                if ($value === '') {
-                    continue;
+            foreach ($valueSets as $values) {
+                $this->assertCombCanHoldTheIban($fields, $values);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($pageOne);
+
+                $this->drawValues($pdf, $fields, $values, (float) $size['height']);
+
+                // Only now. FPDF cannot go back to this person's page 1 once
+                // their page 2 exists, so everything above has to have happened
+                // already.
+                for ($page = 2; $page <= $pageCount; $page++) {
+                    $furtherPages[$page] ??= $pdf->importPage($page);
+                    $pageSize = $pdf->getTemplateSize($furtherPages[$page]);
+                    $pdf->AddPage($pageSize['orientation'], [$pageSize['width'], $pageSize['height']]);
+                    $pdf->useTemplate($furtherPages[$page]);
                 }
 
-                $text = $this->latin1($value);
-                $fieldWidth = $x2 - $x1;
-
-                // Shrink to fit rather than overflow. Not a nicety: on the
-                // reference club's own published Anmeldung a 32-character
-                // mandate reference is 166pt wide at 10pt in a 108pt field, so
-                // a fixed size runs it 58pt into whatever sits beside it.
-                //
-                // Newly minted references are short since #936 (`CB-000042`),
-                // and this still has to hold: references minted before that are
-                // never re-minted, an account holder's name is longer still,
-                // and a club may set a longer prefix. A value is fitted to its
-                // field, never drawn at a fixed size (ADR-0052).
-                $fontSize = $this->sizeThatFits($pdf, $text, $fieldWidth);
-                $pdf->SetFontSize($fontSize);
-
-                // FPDF's origin is top-left; the rectangle's is bottom-left.
-                $height = $y2 - $y1;
-                $baselineFromBottom = $y1 + ($height - $fontSize) / 2 + 2.0;
-
-                // A comb cell holds one glyph and wants it in the middle of the
-                // box; anything else reads left to right from the field's edge.
-                $x = $this->isCombCell($name, $fields, $values)
-                    ? $x1 + max(0.0, ($fieldWidth - $pdf->GetStringWidth($text)) / 2)
-                    : $x1 + self::TEXT_INSET;
-
-                $pdf->Text($x, (float) $size['height'] - $baselineFromBottom, $text);
+                $people++;
             }
 
-            // Only now. FPDF cannot go back to page 1 once page 2 exists, so
-            // everything above has to have happened already.
-            for ($page = 2; $page <= $pageCount; $page++) {
-                $imported = $pdf->importPage($page);
-                $pageSize = $pdf->getTemplateSize($imported);
-                $pdf->AddPage($pageSize['orientation'], [$pageSize['width'], $pageSize['height']]);
-                $pdf->useTemplate($imported);
+            if ($people === 0) {
+                throw new \LogicException('A mandate document needs at least one person to fill it for.');
             }
 
             return (string) $pdf->Output('S');
         } finally {
             @unlink($source);
+        }
+    }
+
+    /**
+     * How many characters of IBAN this template can take, or null when it can
+     * take any.
+     *
+     * {@see fill()} refuses an IBAN too long for the comb, which is right for
+     * one document and wrong for a batch: one member with a French account
+     * must not cost forty others their sheet. The batch asks this first and
+     * prints that one member's sheet without the number instead.
+     *
+     * Null covers both "no comb" and "a comb *and* a single wide field" — in
+     * either case there is somewhere the whole value can go.
+     *
+     * @throws UnusableTemplateException the template cannot be read at all
+     */
+    public function ibanCapacity(string $template): ?int
+    {
+        $fields = PdfAcroFormFields::scan($template);
+        if ($fields === []) {
+            throw new UnusableTemplateException(PdfAcroFormFields::diagnose($template));
+        }
+
+        return $this->combCapacity($fields);
+    }
+
+    /**
+     * Draw one person's values onto the page that is currently open.
+     *
+     * @param array<string, mixed> $fields as scanned from the template
+     * @param array<string, string> $values
+     */
+    private function drawValues(Fpdi $pdf, array $fields, array $values, float $pageHeight): void
+    {
+        $pdf->SetFont('Helvetica', '', self::FONT_SIZE);
+        $pdf->SetTextColor(26, 26, 46);
+
+        foreach ($fields as $name => [$x1, $y1, $x2, $y2]) {
+            $value = $this->valueFor($name, $fields, $values);
+            if ($value === '') {
+                continue;
+            }
+
+            $text = $this->latin1($value);
+            $fieldWidth = $x2 - $x1;
+
+            // Shrink to fit rather than overflow. Not a nicety: on the
+            // reference club's own published Anmeldung a 32-character
+            // mandate reference is 166pt wide at 10pt in a 108pt field, so
+            // a fixed size runs it 58pt into whatever sits beside it.
+            //
+            // Newly minted references are short since #936 (`CB-000042`),
+            // and this still has to hold: references minted before that are
+            // never re-minted, an account holder's name is longer still,
+            // and a club may set a longer prefix. A value is fitted to its
+            // field, never drawn at a fixed size (ADR-0052).
+            $fontSize = $this->sizeThatFits($pdf, $text, $fieldWidth);
+            $pdf->SetFontSize($fontSize);
+
+            // FPDF's origin is top-left; the rectangle's is bottom-left.
+            $height = $y2 - $y1;
+            $baselineFromBottom = $y1 + ($height - $fontSize) / 2 + 2.0;
+
+            // A comb cell holds one glyph and wants it in the middle of the
+            // box; anything else reads left to right from the field's edge.
+            $x = $this->isCombCell($name, $fields, $values)
+                ? $x1 + max(0.0, ($fieldWidth - $pdf->GetStringWidth($text)) / 2)
+                : $x1 + self::TEXT_INSET;
+
+            $pdf->Text($x, $pageHeight - $baselineFromBottom, $text);
         }
     }
 
@@ -215,8 +294,8 @@ class MandateDocumentFiller
      */
     private function assertCombCanHoldTheIban(array $fields, array $values): void
     {
-        $cells = PdfAcroFormFields::combCells($fields);
-        if ($cells === [] || array_key_exists('iban', $fields)) {
+        $highest = $this->combCapacity($fields);
+        if ($highest === null) {
             return;
         }
 
@@ -225,7 +304,6 @@ class MandateDocumentFiller
             return;
         }
 
-        $highest = max(array_keys($cells));
         if (strlen($iban) > $highest) {
             throw new UnusableTemplateException(
                 null,
@@ -237,6 +315,22 @@ class MandateDocumentFiller
                 ),
             );
         }
+    }
+
+    /**
+     * The highest character position the IBAN comb reaches, or null when the
+     * comb is not the only place an IBAN could go.
+     *
+     * @param array<string, mixed> $fields
+     */
+    private function combCapacity(array $fields): ?int
+    {
+        $cells = PdfAcroFormFields::combCells($fields);
+        if ($cells === [] || array_key_exists('iban', $fields)) {
+            return null;
+        }
+
+        return max(array_keys($cells));
     }
 
     /**

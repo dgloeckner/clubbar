@@ -20,6 +20,7 @@ import {
 } from '../../utils/sql'
 import { lockClubConfig, unlockClubConfig } from '../../utils/clubConfigLock'
 import { drainMailQueue } from '../../utils/drain'
+import { pdfText } from '../../utils/pdf'
 
 /**
  * The public submission endpoint (UC-P01, ADR-0052).
@@ -692,25 +693,9 @@ test.describe('Public self-registration', () => {
 
   // ── the club's document (#780, ADR-0052 decision 5) ────────────────────
 
-  /** Inflate a PDF's content streams, so drawn text is searchable. */
-  const pdfText = (pdf: Buffer): string => {
-    const zlib = require('node:zlib')
-    let text = pdf.toString('latin1')
-
-    // FPDF compresses the stream it draws into, and the imported pages arrive
-    // Flate-compressed too, so nothing on a page is literal in the raw file.
-    const pattern = /stream\r?\n([\s\S]*?)\r?\nendstream/g
-    let match: RegExpExecArray | null
-    while ((match = pattern.exec(pdf.toString('latin1'))) !== null) {
-      try {
-        text += zlib.inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1')
-      } catch {
-        // Not a compressed stream — already counted in the raw text above.
-      }
-    }
-
-    return text
-  }
+  // `pdfText` comes from `utils/pdf.ts`. It used to be a regex of this file's
+  // own, and that regex lost the drawn text about once in 300 documents — the
+  // helper explains how, and why there is now exactly one of it.
 
   test("the member's own document comes back with the submission, and only there", async ({
     request,
