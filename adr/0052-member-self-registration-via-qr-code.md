@@ -6,6 +6,8 @@
 
 **Amended**: 2026-10-20 — decision 10: a pending registration no longer expires
 
+**Amended**: 2026-11-28 — acceptance may precede the signature; registrations can be accepted in bulk; open mandates print from the member, optionally with the full IBAN (see *Amended 2026-11-28* below; the Decision statement, decisions 5, 6a, 9 and 10 are updated to match)
+
 **Relates to**: [ADR-0006](./0006-sepa-mandate-reference-strategy.md) (the reference is minted before the paper is printed), [ADR-0016](./0016-transport-security.md), [ADR-0020](./0020-sepa-mandate-requirement-terminal-access.md), [ADR-0029](./0029-two-tier-retention-and-erasure.md), [ADR-0031](./0031-production-hardening-on-shared-hosting.md), [ADR-0036](./0036-iban-encryption-sealed-box.md) (no exception), [ADR-0037](./0037-mandate-documents-not-retained.md), [ADR-0044](./0044-tiered-admin-roles.md)
 
 ---
@@ -50,12 +52,25 @@ is not a member.** It creates no `members` row and no mandate, so
 `GET /api/sync/members` cannot return it, so no terminal can recognise the
 person — not by policy, but because there is nothing to recognise.
 
+> **2026-11-28.** That invariant stands unchanged. What the amendment below
+> changes is the *next* step: a member may now exist before the paper is
+> signed. The concern in point 3 — "an unverified stranger the terminal will
+> serve" — is then answered one layer further in, by ADR-0020: a mandate
+> without a signature date is not a mandate, so the terminal refuses the card
+> and no collection includes the member until the date is recorded.
+
 ## Decision
 
 **A member fills in their own details behind a URL secret; the submission is
-sealed and parked in a store nothing else reads; an admin, holding the signed
-paper, approves — and approval is the only thing in the system that turns a
-registration into a member and a mandate.**
+sealed and parked in a store nothing else reads; an admin approves — and
+approval is the only thing in the system that turns a registration into a member
+and a mandate. The signed paper is what makes that mandate usable: an admin
+attests to it either at approval or, since 2026-11-28, afterwards, by recording
+the signature date on the member.**
+
+~~…an admin, holding the signed paper, approves…~~ — as first decided, approval
+*was* the paper attestation and could not happen without it. See *Amended
+2026-11-28*.
 
 ### 1. The gate is a URL secret, carried in the fragment
 
@@ -156,7 +171,8 @@ not keep copies of it):
 | Variant | Who prints | `iban` | `iban_last4` | Delivery |
 |---|---|---|---|---|
 | **Member** | The member, during registration | Filled in full, from the plaintext still in memory in that request | Filled | Returned **in the `POST /api/public/registrations` response itself**, `Cache-Control: no-store` |
-| **Admin print** | The Kassenwart, at review | **Empty** — hand-written into the IBAN-Kamm at signature | Filled, printed as the `endet auf ****3000` hint | `GET` from the pending row, audited |
+| **Admin print** | The Kassenwart, at review — or, since 2026-11-28, for every member whose mandate is still unsigned | **Empty** — hand-written into the IBAN-Kamm at signature | Filled, printed as the `endet auf ****3000` hint | `GET` from the pending row, or `POST` for the open mandates of members; audited |
+| **Admin print, keyed** (2026-11-28) | The Kassenwart, for members whose mandate is still unsigned, **with the club's private key supplied for that one request** | Filled in full, opened from the sealed value as the sheet is drawn | Filled | `POST`, step-up, `Cache-Control: no-store`; audited per member as a full-IBAN view ([ADR-0036](./0036-iban-encryption-sealed-box.md) as amended) |
 
 The member's document arrives with the submission response and nowhere else.
 There is no second endpoint, no download token, and reloading the confirmation
@@ -398,6 +414,12 @@ Nothing is superseded and no wording is invented: reviewing the template means
 checking the club's own document, and the offline route keeps using the identical
 file with nothing filled in.
 
+Since 2026-11-28 the same document is also printed for members who were accepted
+ahead of their signature — every open mandate in one PDF, the whole Anmeldung once
+per member — and, with the club's private key, with the IBAN line filled in. The
+rule of this decision is unchanged by either: it is still the club's document,
+whole, and nothing clubbar composed.
+
 ### 7. The account holder may not be the member
 
 The mandate must be signed by whoever owns the account, and in a sports club that
@@ -430,7 +452,8 @@ surface (ADR-0045 invariant 5).
 **No mail at submission.** The address is unverified, so a submission endpoint
 that mails it is an email-bombing amplifier pointed at strangers, and UC-A67
 rule 1 keeps the welcome the first message a member ever receives — after their
-card, not before their membership. A verification link is a deliberate carve-out
+card *and their signed mandate* ([ADR-0051](./0051-member-lifecycle-mail.md) as
+amended 2026-11-28), not before their membership. A verification link is a deliberate carve-out
 for a later decision.
 
 **No enumeration.** A submission naming an email or a person the club already
@@ -448,7 +471,7 @@ reason code and nothing about the person.
 |---|---|
 | Time passes | Nothing. The row stays in the review inbox until an admin acts on it — see *Amended 2026-10-20* below |
 | Admin rejects | The row is deleted immediately; the audit entry records the act, the reason, and the IBAN **masked** (ADR-0005) |
-| Admin approves | `members` + `mandates` rows are created, the ciphertext and the reference move across, the pending row is deleted |
+| Admin approves | `members` + `mandates` rows are created, the ciphertext and the reference move across, the pending row is deleted. With a signature date and the attestation the mandate is signed; without either (since 2026-11-28) it is opened unsigned |
 
 This store is not the retention tier. Nothing here is a Beleg: no money has moved
 and no contract has been performed, so ADR-0029's ten-year accounting retention
@@ -495,7 +518,8 @@ people, not by a timer:
 
 | Event | Audited | Why |
 |---|---|---|
-| **Approve** | Yes | The moment a member and a mandate come into existence, carrying the admin's attestation that they held the signed paper and matched `****last4`. It records the **pending registration's id**, so a member's origin stays traceable after the pending row is gone, and a masked IBAN only (ADR-0005) |
+| **Approve** | Yes | The moment a member and a mandate come into existence. The entry says which kind of approval it was: a signature date with the attestation that the admin held the signed paper and matched `****last4`, or — since 2026-11-28 — no date and no attestation. It records the **pending registration's id**, so a member's origin stays traceable after the pending row is gone, and a masked IBAN only (ADR-0005) |
+| **Print** | Yes | A name, a birth date, an address and an IBAN hint leaving the building on paper. Per registration, or per member for the open-mandate print; a sheet carrying the full IBAN is recorded as a full-IBAN view (ADR-0036) |
 | **Reject** | Yes | An admin decided to delete somebody's data. The act, the actor and the reason are exactly what a log is for |
 | **Edit** | Yes | Not obviously an authority change, and audited anyway — this is the one place in the system where one person edits another's freshly submitted personal data, including which bank account a mandate will be opened against. The entry is what makes "the IBAN on file is not the one I sent" answerable, and it carries the masked value on both sides, never the number |
 | **Print** | Yes | An IBAN hint and a member's details leave the building on paper |
@@ -540,9 +564,10 @@ valid submissions. Both meters are needed.
   membership, but the typing is no longer serialised behind it.
 - The pending store is *weaker in privilege* than `members` and no weaker in
   cryptography: same sealed box, same key generation, same fingerprint.
-- Approval becomes an explicit, audited attestation — "I have the signed mandate
+- The paper check is an explicit, audited attestation — "I have the signed mandate
   and the hand-written IBAN ends in 3000" — where today it is a side effect of
-  data entry.
+  data entry. (Since 2026-11-28 it may be made after approval instead of with it;
+  see the amendment for what that costs.)
 - The club gets an off-switch it can explain to the people it affects.
 
 **Negative, and what is done about it**
@@ -552,8 +577,171 @@ valid submissions. Both meters are needed.
 | A new unauthenticated write surface exists | One secret gate, two rate meters, a body cap, a honeypot, write-only semantics, uniform refusals, and no mail |
 | A poster secret is long-lived and physically copyable | Rotatable without redeploying, reprintable without rotating, and it grants nothing but the ability to *submit* — never to read |
 | Personal data now sits in a second table before anybody has agreed to anything | Immediate delete on reject, every pending row visible in the inbox, no Beleg status, no terminal visibility. No automatic expiry since 2026-10-20 (decision 10), so an abandoned row stays until somebody rejects it |
-| Two mandate variants means two PDF paths to keep correct | They share one renderer and differ by a single flag; the admin-print variant is the fallback that always works |
+| Two mandate variants means two PDF paths to keep correct | They share one renderer and differ by a single flag; the admin-print variant is the fallback that always works. The third variant and the second source added on 2026-11-28 go through the same renderer and the same field mapping |
 | A member could register twice, or register and never appear | Duplicates are visible at review by email and fingerprint; an abandoned row is rejected by an admin |
+
+## Amended 2026-11-28: accept first, print in bulk, sign later
+
+### What the first version got in the way of
+
+As first decided, approval **was** the attestation: an admin could not approve
+without holding the signed paper. That is the right order for one applicant at a
+desk. It is the wrong one for the evening a club onboards forty people at once:
+
+- the inbox holds forty registrations nobody can approve, because no paper exists
+  yet — and the paper cannot be printed *in bulk*, only one registration at a time;
+- each printed sheet has an empty IBAN line, so forty people each copy a
+  22-character number by hand and an admin checks forty sets of four digits;
+- a card cannot be prepared for anybody, because there is no member to put it on.
+
+**Decision, by the owner:** the order is reversed where the club wants it to be.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Applicant
+    actor K as Kassenwart
+    participant S as Clubbar
+    actor T as Terminal
+
+    A->>S: submits the form (decision 3, unchanged)
+    Note over S: pending registration — not a member
+    K->>S: accepts, singly or the visible inbox at once
+    Note over S: member + mandate, signature date empty
+    T->>S: card scan
+    S-->>T: refused — mandate not usable (ADR-0020)
+    K->>S: prints every open mandate as one PDF
+    S-->>K: the club's Anmeldung, once per member
+    A->>K: signs the paper
+    K->>S: records the signature date on the member
+    Note over S: mandate complete — card works, collection possible
+```
+
+The desk flow of the first version is untouched: an admin who *is* holding the
+paper still approves with a date and the attestation, in one step.
+
+### 1. The signature is optional, as a pair
+
+| The approval carries | Outcome |
+|---|---|
+| A signature date **and** the attestation | As before: the mandate is signed, the member is SEPA-valid |
+| Neither | The member and the mandate are created; the mandate has **no signature date** |
+| A date without the attestation | Refused, exactly as before. A date is a claim about paper, and the claim still has to be made by somebody |
+| The attestation without a date | Refused. There is nothing to attach it to |
+
+**What keeps an unsigned member away from the bar is not approval any more — it
+is the mandate gate.** ADR-0020 (as amended 2026-08-07) defines a usable mandate
+as reference, IBAN *and signature date*, and one definition is read everywhere:
+the terminal refuses the card, the roster shows the gap, and no settlement
+collects from the member. Nothing in this amendment adds to that gate or needs
+to; the data model already carried the state, and only approval's refusal to
+produce it has been lifted.
+
+**Recording the date is now where the admin attests.** An admin who enters a
+signature date on a member is stating what the approval checkbox states: the
+signed mandate is in hand and the number on it matches the `****last4` on file.
+The member form asks for the date and does not repeat the checkbox — see
+*Consequences*.
+
+### 2. Registrations can be accepted in bulk
+
+One request names the registrations to accept; each becomes a member with an
+unsigned mandate.
+
+| Rule | Why |
+|---|---|
+| The registrations are **named one by one** — there is no "accept everything pending" | Nothing becomes a member that the admin did not have in front of them when they confirmed |
+| Each registration is accepted **on its own**; one that cannot be is reported and the rest proceed | An admin should not have to find the one bad row before any good one can become a member |
+| A registration flagged as a **possible duplicate** (decision 9: matching email or IBAN fingerprint) is **left in the inbox**, never accepted | One at a time, the warning is in front of whoever decides. In a batch nobody is looking at any single row |
+| The duplicate flags are evaluated **once, before anything is accepted** | Two siblings registered on a parent's account share an IBAN. Evaluated row by row, the second would be flagged against the first — a member the same request had just created |
+| The existing refusal for an email the club already has still applies **per registration** | Two submissions at one address inside one batch must not both become members |
+| A batch **never records a signature** | Forty attestations cannot honestly be made with one click |
+
+The response says which registrations became which members, and which were left
+behind and why.
+
+### 3. A third source for the print: the member and their mandate
+
+Decision 5 prints from the pending registration. Acceptance deletes that row, so
+a member accepted ahead of the paper would have nothing to print from.
+
+The print therefore has a second source, with the same fields under the same
+names:
+
+| Field on the sheet | From a pending registration | From a member |
+|---|---|---|
+| Name, birth date, email | The submission | The member |
+| Account holder | The submission | The member |
+| Mandate reference | Minted at submission (decision 4) | The same reference, now on the mandate |
+| IBAN hint (`****last4`) | The submission | The mandate |
+| The document itself | The URL the applicant was shown, recorded on their row | **The club's configured document.** A member carries no record of the URL they were shown — that lived on the registration and went with it |
+
+One request prints **every** active, non-anonymized member whose mandate is open
+and unsigned, as **one PDF**: the whole Anmeldung once per member, so a
+four-page document and forty members is a hundred and sixty pages, each member's
+pages together. A member with no mandate at all is not in it (there is no
+reference to print), nor is one whose mandate is already signed.
+
+As implemented, neither source composes a signature block. The fill draws the
+account holder's name where the club's template has a field for it, and every
+signature line — the legal representative's included — is the club's own
+artwork on its own document. The two prints are therefore equivalent by
+construction, and decision 7's wording about what the *sheet* carries describes
+what the club's template is expected to provide.
+
+### 4. The print may carry the full IBAN, when the club supplies its key
+
+The blank IBAN line of decision 5 was what kept decision 3 exception-free: an
+admin never needs a plaintext IBAN because the member writes it by hand. At forty
+members that safeguard is also the bottleneck and a source of exactly the copying
+errors this ADR set out to remove.
+
+So the open-mandate print has a second variant, and it is **not** an exception to
+"the server cannot read an IBAN". It is the same act as the SEPA export, governed
+by [ADR-0036](./0036-iban-encryption-sealed-box.md) as amended on the same day:
+the club's private key is supplied for one request, behind a step-up, and each
+IBAN is opened as its sheet is drawn.
+
+| | Blank print | Keyed print |
+|---|---|---|
+| IBAN line | Empty, with `endet auf ****3000` | Printed in full |
+| Needs | An admin or Kassenwart session | The same, plus a step-up credential and the club's private key |
+| A mandate sealed under a key other than the active one | Not affected | That member's sheet is printed **blank**; the rest of the document is unaffected and the response says how many were |
+| Recorded as | A print, per member | A full-IBAN view, per member |
+
+Nobody waiting for a signature is a named refusal rather than an empty file.
+
+### 5. What does not change
+
+- **A pending registration is not a member.** No terminal can see one.
+- **The public endpoint** — decisions 1 to 4 and 11 — is untouched.
+- **The sealed IBAN moves verbatim** at acceptance, key id included.
+- **Roles** (decision 8): accepting in bulk and printing open mandates are member
+  management, `[ADMIN, KASSENWART]`. The keyed print is no wider than the SEPA
+  export, which holds the same grant.
+- **No schema change.** No table, column or enumeration value was added.
+
+### Consequences of the amendment
+
+**Positive**
+
+- A club can onboard a room full of people in an evening: accept, print one PDF,
+  collect signatures, enter dates.
+- Cards can be assigned before the paper exists; a card on an unsigned member
+  simply does not work yet.
+- With the keyed print nobody copies an IBAN by hand, which was the error this
+  ADR existed to remove.
+
+**Negative, and what is done about it**
+
+| Cost | Mitigation |
+|---|---|
+| **A member now exists before anybody has checked the paper.** They appear on the roster, in searches and in counts | They cannot buy and are not collected from: the mandate gate (ADR-0020) reads the signature date, and it is one definition everywhere. The roster's SEPA filter and the data-quality panel list exactly these members |
+| **The attestation is implicit when a date is recorded later.** The member form takes the date without the explicit checkbox the approval dialog has | The change is audited with the admin and the date, and the gate it opens is the same one. An explicit confirmation on the member form is a possible follow-up; it was not asked for |
+| **Members without a signature can accumulate**, the way pending registrations could | They are visible as a gap, and a member who never signs is deactivated like any other. Unlike a pending registration there is no one-click deletion — removing a member is erasure (ADR-0029) |
+| **Batch acceptance is a fast way to create wrong members** | Explicit ids only, flagged duplicates never accepted, and the confirmation states the count and the consequence before anything happens |
+| **Sheets carrying full IBANs exist on paper** until they are signed and filed | See ADR-0036's amendment. The keyed print is a choice per print, behind a step-up, audited per member; the blank print remains the default |
+| **A member-sourced sheet is printed on today's document**, not the one the applicant was shown | The reference, the account and the person are unchanged; only the surrounding text can differ, and it is the text they are about to sign |
 
 ## Settled by the owner, and what is still theirs to do
 
@@ -564,6 +752,8 @@ valid submissions. Both meters are needed.
 | **Retention** | ~~An unapproved registration is purged after 30 days~~ — amended 2026-10-20: an unapproved registration is kept until an admin approves or rejects it (decision 10) |
 | **Translation** | None. One document, in whatever language the club published it in; no club-language setting exists to translate against |
 | **Optional consents** | None. This flow is the Anmeldung and its mandate, nothing to opt into |
+| **The order of paper and membership** | Amended 2026-11-28: a registration may be accepted before the paper is signed, singly or in bulk; the signature date recorded on the member is what unlocks the card and collection |
+| **The IBAN on an admin's print** | Amended 2026-11-28: blank by default, in full when the club supplies its private key for that print |
 
 **The schema delta: two new tables, and no new column at all.**
 `pending_registrations` and `self_registration_config` are new;
@@ -594,6 +784,7 @@ its stable URL. Nothing outside this repository is blocking any more.
   decision 5's toolchain, vocabulary and fill mechanism
 - [UC-P01](../use-cases/public/UC-P01-member-self-registration.md),
   [UC-A17](../use-cases/admin/UC-A17-review-pending-registrations.md),
+  [UC-A18](../use-cases/admin/UC-A18-print-open-mandates.md),
   [UC-A69](../use-cases/admin/UC-A69-configure-self-registration.md)
 - [UC-A11](../use-cases/admin/UC-A11-create-member.md) — the flow approval must
   end up equivalent to, and [UC-A68](../use-cases/admin/UC-A68-invite-admin.md) —

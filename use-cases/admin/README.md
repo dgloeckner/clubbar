@@ -40,7 +40,8 @@ The admin panel provides management and accounting functions for the bar system:
 | [UC-A13](./UC-A13-assign-rfid-card.md) | Assign RFID Card | Link card to member |
 | [UC-A14](./UC-A14-remove-rfid-card.md) | Remove RFID Card | Unlink card from member |
 | [UC-A15](./UC-A15-deactivate-member.md) | Deactivate Member | Disable member account |
-| [UC-A17](./UC-A17-review-pending-registrations.md) | Review a Pending Registration | Check the signed mandate, correct a typo, approve or reject a QR self-registration ([ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md)) |
+| [UC-A17](./UC-A17-review-pending-registrations.md) | Review a Pending Registration | Correct a typo, then approve with the signed mandate in hand, accept ahead of the signature (singly or the visible inbox at once), or reject a QR self-registration ([ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md)) |
+| [UC-A18](./UC-A18-print-open-mandates.md) | Print the Open Mandates | One PDF with the club's Anmeldung for every member still waiting for a signature — blank, or with the full IBAN when the club supplies its private key |
 
 ### Tab Management
 

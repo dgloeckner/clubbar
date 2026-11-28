@@ -1,6 +1,6 @@
 # UC-A17: Review a Pending Registration
 
-**Implementation Status**: Backend implemented ([#779](https://github.com/dgloeckner/clubbar/issues/779)) — list, detail, edit-before-approve, approve and reject are live behind `/api/admin/registrations`, with the attestation refused rather than defaulted, the sealed IBAN copied verbatim to the mandate, and audit rows for every act. The panel screen that drives them is [#782](https://github.com/dgloeckner/clubbar/issues/782), and the printed document is [#780](https://github.com/dgloeckner/clubbar/issues/780). **Fully implemented** as of [#784](https://github.com/dgloeckner/clubbar/issues/784), which also asserts what the review must never leak: every JSON response the panel receives is intercepted during a real review, and the full IBAN is in none of them.
+**Implementation Status**: Backend implemented ([#779](https://github.com/dgloeckner/clubbar/issues/779)) — list, detail, edit-before-approve, approve and reject are live behind `/api/admin/registrations`, with the attestation refused rather than defaulted, the sealed IBAN copied verbatim to the mandate, and audit rows for every act. The panel screen that drives them is [#782](https://github.com/dgloeckner/clubbar/issues/782), and the printed document is [#780](https://github.com/dgloeckner/clubbar/issues/780). **Fully implemented** as of [#784](https://github.com/dgloeckner/clubbar/issues/784), which also asserts what the review must never leak: every JSON response the panel receives is intercepted during a real review, and the full IBAN is in none of them. **Amended 2026-11-28** ([ADR-0052](../../adr/0052-member-self-registration-via-qr-code.md), *Amended 2026-11-28*): a registration can be accepted before its paper is signed, and the registrations on screen can be accepted in one go — see the two alternative flows below. Implemented, with `backend/tests/Feature/Modules/Registrations/Services/RegistrationApprovalTest.php` and `e2etests/tests/{api,admin}/accept-then-print.spec.ts`.
 
 ## Actors
 
@@ -23,6 +23,14 @@ turn a scanned poster straight into a member, and the only thing that made
 that transcription trustworthy in the old flow was a human reading a signed
 paper before typing. This use case is that human step, moved to where it
 belongs: **after** the data exists, **before** it counts.
+
+Since the amendment of 2026-11-28 the human step may be split in two. An admin
+can accept a registration *first* — creating a member who cannot yet buy or be
+collected from — and attest to the paper *afterwards*, by recording the
+signature date on the member. That is what lets a club accept a whole inbox,
+print every open mandate at once ([UC-A18](./UC-A18-print-open-mandates.md))
+and collect signatures in one evening. The main flow below is the one-step desk
+flow and is unchanged.
 
 Everything an admin does here is either reversible (correcting a typo, moving
 on to the next row) or immediate and final (approve, reject) — there is no
@@ -100,7 +108,63 @@ waits for it.
    had to be printed on the paper before it existed anywhere else), and
    deletes the pending row. The new member has no card, so — exactly as in
    UC-A11 — **no welcome mail is queued**; that waits for
-   [UC-A67](./UC-A67-member-lifecycle-mail.md) once a card is assigned.
+   [UC-A67](./UC-A67-member-lifecycle-mail.md), which greets a member once
+   they have both a card and a signed mandate.
+
+## Alternative Flow: accepting ahead of the signature
+
+*Added 2026-11-28.* For an applicant whose paper is not signed yet.
+
+1. The admin opens the row and reviews it as in steps 1–3.
+2. Instead of entering a signature date and attesting, the admin chooses
+   **"Ohne Unterschrift aufnehmen"**. The panel says, before the click, that
+   the member will not be able to buy until the signature date is recorded.
+3. The system creates the `members` row and the `mandates` row exactly as in
+   step 7 — the sealed IBAN and the reference carried across unchanged — with
+   one difference: the mandate has **no signature date**. The pending row is
+   deleted.
+4. The new member is **not SEPA-valid**. The terminal refuses their card
+   (ADR-0020), the roster shows the SEPA gap, and no settlement collects from
+   them.
+5. The paper is printed — one at a time from the member, or with everybody
+   else's via [UC-A18](./UC-A18-print-open-mandates.md) — and signed.
+6. The admin records the signature date on the member
+   ([UC-A12](./UC-A12-edit-member.md)). **That is where the paper is attested
+   to**: entering the date states that the signed mandate is in hand and the
+   number on it matches the `****last4` on file. From that save on the member
+   is SEPA-valid.
+
+The signature is optional **as a pair**. A date still requires the attestation
+exactly as in the main flow; a date sent without it, or an attestation sent
+without a date, is refused.
+
+## Alternative Flow: accepting the visible inbox at once
+
+*Added 2026-11-28.*
+
+1. The admin opens the inbox, optionally narrows it with the search box, and
+   chooses **"Alle aufnehmen"**.
+2. A confirmation states: how many registrations will become members; that
+   they are created without a signature and cannot buy, or be collected from,
+   until the signature date is recorded; and that possible duplicates are
+   left in the inbox. When more registrations are pending than are shown, it
+   says that only the ones shown are accepted.
+3. On confirmation the registrations **on screen** are accepted, each as in
+   the flow above. The request names them one by one — there is no "accept
+   everything pending".
+4. A registration flagged as a possible duplicate (matching email or IBAN) is
+   **skipped** and stays in the inbox for a person to judge. So is one whose
+   email already belongs to a member, and one that somebody else approved or
+   rejected in the meantime.
+5. The page reports how many were accepted and how many were skipped, with the
+   reason for each group, and the inbox now shows what is left.
+
+| Situation in a batch | Outcome |
+|---|---|
+| Two siblings registered on one parent's account | Both accepted. The duplicate flags are evaluated once, before anything is accepted, so the second is not flagged against the first |
+| Two submissions at the same email address | The first is accepted; the second is skipped — the club already has a member at that address |
+| A registration matching an **existing** member by email or IBAN | Skipped, left in the inbox |
+| A registration that cannot be written | Skipped and still pending; the others are unaffected |
 
 ## Alternative Flow: replacing the IBAN instead of correcting it
 
@@ -157,7 +221,9 @@ screen to edit — the server never held the plaintext and cannot show it back.
 | The Getränkewart sees none of this, on no page | Member data — and here, an IBAN's last four digits — is outside their remit on every surface (ADR-0045 invariant 5) |
 | The IBAN is never displayed, only replaced | The server holds no key that can open `iban_ciphertext` (ADR-0036); showing it back is not a UI choice withheld, it is a thing that cannot be built |
 | Correcting a typo does not touch `mandate_reference` | It was minted at submission specifically because it had to be printed on the paper before the mandate existed; approval carries it across unchanged (decision 4) |
-| Duplicate flags never block approval | They are visibility for a human decision, not a gate — a member of the family joining a second time, or a returning member re-registering, is a legitimate outcome the admin decides on, not a state the system refuses (decision 9) |
+| Duplicate flags never block a single approval; a batch leaves a flagged row in the inbox | They are visibility for a human decision, not a gate — a member of the family joining a second time, or a returning member re-registering, is a legitimate outcome the admin decides on, not a state the system refuses (decision 9). In a batch nobody is looking at any single row, so the decision is left for when somebody is (amended 2026-11-28) |
+| The signature is optional as a pair: a date needs the attestation, and no date needs neither | An admin holding the paper attests exactly as before. An admin without it creates a member the mandate gate keeps away from the bar (ADR-0020) until the date is recorded (amended 2026-11-28) |
+| A batch names its registrations explicitly and never records a signature | Nothing is accepted that the admin did not have on screen, and forty attestations cannot honestly be made with one click |
 | The admin-print copy needs no plaintext IBAN | It is filled from the club's document (or the shipped default) with `iban` left empty and `iban_last4` printed as the hint — a blank line and a hint, never a filled-in number |
 | The admin prints the club's whole document, page 1 filled, every later page unchanged | There is no clubbar-composed sheet — reviewing the template means checking the club's own document, and pages 2+ put the Datenschutzhinweise and Nutzungsordnung in the applicant's hands at the moment they sign (ADR-0052 decision 6a) |
 | Ort/Datum, every signature and the Kenntnisnahme checkbox stay handwritten on the admin-print document | Never machine-filled, and not fields a valid template carries at all (ADR-0052 decision 5). The checkbox being ticked by hand on paper is not a contradiction of UC-P01's rule that the onboarding *page* carries no checkbox — the two are different surfaces |
@@ -165,7 +231,7 @@ screen to edit — the server never held the plaintext and cannot show it back.
 | The signature block names the account holder, not the applicant, whenever one was supplied | The mandate must be signed by whoever owns the account (decision 7) |
 | Rejection deletes the row immediately, not on a delay | Nothing here is a Beleg; a queue nobody empties is exactly how personal data about somebody who never joined would accumulate (decision 10) |
 | Rejection's audit entry carries the IBAN masked, never in full | ADR-0005 — the same masking every IBAN change in this system is logged under |
-| Approval creates no card and queues no welcome mail | Identical to UC-A11: a member with no card cannot start a Session, so there is nothing yet to welcome them to |
+| Approval creates no card and queues no welcome mail | Identical to UC-A11: a member with no card cannot start a Session, so there is nothing yet to welcome them to. The welcome follows a card *and* a signed mandate (UC-A67) |
 
 ## Postconditions
 
@@ -175,7 +241,15 @@ screen to edit — the server never held the plaintext and cannot show it back.
 - A `mandates` row exists carrying the sealed IBAN and the mandate reference
   moved verbatim from the pending row.
 - The pending row is deleted.
-- Audit entries record the member create and the mandate create.
+- One audit entry records the approval against the registration: the member
+  it produced, the masked IBAN, and — on both paths — the signature date and
+  whether the paper was attested.
+
+**On accepting ahead of the signature** (singly or in a batch)
+- As above, except that the mandate has no signature date, the member is not
+  SEPA-valid, and the audit entry records a null date and no attestation.
+- Recording the date later completes the same mandate; no new one is opened
+  and the reference on the paper stands.
 
 **On reject**
 - The pending row is deleted.
@@ -198,9 +272,17 @@ action is refused with the row's current state; nothing is applied twice.
 Checksum or format invalid — refused exactly as UC-A11's E2, before anything
 is sealed or stored.
 
-### E3: Approve is submitted without the attestation confirmed
-Refused. There is no "approve anyway" — the attestation is the entire content
-of this step, not a formality alongside it.
+### E3: Approve is submitted with a signature date and without the attestation
+Refused. A date is a claim about paper, and there is no "approve anyway" for
+it. (Since 2026-11-28 the way to accept without the paper is to send no date
+at all — a different, explicit action.)
+
+### E3a: An attestation is submitted with no signature date
+Refused. There is nothing to attach it to, and silently dropping it would
+record "accepted without a signature" for an admin who said they held one.
+
+### E3b: A batch names no registration, or more than 200
+Refused before anything is accepted. There is no "all".
 
 ### E4: Reject is submitted with no reason
 Refused. A deleted row with no recorded reason is a decision nobody can later
@@ -231,11 +313,29 @@ account for.
 - Approve creates exactly one `members` row and one `mandates` row, carries
   the mandate reference and sealed IBAN unchanged, deletes the pending row,
   and queues no welcome mail
-- Approve without the attestation confirmed is refused
+- Approve with a signature date and no attestation is refused; an attestation
+  with no date is refused
+- Approve with neither creates the member and the mandate with no signature
+  date; the member is not SEPA-valid until the date is recorded, and the same
+  mandate — same reference — is then complete
+- The approval's audit entry carries the signature date and the attestation on
+  both paths (`null` / `false` for an unsigned acceptance)
+- A batch accepts every named registration unsigned and reports
+  registration → member
+- A batch leaves a registration matching an existing member (email or IBAN) in
+  the inbox with `registration_possible_duplicate`
+- Two registrations sharing an IBAN inside one batch are both accepted
+- A batch skips a registration whose email a member already holds — including
+  one accepted earlier in the same batch — and one that has vanished
+- One registration that cannot be written does not undo the others
+- A batch with no ids, a non-list, or a non-id is refused
+- "Alle aufnehmen" names exactly the registrations on screen, states the count
+  and the consequence before confirming, and reports accepted and skipped
 - Reject deletes the row immediately and writes one audit entry naming the
   reason and the masked IBAN, never the plaintext
 - Reject without a reason is refused
-- A Getränkewart is refused on every verb here and shown no inbox
+- A Getränkewart is refused on every verb here — the batch included — and
+  shown no inbox
 - A row submitted long ago survives a `bin/cron.php` run and is still in the
   inbox, with no expiry on the wire
 
@@ -249,6 +349,10 @@ account for.
   self-registration on and printing the poster this inbox fills from
 - [UC-A11](./UC-A11-create-member.md) — the flow approval ends up equivalent
   to; this use case's Rules table names every point where it differs
+- [UC-A18](./UC-A18-print-open-mandates.md) — printing the mandates of
+  members accepted ahead of their signature
+- [UC-A12](./UC-A12-edit-member.md) — where the signature date is recorded
+  afterwards
 - [ADR-0044](../../adr/0044-tiered-admin-roles.md) — the role grant this
   surface reuses rather than inventing
 - [ADR-0036](../../adr/0036-iban-encryption-sealed-box.md) — why the IBAN

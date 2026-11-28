@@ -91,8 +91,8 @@ flowchart TD
 | `admin_account_created`, `admin_role_changed` | Active `admin` accounts **+ configured club address** | Admin lifecycle events ([ADR-0044](../adr/0044-tiered-admin-roles.md)) — the club-address copy is what still fires when there's only one admin and they're the one being promoted |
 | `jugendschutz_violation` | Active `admin` **and `kassenwart`** accounts **+ configured club address** | A sale served to a minor ([ADR-0045](../adr/0045-age-restricted-products.md) §3) — names the drink, the age it required and the transaction, never the member |
 | `admin_email_changed` | The *old* address | Own-profile email change — the channel a hijacker holding the new address can't suppress |
-| `member_welcome` | Member | Their **first** card assignment ([ADR-0051](../adr/0051-member-lifecycle-mail.md)) — not record creation, because a member with no card can't use the bar yet |
-| `member_card_replaced` | Member | Any later card assignment — the old card has stopped working |
+| `member_welcome` | Member | The save that first leaves them with a card **and** a signed mandate ([ADR-0051](../adr/0051-member-lifecycle-mail.md), amended 2026-11-28) — not record creation, and not the card alone, because a member whose mandate is unsigned can't use the bar yet |
+| `member_card_replaced` | Member | A different card on a member who could already use the bar — the old card has stopped working |
 | `member_email_changed` | The member's *old* address | Their address moved — the member half of `admin_email_changed`, and the only channel a change they didn't ask for reaches them through |
 | `member_email_activated` | The member's *new* address | The same move, other end. Its job is to **fail** when the address is a typo, months before a collection depends on it |
 
@@ -100,20 +100,31 @@ flowchart TD
 money either already arrived or was never expected, so there's nothing to
 announce.
 
-### The card gates every member lifecycle notice
+### Being able to use the bar gates every member lifecycle notice
 
 The four `member_*` kinds share one rule: **the welcome is the first message a
 member ever receives**, so nothing in that group goes out before it. A member
-whose card has not been assigned is told nothing at all — not even that their
-address changed, which would otherwise arrive from a sender they don't
-recognise, about a relationship they don't yet know they have.
+who cannot yet use the bar — no card, or a card without a signed mandate — is
+told nothing at all: not even that their address changed, which would otherwise
+arrive from a sender they don't recognise, about a relationship they don't yet
+know they have.
+
+Until 2026-11-28 the gate was the card alone. Since a registration can be
+accepted before its paper is signed, a card may now sit on a member the
+terminal still refuses, and "your card is active" at that moment would be
+untrue. The welcome goes out on the save that completes the pair, whichever
+half comes last.
 
 Which of the two card notices fires is read from the transition, not from the
-queue: a card replacing another is a replacement whatever the outbox holds, so
-a welcome pruned at ninety days can't turn a later replacement back into a
-greeting. Only the cleared-then-reassigned case falls back to attempting the
-welcome and treating a refused insert — the unique index, not a lookup — as
-proof the member was greeted before.
+queue: a card replacing another on a member who could already use the bar is a
+replacement whatever the outbox holds, so a welcome pruned at ninety days can't
+turn a later replacement back into a greeting. Only the cleared-then-reassigned
+case falls back to attempting the welcome and treating a refused insert — the
+unique index, not a lookup — as proof the member was greeted before. When it
+was the *signature* that completed the pair, there is no fallback: a refused
+welcome means nothing is sent. And a bank change — old mandate ended, new one
+signed later — does not greet again: the member already has an earlier signed
+mandate, which is asked instead of the queue.
 
 Neither address notice names the other address. Bodies render at send time
 (rule 5), so a printed address could have moved again between a greylisted

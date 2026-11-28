@@ -31,7 +31,8 @@ Complete index of all use cases across domains, with implementation status.
 | UC-A14 | Remove RFID Card | Implemented (diverges) | [UC-A14](./admin/UC-A14-remove-rfid-card.md) |
 | UC-A15 | Deactivate Member | Implemented | [UC-A15](./admin/UC-A15-deactivate-member.md) |
 | UC-A16 | Import Members (CSV) | Not implemented — nice to have | _no document yet_ |
-| UC-A17 | Review a Pending Registration | Not implemented — specified ([#779](https://github.com/dgloeckner/clubbar/issues/779)) | [UC-A17](./admin/UC-A17-review-pending-registrations.md) |
+| UC-A17 | Review a Pending Registration | Implemented ([#779](https://github.com/dgloeckner/clubbar/issues/779)–[#784](https://github.com/dgloeckner/clubbar/issues/784); amended 2026-11-28: acceptance ahead of the signature, and in bulk) | [UC-A17](./admin/UC-A17-review-pending-registrations.md) |
+| UC-A18 | Print the Open Mandates | Implemented (2026-11-28) | [UC-A18](./admin/UC-A18-print-open-mandates.md) |
 
 ### Tab Management
 

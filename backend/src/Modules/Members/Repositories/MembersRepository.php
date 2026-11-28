@@ -242,6 +242,12 @@ class MembersRepository
      * SEPA-invalid, invisible to the next collection, and — since approval
      * deletes the pending row — no longer recoverable from anywhere.
      *
+     * `signed_at` may be null. Since the amendment of 2026-11-28 a registration
+     * can be accepted before its paper is signed; the mandate is then opened
+     * complete in every respect but that one date, which
+     * {@see MandateCompleteness} reads — so the member exists, and can neither
+     * buy nor be collected from until it is recorded.
+     *
      * @param array<string, mixed> $member  the members-row fields
      * @param array<string, mixed> $mandate reference, sealed quartet, bank name, signed_at
      * @return array<string, mixed> the member as `findById()` sees them
@@ -263,8 +269,9 @@ class MembersRepository
             )->execute([
                 $id,
                 // Always null here. A self-registered member gets their card
-                // in a second, deliberate step (ADR-0021), which is also what
-                // sends the welcome mail — approval is not an onboarding.
+                // in a second, deliberate step (ADR-0021) — approval is not an
+                // onboarding. The welcome follows once a card *and* a signed
+                // mandate are both on file (ADR-0051, amended 2026-11-28).
                 null,
                 $member['first_name'],
                 $member['last_name'],

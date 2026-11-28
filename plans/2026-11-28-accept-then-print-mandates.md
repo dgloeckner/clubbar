@@ -86,25 +86,38 @@ mandate, so cards can be assigned before the paper exists.
       (`iban_full_view` / `registration_printed` on entity type `member`)
 - [x] Verified: Unit suite 3462/3462, `OpenMandatePrintTest` (Feature, real sealed box) 8/8
 
-### M4 — Contract and admin UI [ ]
+### M4 — Contract and admin UI [x]
 
-- [ ] `api/admin.yaml`, orval client regenerated
-- [ ] "Alle aufnehmen" + "Ohne Unterschrift aufnehmen" on the registrations inbox
-- [ ] "Offene Mandate drucken" on the members page, keyed variant behind step-up
-- [ ] Both locale files; vitest
+- [x] `api/admin.yaml`: `approveRegistration` (pair semantics), `approveRegistrationsBatch`,
+      `printOpenMandates`; the three audit actions the panel renders added to the
+      `AuditLogEntry.action` enum; orval client regenerated
+- [x] "Alle aufnehmen" (`AcceptAllDialog`, `AcceptAllResult`) + "Ohne Unterschrift
+      aufnehmen" in `RegistrationReviewPanel`
+- [x] "Offene Mandate drucken" on the members page (`PrintOpenMandatesDialog`), keyed
+      variant behind `StepUpConfirmDialog` + `PrivateKeyInput`, download via `downloadFile()`
+- [x] `auditLogSummary.ts` renders `registration_approved` (signed / unsigned),
+      `registration_printed` (registration / open mandate) and `iban_full_view`
+- [x] Both locale files; vitest 813/813, `tsc --noEmit` clean, eslint 0 errors
 
-### M5 — End to end [ ]
+### M5 — End to end [x]
 
-- [ ] Batch acceptance yields members that are SEPA-invalid until a date is set
-- [ ] Batch PDF has template pages × members pages; keyed carries the IBAN, blank does not
-- [ ] A Getränkewart is refused on every new route
-- [ ] `mail-member` chain: the welcome arrives on the save that completes the pair
+- [x] Batch acceptance yields members that are SEPA-invalid until a date is set
+      (`tests/api/accept-then-print.spec.ts`, `tests/admin/accept-then-print.spec.ts`)
+- [x] Batch PDF has template pages × members pages; keyed carries the IBAN, blank does not
+- [x] A Getränkewart is refused on every new route (the API spec, and two new rows in
+      `role-access-matrix.spec.ts`)
+- [x] `mail-member` chain: nothing for a card before the signature, one welcome on the
+      save that completes the pair
+- [x] Verified: `api-tests` 879 passed / 3 skipped, `admin-chromium` 413/413,
+      `admin-mobile` 70/70, `mail-member` 6/6 — 0 unexpected, 0 flaky
 
-### M6 — The record [ ]
+### M6 — The record [x]
 
-- [ ] ADR-0052, ADR-0036, ADR-0051 amended (dated 2026-11-28)
-- [ ] UC-A17, UC-A67 updated; UC-A18 added and indexed; UC-A11/A12/A13 where false
-- [ ] `docs/` references that describe the old trigger or the old approval
+- [x] ADR-0052, ADR-0036, ADR-0051 amended (dated 2026-11-28); `adr/README.md`
+- [x] UC-A17, UC-A67 updated; UC-A18 added and indexed (both READMEs); UC-A11 and
+      UC-A12 corrected where they described the old trigger
+- [x] `docs/notifications-and-mail.md`, `docs/security-concept.md`, `docs/erm-master.md`
+      (the meaning of a NULL `mandates.signed_at`; no schema change)
 
 ---
 
