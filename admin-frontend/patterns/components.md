@@ -1081,9 +1081,9 @@ in `style={{ ... }}` blocks has drifted from the design system and is exactly
 the tech debt #124 tracks — new work on such a page should replace literals
 with tokens as it touches them, rather than adding more.
 
-`.eslintrc.cjs` enforces this with a `no-restricted-syntax` rule scoped (via
-`overrides`) to files that are already hex-free — see the `files` list in that
-override for the current set. Add a file to that list once it no longer
+`eslint.config.js` enforces this with a `no-restricted-syntax` rule scoped (via
+the `HEX_FREE_FILES` list) to files that are already hex-free — that list is
+the current set. Add a file to that list once it no longer
 contains any raw hex; this makes the rule a ratchet instead of an
 all-or-nothing gate that would fail on every not-yet-migrated page. If a color
 you need doesn't have a token yet, add it to `theme.colors` (or `tableColors`
@@ -1148,7 +1148,7 @@ export const theme = {
 }
 ```
 
-`.eslintrc.cjs` does not yet restrict `rgba(...)` literals — that's left for a
+`eslint.config.js` does not yet restrict `rgba(...)` literals — that's left for a
 follow-up slice once enough of the tint/border families above are tokenized
 that a ratchet rule wouldn't immediately fail on the untouched ones.
 

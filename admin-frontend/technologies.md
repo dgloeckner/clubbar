@@ -12,7 +12,7 @@ trusted as an inventory.
 | Layer | Technology | Responsibility |
 |-------|------------|----------------|
 | **UI Framework** | React 19 | Components, rendering, state |
-| **Language** | TypeScript 5.9 | End-to-end type safety |
+| **Language** | TypeScript 6.0 | End-to-end type safety |
 | **Routing** | React Router 7 (`react-router-dom`) | Client-side navigation |
 | **State Management** | React hooks + three contexts | No state library — see below |
 | **List state** | `useListQuery` | Page, page size, sort, filters, search, debounce, request abort (`patterns/table-implementation.md`) |
@@ -26,7 +26,7 @@ trusted as an inventory.
 | **Build** | Vite 8 | Dev server, bundling |
 | **Unit tests** | Vitest 4 (+ jsdom, @testing-library/react) | `src/utils/**` and `src/hooks/**` (#166) |
 | **E2E tests** | Playwright | Pages and interactive components, from `/e2etests` |
-| **Lint/format** | ESLint 8, Prettier 3 | `npm run lint`, `npm run format` |
+| **Lint/format** | ESLint 10 (flat config, `eslint.config.js`), Prettier 3 | `npm run lint`, `npm run format` |
 
 ### Things this stack deliberately does not use
 

@@ -77,6 +77,22 @@ updates:
       time: "04:00"
       timezone: "Europe/Berlin"
     open-pull-requests-limit: 10
+    ignore:
+      # The typescript-and-eslint group below was meant to make Dependabot
+      # offer typescript 7 only together with a typescript-eslint that takes
+      # it. It does not: #993 bumped typescript to 7.0.2 next to a
+      # typescript-eslint whose peer range is still `>=4.8.4 <6.1.0`, so the
+      # group could never merge and held eslint 10 hostage with it. Stop
+      # offering the compiler past that bound; lift this once
+      # `npm view @typescript-eslint/parser peerDependencies` accepts 7.
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
+      # The types describe the Node runtime, and that is NODE_VERSION in
+      # build.yaml (22), not the newest Node there is. @types/node 26 types
+      # APIs the CI runner does not have. Its major moves with NODE_VERSION,
+      # by hand, in the same change.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # The runtime, its types, and every direct dependency whose peer range
       # pins it to react's *current* major.
