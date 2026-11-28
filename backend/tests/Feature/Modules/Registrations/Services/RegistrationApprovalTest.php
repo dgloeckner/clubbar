@@ -370,4 +370,180 @@ final class RegistrationApprovalTest extends DatabaseTestCase
         $this->assertTrue($dto->duplicateEmail, 'The club already has a member at this address.');
         $this->assertTrue($dto->duplicateIban, 'The club already holds a mandate on this account.');
     }
+
+    // ------------------------------------------------------------------
+    // Accepting ahead of the paper (ADR-0052, amended 2026-11-28)
+    // ------------------------------------------------------------------
+
+    /**
+     * A valid German IBAN nobody else in this database holds.
+     *
+     * The shared fixture IBAN is on a seeded member and on whatever other
+     * suites left behind, so its fingerprint matches an active mandate — which
+     * is exactly the duplicate flag the batch tests below turn on. An account
+     * number drawn per call keeps the flag meaning what the test says it means.
+     */
+    private function uniqueIban(): string
+    {
+        $bban = '37040044' . str_pad((string) random_int(1, 9_999_999_999), 10, '0', STR_PAD_LEFT);
+        // ISO 13616: move "DE00" to the end as digits (D=13, E=14), mod 97.
+        $check = 98 - (int) bcmod($bban . '131400', '97');
+
+        return 'DE' . str_pad((string) $check, 2, '0', STR_PAD_LEFT) . $bban;
+    }
+
+    /**
+     * A pending registration sealed on an account of its own.
+     *
+     * @param array<string, mixed> $overrides
+     */
+    private function pendingOn(string $iban, array $overrides = []): string
+    {
+        $key = (new EncryptionKeysRepository($this->db, $this->logger))->requireOperationalActive();
+        $sealedBox = new IbanSealedBox(str_repeat('0', 63) . '2', 'test');
+
+        return $this->pending($overrides + [
+            'iban_ciphertext' => $sealedBox->seal($iban, $key['public_key']),
+            'iban_last4' => IbanSealedBox::lastFour($iban),
+            'iban_fingerprint' => $sealedBox->fingerprint($iban),
+        ]);
+    }
+
+    /**
+     * The data model already carried this state; what changed is that approval
+     * may now produce it. A mandate with no signature date is not a mandate
+     * (ADR-0020), so the member exists and cannot buy or be collected from.
+     */
+    public function test_an_acceptance_without_a_date_creates_a_member_who_is_not_sepa_valid(): void
+    {
+        $id = $this->pending();
+
+        $member = $this->service->approve($id, null, false, null);
+        $this->memberIds[] = $member->id;
+
+        $mandate = $this->members->findActiveMandate($member->id);
+        $this->assertNotNull($mandate, 'The mandate is opened — only its signature is missing.');
+        $this->assertNull($mandate['signed_at']);
+        $this->assertFalse($member->isSepaValid, 'An unsigned mandate must not read as valid.');
+        $this->assertNull($this->registrations->findById($id));
+    }
+
+    /** Recording the date on the member is what completes the mandate. */
+    public function test_recording_the_signature_date_afterwards_makes_the_member_sepa_valid(): void
+    {
+        $member = $this->service->approve($this->pending(), null, false, null);
+        $this->memberIds[] = $member->id;
+
+        $updated = $this->members->updateById($member->id, ['mandate_signed_at' => '2026-11-28']);
+
+        $this->assertNotNull($updated);
+        $this->assertSame('2026-11-28', $updated['mandate_signed_at']);
+        $this->assertTrue(
+            \App\Modules\Members\Domain\MandateCompleteness::isComplete($updated),
+            'A signature date on the mandate in hand completes it — no new mandate is opened.',
+        );
+        $this->assertSame(
+            $this->members->findActiveMandate($member->id)['reference'],
+            $updated['mandate_reference'],
+        );
+    }
+
+    public function test_the_unsigned_acceptance_is_audited_as_unattested(): void
+    {
+        $id = $this->pending();
+
+        $member = $this->service->approve($id, null, false, null);
+        $this->memberIds[] = $member->id;
+
+        $stmt = $this->db->prepare(
+            "SELECT new_values FROM audit_log WHERE entity_id = ? AND action = 'registration_approved'"
+        );
+        $stmt->execute([$id]);
+        $values = json_decode((string) $stmt->fetchColumn(), true);
+
+        $this->assertArrayHasKey('mandate_signed_at', $values);
+        $this->assertNull($values['mandate_signed_at']);
+        $this->assertFalse($values['signed_mandate_confirmed']);
+    }
+
+    /**
+     * The batch, against the real tables: each row is its own transaction, so
+     * the members exist, their mandates are open and unsigned, and the pending
+     * rows are gone.
+     */
+    public function test_a_batch_creates_unsigned_members_and_empties_the_inbox(): void
+    {
+        $first = $this->pendingOn($this->uniqueIban());
+        $second = $this->pendingOn($this->uniqueIban());
+
+        $result = $this->service->approveBatch([$first, $second], null);
+
+        $this->memberIds = array_merge($this->memberIds, array_column($result['accepted'], 'member_id'));
+
+        $this->assertSame([$first, $second], array_column($result['accepted'], 'registration_id'));
+        $this->assertSame([], $result['skipped']);
+
+        foreach ($result['accepted'] as $accepted) {
+            $mandate = $this->members->findActiveMandate($accepted['member_id']);
+            $this->assertNotNull($mandate);
+            $this->assertNull($mandate['signed_at']);
+            $this->assertNull($this->registrations->findById($accepted['registration_id']));
+        }
+    }
+
+    /**
+     * Two siblings registered on a parent's account. The fingerprint is shared,
+     * and by the time the second is accepted the first *is* a member holding
+     * it — so only an up-front evaluation lets both through.
+     */
+    public function test_two_siblings_on_one_account_are_both_accepted_in_one_batch(): void
+    {
+        $parentAccount = $this->uniqueIban();
+        $lena = $this->pendingOn($parentAccount, ['account_holder_name' => 'Petra Brandt']);
+        $jonas = $this->pendingOn($parentAccount, ['account_holder_name' => 'Petra Brandt']);
+
+        $result = $this->service->approveBatch([$lena, $jonas], null);
+        $this->memberIds = array_merge($this->memberIds, array_column($result['accepted'], 'member_id'));
+
+        $this->assertCount(2, $result['accepted']);
+        $this->assertSame([], $result['skipped']);
+    }
+
+    /**
+     * A match against a member the club already has is left for a person.
+     * Both flags, and the clean row beside them still goes through.
+     */
+    public function test_a_batch_skips_what_matches_an_existing_member(): void
+    {
+        $knownAccount = $this->uniqueIban();
+        $knownEmail = 'known-' . substr(Uuid::v4(), 0, 8) . '@example.org';
+
+        $existing = $this->members->create([
+            'first_name' => 'Schon',
+            'last_name' => 'Mitglied',
+            'email' => $knownEmail,
+            'preferred_language' => 'de',
+            'iban' => $knownAccount,
+            'mandate_signed_at' => '2026-01-01',
+        ]);
+        $this->memberIds[] = $existing['id'];
+
+        $sameEmail = $this->pendingOn($this->uniqueIban(), ['email' => $knownEmail]);
+        $sameAccount = $this->pendingOn($knownAccount);
+        $clean = $this->pendingOn($this->uniqueIban());
+
+        $result = $this->service->approveBatch([$sameEmail, $sameAccount, $clean], null);
+        $this->memberIds = array_merge($this->memberIds, array_column($result['accepted'], 'member_id'));
+
+        $this->assertSame([$clean], array_column($result['accepted'], 'registration_id'));
+        $this->assertSame(
+            [
+                ['registration_id' => $sameEmail, 'reason' => 'registration_possible_duplicate'],
+                ['registration_id' => $sameAccount, 'reason' => 'registration_possible_duplicate'],
+            ],
+            $result['skipped'],
+        );
+        $this->assertNotNull($this->registrations->findById($sameEmail), 'A skipped row stays in the inbox.');
+        $this->assertNotNull($this->registrations->findById($sameAccount));
+    }
 }

@@ -228,15 +228,22 @@ return function (App $app): void {
         // ── the self-registration review inbox (#779, ADR-0052, UC-A17) ──
         // Approve is the only path from a pending registration to a `members`
         // row: there is no job, no import and no sync that materializes one.
-        // That is what keeps a self-registered person off the terminal until
-        // somebody has held their signed paper — ADR-0020's mandate gate and
-        // ADR-0021's card step both sit behind this route.
+        // Since the amendment of 2026-11-28 it may run before the paper is
+        // signed, so what keeps a self-registered person off the terminal
+        // until somebody has held their signed paper is ADR-0020's mandate
+        // gate — a mandate without a signature date is not a mandate — with
+        // ADR-0021's card step behind it.
         $group->get('/registrations', [RegistrationsAdminController::class, 'index']);
         // The one outbound verb on this inbox (#821, UC-A70): mail the club's
         // registration link — the poster's own URL — to somebody thinking of
         // joining. Above `{registrationId}` for the same reason
         // `self-registration` is, and `link` is not a registration id.
         $group->post('/registrations/link', [RegistrationsAdminController::class, 'sendLink']);
+        // Accept many at once, each without a signature (ADR-0052 as amended
+        // 2026-11-28, UC-A17). Above `{registrationId}` for the same reason:
+        // `approve-batch` is not a registration id. The ids travel in the
+        // body — there is no "all pending" form of this request.
+        $group->post('/registrations/approve-batch', [RegistrationsAdminController::class, 'approveBatch']);
         // Static segments above `/registrations/{registrationId}`, or
         // `self-registration` is read as a registration id.
         $group->get('/self-registration', [SelfRegistrationConfigController::class, 'show']);

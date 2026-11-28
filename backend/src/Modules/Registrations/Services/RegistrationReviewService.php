@@ -31,13 +31,18 @@ use PDO;
  * refusals so the panel can explain them. That one logs no identities; this one
  * audits every act, because each is a person acting on somebody else's data.
  *
- * ## Approval is the only door
+ * ## Approval is the only door — the signature is what opens the bar
  *
  * There is no other path from a pending registration to a `members` row — no
- * job, no sync, no import. That is what guarantees a self-registered person
- * cannot reach the terminal before the paper check: the mandate gate (ADR-0020)
- * and the card step (ADR-0021) sit behind this method, and this method requires
- * an admin to state, explicitly, that they are holding the signed form.
+ * job, no sync, no import. Since the amendment of 2026-11-28 that door no
+ * longer demands the paper: an admin may accept first and collect the
+ * signature afterwards, in which case the mandate is opened with no signature
+ * date. What keeps a self-registered person off the terminal before the paper
+ * check is therefore not this method but the mandate gate behind it
+ * (ADR-0020): a mandate without `signed_at` is not a mandate, the terminal
+ * refuses the card and no collection includes the member. An admin who *does*
+ * give a date must still state, explicitly, that they are holding the signed
+ * form — the attestation moves with the date, it does not disappear.
  *
  * ## The plaintext is gone, and that shapes everything below
  *
@@ -150,27 +155,39 @@ class RegistrationReviewService
     /**
      * Turn a submission into a member and a mandate.
      *
-     * @param string $mandateSignedAt the date on the paper in the admin's hand
+     * The signature is optional **as a pair** (ADR-0052, amended 2026-11-28):
+     *
+     * - with a date, the attestation is required exactly as it always was;
+     * - with no date, the member and the mandate are created with `signed_at`
+     *   NULL and nobody is asked to attest to paper that does not exist yet.
+     *   The member is SEPA-invalid until the date is recorded on them, which
+     *   is where the attestation then happens.
+     *
+     * @param string|null $mandateSignedAt the date on the paper in the admin's
+     *        hand, or null when the paper has not been signed yet
      * @param bool $attestationConfirmed the admin's statement that they hold the
      *        signed mandate and — where the club printed the form with the IBAN
      *        left blank — that the hand-written number matches the `****last4`
-     *        on file. Not a checkbox on a form: it is the attestation the whole
-     *        endpoint exists to record, so a missing one is a refusal, never a
-     *        default
+     *        on file. Not a checkbox on a form: with a date it is the
+     *        attestation the endpoint exists to record, so a missing one is a
+     *        refusal, never a default. Without a date there is nothing to
+     *        attest to and it is recorded as false whatever was sent
      *
      * @throws NotFoundException no such submission, or somebody else just acted on it
-     * @throws BusinessRuleException no attestation, or the club already has a
-     *         member at this address
+     * @throws BusinessRuleException a date without the attestation, or the club
+     *         already has a member at this address
      */
     public function approve(
         string $id,
-        string $mandateSignedAt,
+        ?string $mandateSignedAt,
         bool $attestationConfirmed,
         ?string $adminUserId = null,
     ): MemberAdminDto {
         $row = $this->requireRow($id);
 
-        if (!$attestationConfirmed) {
+        $mandateSignedAt = ($mandateSignedAt ?? '') === '' ? null : $mandateSignedAt;
+
+        if ($mandateSignedAt !== null && !$attestationConfirmed) {
             throw new BusinessRuleException(
                 BusinessRuleReason::REGISTRATION_ATTESTATION_REQUIRED,
                 'Approval requires confirming that the signed SEPA mandate is on hand.',
@@ -216,6 +233,11 @@ class RegistrationReviewService
                     'iban_fingerprint' => $row['iban_fingerprint'],
                     'encryption_key_id' => $row['encryption_key_id'],
                     'bank_name' => $row['bank_name'],
+                    // NULL when the paper is still to come. That is the whole
+                    // of what "accepted without a signature" means in the
+                    // data: `MandateCompleteness` reads this column, so the
+                    // terminal refuses the card and no collection names the
+                    // member until somebody records the date.
                     'signed_at' => $mandateSignedAt,
                     'created_by_admin_id' => $adminUserId,
                 ],
@@ -232,7 +254,7 @@ class RegistrationReviewService
             // Inside the transaction, deliberately. An approval whose audit
             // entry failed to write would be a member and a mandate coming into
             // existence with no record of who attested to the paper behind them
-            // — which is the one thing this entry exists to make impossible.
+            // — or, since 2026-11-28, of the fact that nobody did.
             $this->audit->log(
                 action: AuditAction::REGISTRATION_APPROVED,
                 entityType: EntityType::REGISTRATION,
@@ -240,13 +262,18 @@ class RegistrationReviewService
                 newValues: [
                     'member_id' => $member['id'],
                     'mandate_reference' => $row['mandate_reference'],
+                    // Both written on both paths, so the entry *says* which
+                    // happened: a date with `true` is an attested approval, a
+                    // null with `false` is an acceptance ahead of the paper.
+                    // An absent key would leave a reader guessing which one an
+                    // older entry was.
                     'mandate_signed_at' => $mandateSignedAt,
                     // The masked value and nothing else (ADR-0005). Never the
                     // ciphertext, and never the fingerprint — which is a stable
                     // identifier for a bank account and would let anyone
                     // holding a candidate IBAN confirm it from the log.
                     'iban' => '****' . $row['iban_last4'],
-                    'signed_mandate_confirmed' => true,
+                    'signed_mandate_confirmed' => $mandateSignedAt !== null,
                 ],
                 adminUserId: $adminUserId,
             );
@@ -261,9 +288,130 @@ class RegistrationReviewService
             throw $e;
         }
 
-        $this->logger->info('Self-registration approved', ['registration_id' => $id, 'member_id' => $member['id']]);
+        $this->logger->info('Self-registration approved', [
+            'registration_id' => $id,
+            'member_id' => $member['id'],
+            'signed' => $mandateSignedAt !== null,
+        ]);
 
         return MemberAdminDto::fromRow($member);
+    }
+
+    /**
+     * The most registrations one batch may name.
+     *
+     * A cap rather than a page size: the inbox pages at far fewer, and the
+     * number exists so one request cannot hold a worker for an unbounded run of
+     * transactions. A club with more than this in its inbox accepts twice.
+     */
+    public const BATCH_LIMIT = 200;
+
+    /**
+     * Accept many submissions at once, each without a signature (ADR-0052,
+     * amended 2026-11-28; UC-A17).
+     *
+     * The ids are **explicit** — never "everything pending" — so nothing is
+     * accepted that the admin did not have on screen when they confirmed.
+     *
+     * Three things make this different from calling {@see approve()} in a loop:
+     *
+     * 1. **A possible duplicate is skipped, not accepted.** One at a time, the
+     *    warning is in front of the person deciding; in a batch nobody is
+     *    looking at any single row, and "the club now has two records for
+     *    Lena" is exactly the outcome the flag exists to prevent. The row stays
+     *    in the inbox for a person to judge.
+     * 2. **The flags are evaluated once, up front**, against the members that
+     *    existed before the batch. Two siblings registered on a parent's
+     *    account share an IBAN fingerprint; evaluated row by row the second
+     *    would be flagged against the first — a member this very request
+     *    created — and half of every family would be left behind.
+     * 3. **Each submission is its own transaction.** One that cannot be
+     *    accepted is reported and the rest proceed; a batch that rolled back
+     *    whole would make the admin find the one bad row before any of the
+     *    good ones could become members.
+     *
+     * Nothing here throws for a single row. The email rule
+     * ({@see BusinessRuleReason::REGISTRATION_MEMBER_EMAIL_EXISTS}) still
+     * applies per row and is *not* evaluated up front — it is the hard rule,
+     * and two submissions at one address inside a batch must not both become
+     * members.
+     *
+     * @param list<string> $ids
+     * @return array{
+     *     accepted: list<array{registration_id: string, member_id: string}>,
+     *     skipped: list<array{registration_id: string, reason: string}>
+     * }
+     */
+    public function approveBatch(array $ids, ?string $adminUserId = null): array
+    {
+        $ids = array_values(array_unique($ids));
+
+        $rows = [];
+        $skipped = [];
+        foreach ($ids as $id) {
+            $row = $this->registrations->findById($id);
+            if ($row === null) {
+                // Approved or rejected by somebody else since the list was
+                // loaded. Not an error — the admin's intent for this row has
+                // already been overtaken — but it is said, so the two counts
+                // add up to what they clicked.
+                $skipped[$id] = BusinessRuleReason::REGISTRATION_GONE->value;
+                continue;
+            }
+            $rows[$id] = $row;
+        }
+
+        foreach ($this->withDuplicateMarkers(array_values($rows)) as $row) {
+            $duplicates = $this->duplicatesFor($row);
+            if ($duplicates['email'] || $duplicates['iban']) {
+                $skipped[(string) $row['id']] = BusinessRuleReason::REGISTRATION_POSSIBLE_DUPLICATE->value;
+                unset($rows[(string) $row['id']]);
+            }
+        }
+
+        $accepted = [];
+        foreach ($rows as $id => $row) {
+            try {
+                $member = $this->approve($id, null, false, $adminUserId);
+                $accepted[$id] = $member->id;
+            } catch (BusinessRuleException $e) {
+                $skipped[$id] = $e->getReason()->value;
+            } catch (NotFoundException) {
+                // Gone between the read above and the write: a second admin
+                // working the same inbox.
+                $skipped[$id] = BusinessRuleReason::REGISTRATION_GONE->value;
+            } catch (\Throwable $e) {
+                // Anything else — a mandate reference that some other member
+                // took in the meantime, a database refusal. The row is still
+                // pending (approve() rolled back), the batch goes on, and the
+                // reason is in the log rather than in a response that would
+                // otherwise be a bare 500 with the earlier acceptances
+                // unreported.
+                $this->logger->error('Could not accept a self-registration in a batch', [
+                    'registration_id' => $id,
+                    'error' => $e->getMessage(),
+                ]);
+                $skipped[$id] = BusinessRuleReason::REGISTRATION_NOT_ACCEPTED->value;
+            }
+        }
+
+        // In the order the caller named them, so a response reads like the
+        // list it was made from.
+        $result = ['accepted' => [], 'skipped' => []];
+        foreach ($ids as $id) {
+            if (isset($accepted[$id])) {
+                $result['accepted'][] = ['registration_id' => $id, 'member_id' => $accepted[$id]];
+            } elseif (isset($skipped[$id])) {
+                $result['skipped'][] = ['registration_id' => $id, 'reason' => $skipped[$id]];
+            }
+        }
+
+        $this->logger->info('Self-registrations accepted in a batch', [
+            'accepted' => count($result['accepted']),
+            'skipped' => count($result['skipped']),
+        ]);
+
+        return $result;
     }
 
     /**

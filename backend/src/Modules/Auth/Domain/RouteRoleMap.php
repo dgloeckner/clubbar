@@ -157,6 +157,10 @@ final class RouteRoleMap
         // below) is a different one. It hands over no secret: what travels is
         // the URL a wall in the clubhouse already publishes.
         'POST /api/admin/registrations/link' => self::TREASURY,
+        // The batch form of the approval below, and the same grant for the
+        // same reason: it creates the members a Kassenwart may already create
+        // one by one (ADR-0052, amended 2026-11-28).
+        'POST /api/admin/registrations/approve-batch' => self::TREASURY,
         'GET /api/admin/registrations/{registrationId}' => self::TREASURY,
         'PATCH /api/admin/registrations/{registrationId}' => self::TREASURY,
         'POST /api/admin/registrations/{registrationId}/approve' => self::TREASURY,
