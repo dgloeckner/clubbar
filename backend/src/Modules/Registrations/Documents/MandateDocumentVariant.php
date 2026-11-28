@@ -32,4 +32,21 @@ enum MandateDocumentVariant: string
      * a member whose phone lost the tab is never stuck.
      */
     case ADMIN_PRINT = 'admin_print';
+
+    /**
+     * Printed by the Kassenwart **with the club's private key in hand**
+     * (ADR-0036 and ADR-0052, both amended 2026-11-28; UC-A18).
+     *
+     * The same sheet as {@see self::ADMIN_PRINT} with the IBAN line filled in.
+     * It exists for the evening a club onboards forty people at once: forty
+     * hand-written 22-character numbers, each checked against four digits, is
+     * where the blank line stops being a safeguard and becomes the queue.
+     *
+     * This is the one variant that needs a decryption, so it is the one that
+     * costs what a decryption costs — the key supplied for a single request, a
+     * step-up, and an `iban_full_view` audit entry per member. Nothing about
+     * the server changes: it still holds no key and still cannot read an IBAN
+     * on its own.
+     */
+    case ADMIN_PRINT_FULL = 'admin_print_full';
 }

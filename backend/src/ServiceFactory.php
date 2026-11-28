@@ -140,6 +140,8 @@ use App\Modules\Dashboard\Controllers\AdminController as DashboardAdminControlle
 use App\Shared\Controllers\HealthController;
 use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\MandateDocumentsController;
+use App\Modules\Members\Services\OpenMandatePrintService;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -206,6 +208,7 @@ class ServiceFactory implements ContainerInterface
 
         // Members
         MembersAdminController::class => 'getMembersAdminController',
+        MandateDocumentsController::class => 'getMandateDocumentsController',
         MembersSyncController::class => 'getMembersSyncController',
 
         // Products
@@ -1614,6 +1617,29 @@ class ServiceFactory implements ContainerInterface
             $this->getValidator(),
             $this->getSettlementsService(),
             $this->getCollectionHoldService(),
+        ));
+    }
+
+    public function getOpenMandatePrintService(): OpenMandatePrintService
+    {
+        return $this->resolve(OpenMandatePrintService::class, fn() => new OpenMandatePrintService(
+            $this->getMembersRepository(),
+            $this->getMandateDocumentService(),
+            $this->getEncryptionKeysRepository(),
+            $this->getAuditService(),
+            // The handle itself: the per-member audit entries of one print are
+            // written as a unit.
+            $this->pdo,
+            $this->logger,
+        ));
+    }
+
+    public function getMandateDocumentsController(): MandateDocumentsController
+    {
+        return $this->resolve(MandateDocumentsController::class, fn() => new MandateDocumentsController(
+            $this->getOpenMandatePrintService(),
+            $this->getEncryptionKeyService(),
+            $this->getStepUpAuthService(),
         ));
     }
 

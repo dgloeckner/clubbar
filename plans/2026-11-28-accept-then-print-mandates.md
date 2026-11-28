@@ -75,12 +75,16 @@ mandate, so cards can be assigned before the paper exists.
       says the signed mandate arrived; nothing else needed changing
 - [x] Verified: Feature suite 903/903, Unit `Notifications|Members` 719/719
 
-### M3 — Open mandates as one PDF (backend) [ ]
+### M3 — Open mandates as one PDF (backend) [x]
 
-- [ ] `MandateDocumentFiller::fillMany()`; `MandateDocumentService::forOpenMandates()`
-- [ ] `POST /api/admin/members/mandate-documents`, blank and keyed, `TREASURY`
-- [ ] `NO_OPEN_MANDATES` refusal; audit per member without a migration
-- [ ] Unit + Feature tests
+- [x] `MandateDocumentFiller::fillMany()` (template embedded once, values consumed one
+      person at a time); `MandateDocumentService::forOpenMandates()`;
+      `MandateDocumentVariant::ADMIN_PRINT_FULL`
+- [x] `POST /api/admin/members/mandate-documents`, blank and keyed, `TREASURY`, step-up
+      rate limit on the route (`MandateDocumentsController`, `OpenMandatePrintService`)
+- [x] `NO_OPEN_MANDATES` refusal; audit per member without a migration
+      (`iban_full_view` / `registration_printed` on entity type `member`)
+- [x] Verified: Unit suite 3462/3462, `OpenMandatePrintTest` (Feature, real sealed box) 8/8
 
 ### M4 — Contract and admin UI [ ]
 

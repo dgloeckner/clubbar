@@ -645,11 +645,62 @@ class MembersRepository
     }
 
     /**
+     * Every active member whose mandate is open but **unsigned** — the people
+     * a signature is still owed by (UC-A18).
+     *
+     * Three conditions, and each excludes somebody the print must not reach:
+     *
+     * - `deleted_at IS NULL` — an anonymized member has no name to print;
+     * - `is_active = 1` — a deactivated member is not being onboarded;
+     * - an **inner** join on the active mandate with `signed_at IS NULL` — a
+     *   member with no mandate at all has nothing to sign *yet* (there is no
+     *   reference to print on the sheet), and one whose mandate is signed is
+     *   done.
+     *
+     * The ciphertext is deliberately not selected, for the reason
+     * `MANDATE_COLUMNS` gives: it is read through {@see findSealedIban()} and
+     * nowhere else. `encryption_key_id` is not secret and travels with the
+     * row so a caller can tell, without touching the sealed material, which
+     * mandates today's key could open.
+     *
+     * Ordered the way the roster reads — last name, first name — because the
+     * output is a stack of paper somebody hands out by calling names.
+     *
+     * @param list<string>|null $memberIds narrow to these members; null for all
+     * @return list<array<string, mixed>>
+     */
+    public function findOpenMandates(?array $memberIds = null): array
+    {
+        $where = 'm.deleted_at IS NULL AND m.is_active = 1 AND md.signed_at IS NULL';
+        $params = [];
+
+        if ($memberIds !== null) {
+            if ($memberIds === []) {
+                return [];
+            }
+            $where .= ' AND m.id IN (' . implode(',', array_fill(0, count($memberIds), '?')) . ')';
+            $params = array_values($memberIds);
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT m.id, m.first_name, m.last_name, m.email, m.date_of_birth, m.account_holder_name, '
+            . 'md.reference AS mandate_reference, md.iban_last4, md.encryption_key_id '
+            . 'FROM members m JOIN mandates md ON md.active_member_id = m.id '
+            . "WHERE {$where} "
+            . 'ORDER BY m.last_name ASC, m.first_name ASC, m.id ASC'
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
      * The sealed IBAN material of a member's active mandate — the ONLY read
-     * that touches the ciphertext. Sole consumer is the SEPA export, which
-     * opens it with the temporarily supplied private key (ADR-0036). There is
-     * no other way back to the plaintext: no column holds it, and this process
-     * has no key.
+     * that touches the ciphertext. Its consumers are the two places the
+     * club's private key is supplied to open it (ADR-0036): the SEPA export,
+     * and — since the amendment of 2026-11-28 — the keyed print of open
+     * mandates. There is no other way back to the plaintext: no column holds
+     * it, and this process has no key.
      */
     public function findSealedIban(string $memberId): ?array
     {

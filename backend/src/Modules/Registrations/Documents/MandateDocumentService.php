@@ -79,6 +79,77 @@ class MandateDocumentService
     }
 
     /**
+     * The Anmeldung for every member still waiting for a signature, as one PDF
+     * (UC-A18; ADR-0052 as amended 2026-11-28).
+     *
+     * The third source of a print. A pending registration is gone the moment
+     * it is accepted, so a member accepted ahead of the paper has nothing to
+     * print *from* — except themselves: the member row and its open mandate
+     * carry every field the sheet needs, under the same names, which is why
+     * {@see values()} serves both and the two prints cannot drift apart.
+     *
+     * The template is the club's **configured** document. A member row records
+     * no `privacy_notice_url`: what an applicant was shown lived on the pending
+     * registration and went with it. The sheet a member signs is therefore the
+     * document the club publishes today — which is also the one they are
+     * handed to read.
+     *
+     * `$plainIbanFor` decides, per member, whether the sheet carries the
+     * number. It is called **as that member's sheet is reached** and never
+     * before: with a private key behind it (ADR-0036) a plaintext then exists
+     * for one iteration, and no list of them is ever built. Returning null —
+     * no key supplied, a mandate sealed under another key — prints that sheet
+     * in the blank layout rather than failing everybody else's.
+     *
+     * Throws like {@see forAdminPrint()}: the admin asked and is looking at
+     * the answer.
+     *
+     * @param list<array<string, mixed>> $members member rows joined with their
+     *        open mandate — `id` plus the keys {@see values()} reads
+     * @param null|callable(array<string, mixed>): ?string $plainIbanFor
+     * @throws UnusableTemplateException
+     * @throws \App\Shared\Exceptions\BusinessRuleException the document cannot be fetched
+     */
+    public function forOpenMandates(array $members, ?callable $plainIbanFor = null): MandateBatchDocument
+    {
+        $template = $this->fetchTemplate($this->configuredUrl());
+
+        // Asked once, up front. An IBAN longer than the template's comb is
+        // refused by the filler — right for one document, wrong for a batch,
+        // where it would cost every other member their sheet. That member's is
+        // printed blank instead, exactly as it would have to be filled by hand.
+        $capacity = $this->filler->ibanCapacity($template);
+
+        /** @var array<string, MandateDocumentVariant> $variants */
+        $variants = [];
+
+        $sheets = (function () use ($members, $plainIbanFor, $capacity, &$variants): \Generator {
+            foreach ($members as $member) {
+                $iban = $plainIbanFor === null ? null : $plainIbanFor($member);
+
+                if ($iban !== null) {
+                    $compact = preg_replace('/\s+/', '', $iban) ?? '';
+                    if ($compact === '' || ($capacity !== null && strlen($compact) > $capacity)) {
+                        $iban = null;
+                    }
+                }
+
+                $variant = $iban === null
+                    ? MandateDocumentVariant::ADMIN_PRINT
+                    : MandateDocumentVariant::ADMIN_PRINT_FULL;
+                $variants[(string) $member['id']] = $variant;
+
+                yield $this->values($member, $variant, $iban);
+            }
+        })();
+
+        return new MandateBatchDocument(
+            pdf: $this->filler->fillMany($template, $sheets),
+            variants: $variants,
+        );
+    }
+
+    /**
      * @param array<string, mixed> $registration
      * @throws UnusableTemplateException
      */
@@ -93,6 +164,17 @@ class MandateDocumentService
             $url = $this->configuredUrl();
         }
 
+        return $this->filler->fill($this->fetchTemplate($url), $this->values($registration, $variant, $iban));
+    }
+
+    /**
+     * The club's document, fetched for the length of this request.
+     *
+     * @throws UnusableTemplateException no URL to fetch from
+     * @throws \App\Shared\Exceptions\BusinessRuleException the URL did not answer
+     */
+    private function fetchTemplate(string $url): string
+    {
         if ($url === '') {
             throw new UnusableTemplateException(TemplateProblem::NOT_A_PDF, [], 'No club document URL is configured.');
         }
@@ -125,7 +207,7 @@ class MandateDocumentService
             );
         }
 
-        return $this->filler->fill($template, $this->values($registration, $variant, $iban));
+        return $template;
     }
 
     /**
@@ -136,13 +218,20 @@ class MandateDocumentService
      * boxes are absent because they are done by hand at signature — and a valid
      * template has no fields for them anyway, so there would be nowhere to draw.
      *
-     * @param array<string, mixed> $registration
+     * One method for both sources. A pending registration and a member joined
+     * with their mandate carry these fields under the same names, so a sheet
+     * printed for a member accepted last week is field for field the sheet
+     * their registration would have produced.
+     *
+     * @param array<string, mixed> $registration a pending registration, or a
+     *        member row joined with its active mandate
      * @return array<string, string>
      */
     private function values(array $registration, MandateDocumentVariant $variant, ?string $iban): array
     {
         $last4 = (string) ($registration['iban_last4'] ?? '');
         $sepa = $this->sepaConfig->getConfig();
+        $printsIban = $variant !== MandateDocumentVariant::ADMIN_PRINT;
 
         return [
             // Filled only where the template carries them. A club's own
@@ -158,11 +247,13 @@ class MandateDocumentService
             'email' => (string) ($registration['email'] ?? ''),
             'kontoinhaber' => (string) ($registration['account_holder_name'] ?? ''),
 
-            // The one field the variants disagree about.
-            'iban' => $variant === MandateDocumentVariant::MEMBER ? $this->grouped((string) $iban) : '',
-            'iban_last4' => $variant === MandateDocumentVariant::MEMBER
-                ? '****' . $last4
-                : 'endet auf ****' . $last4,
+            // The one field the variants disagree about — and they disagree
+            // about one thing only: whether the number is machine-printed. The
+            // member's own copy and the keyed admin print both carry it; the
+            // blank admin print leaves the line for a pen and says which four
+            // digits the pen should end on.
+            'iban' => $printsIban ? $this->grouped((string) $iban) : '',
+            'iban_last4' => $printsIban ? '****' . $last4 : 'endet auf ****' . $last4,
         ];
     }
 

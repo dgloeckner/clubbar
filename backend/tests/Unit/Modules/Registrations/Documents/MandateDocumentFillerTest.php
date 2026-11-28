@@ -71,6 +71,131 @@ final class MandateDocumentFillerTest extends TestCase
         self::assertSame(3, $this->pageCount($this->fill()));
     }
 
+    // ── many people, one document (UC-A18) ───────────────────────────────
+
+    /** @return list<array<string, string>> */
+    private function threePeople(): array
+    {
+        return [
+            ['vorname' => 'Lena', 'nachname' => 'Brandt', 'mandatsreferenz' => 'CB-000041', 'iban_last4' => 'endet auf ****3000'],
+            ['vorname' => 'Jonas', 'nachname' => 'Brandt', 'mandatsreferenz' => 'CB-000042', 'iban_last4' => 'endet auf ****3000'],
+            ['vorname' => 'Mara', 'nachname' => 'Okafor', 'mandatsreferenz' => 'CB-000043', 'iban_last4' => 'endet auf ****2051'],
+        ];
+    }
+
+    /**
+     * The acceptance criterion in one line: the batch is the club's whole
+     * document, once per member. Three people on a three-page Anmeldung is
+     * nine pages — not three first pages and one shared set of notices.
+     */
+    public function test_a_batch_has_every_template_page_once_per_person(): void
+    {
+        $pdf = (new MandateDocumentFiller())->fillMany($this->template, $this->threePeople());
+
+        self::assertSame(9, $this->pageCount($pdf));
+    }
+
+    public function test_every_person_in_a_batch_gets_their_own_values(): void
+    {
+        $text = $this->readableText((new MandateDocumentFiller())->fillMany($this->template, $this->threePeople()));
+
+        foreach (['Lena', 'Jonas', 'Mara', 'CB-000041', 'CB-000042', 'CB-000043', '****2051'] as $expected) {
+            self::assertStringContainsString($expected, $text);
+        }
+    }
+
+    /**
+     * The order that is load-bearing inside one document is load-bearing per
+     * person. A batch written the obvious way — every first page, then the
+     * rest — would be complete and unsortable: nobody's notices would follow
+     * their own form.
+     */
+    public function test_each_person_s_pages_stay_together_in_order(): void
+    {
+        $pdf = (new MandateDocumentFiller())->fillMany($this->template, $this->threePeople());
+
+        // The drawn text streams appear in page order; a name must come before
+        // the next name, with that person's further pages between them.
+        $text = $this->readableText($pdf);
+        self::assertLessThan(strpos($text, '(Jonas)'), strpos($text, '(Lena)'));
+        self::assertLessThan(strpos($text, '(Mara)'), strpos($text, '(Jonas)'));
+    }
+
+    /**
+     * Two hundred members must not mean two hundred copies of the club's
+     * notices. FPDI imports a page as a form XObject and every later use only
+     * references it, so the template's content streams appear once however
+     * many people the output holds.
+     */
+    public function test_the_template_is_embedded_once_however_many_people_there_are(): void
+    {
+        $filler = new MandateDocumentFiller();
+        $one = $filler->fillMany($this->template, array_slice($this->threePeople(), 0, 1));
+        $three = $filler->fillMany($this->template, $this->threePeople());
+
+        self::assertLessThan(
+            strlen($one) * 1.5,
+            strlen($three),
+            'Three people should cost three small text streams, not three copies of the document.',
+        );
+
+        foreach ($this->contentStreams($this->template) as $index => $stream) {
+            self::assertSame(
+                1,
+                count(array_keys($this->contentStreams($three), $stream, true)),
+                "Template content stream #{$index} should be embedded exactly once.",
+            );
+        }
+    }
+
+    /**
+     * The keyed print hands in a generator that opens one IBAN per sheet. If
+     * the filler drained it before drawing, every plaintext would be alive at
+     * once — which is the collection ADR-0036 says is never assembled.
+     */
+    public function test_a_batch_consumes_its_values_one_person_at_a_time(): void
+    {
+        $alive = 0;
+        $mostAliveAtOnce = 0;
+
+        $sheets = (function () use (&$alive, &$mostAliveAtOnce): \Generator {
+            foreach ($this->threePeople() as $values) {
+                $alive++;
+                $mostAliveAtOnce = max($mostAliveAtOnce, $alive);
+                yield $values;
+                // Resumed only when the filler asks for the next person — by
+                // which time this one's sheet has been drawn.
+                $alive--;
+            }
+        })();
+
+        (new MandateDocumentFiller())->fillMany($this->template, $sheets);
+
+        self::assertSame(1, $mostAliveAtOnce);
+    }
+
+    public function test_a_batch_about_nobody_is_refused(): void
+    {
+        $this->expectException(\LogicException::class);
+
+        (new MandateDocumentFiller())->fillMany($this->template, []);
+    }
+
+    public function test_a_batch_leaves_no_file_behind(): void
+    {
+        $before = glob(sys_get_temp_dir() . '/clubbar-template-*') ?: [];
+
+        (new MandateDocumentFiller())->fillMany($this->template, $this->threePeople());
+
+        self::assertSame($before, glob(sys_get_temp_dir() . '/clubbar-template-*') ?: []);
+    }
+
+    /** A template with a single wide `iban` field can take any IBAN. */
+    public function test_a_template_with_a_wide_iban_field_has_no_capacity_limit(): void
+    {
+        self::assertNull((new MandateDocumentFiller())->ibanCapacity($this->template));
+    }
+
     /**
      * Not merely the right *number* of pages — the same pages, byte for byte.
      *

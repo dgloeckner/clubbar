@@ -7,6 +7,7 @@ use App\Shared\Controllers\SecurityCheckController;
 use App\Modules\Security\Controllers\EncryptionKeysController;
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Members\Controllers\AdminController as MembersAdminController;
+use App\Modules\Members\Controllers\MandateDocumentsController;
 use App\Modules\Members\Controllers\SyncController as MembersSyncController;
 use App\Modules\Products\Controllers\AdminController as ProductsAdminController;
 use App\Modules\Products\Controllers\SyncController as ProductsSyncController;
@@ -216,6 +217,11 @@ return function (App $app): void {
         $group->get('/members/collection-holds', [MembersAdminController::class, 'collectionHolds']);
         $group->get('/members/mandate-missing', [MembersAdminController::class, 'mandateMissing']);
         $group->get('/members/completeness', [MembersAdminController::class, 'completeness']);
+        // Every open mandate as one PDF (UC-A18). A POST although it reads:
+        // the full-IBAN variant carries the club's private key in its body,
+        // exactly as the SEPA export does (ADR-0036), and the step-up limiter
+        // sits on it for the same reason it sits there.
+        $group->post('/members/mandate-documents', [MandateDocumentsController::class, 'print'])->add($stepUpRateLimit);
         $group->get('/members/{memberId}', [MembersAdminController::class, 'show']);
         $group->patch('/members/{memberId}', [MembersAdminController::class, 'update']);
         $group->delete('/members/{memberId}', [MembersAdminController::class, 'destroy']);
