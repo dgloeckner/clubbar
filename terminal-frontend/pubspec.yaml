@@ -14,7 +14,7 @@ dependencies:
     sdk: flutter
 
   # Database & ORM
-  drift: ^2.35.2
+  drift: ^2.35.4
 
   # Networking
   http: ^1.6.0
@@ -27,10 +27,10 @@ dependencies:
   provider: ^6.1.5+1
 
   # Navigation
-  go_router: ^18.1.1
+  go_router: ^18.1.4
 
   # Animations & UI
-  flutter_svg: ^2.2.4
+  flutter_svg: ^2.3.2
 
   # Date/Time (immutable)
   intl: ^0.20.2
@@ -60,7 +60,7 @@ dev_dependencies:
   fake_async: ^1.3.1
 
   # Code Generation
-  drift_dev: ^2.35.1
+  drift_dev: ^2.35.3
   build_runner: ^2.16.2
   swagger_dart_code_generator: 4.1.1
   json_serializable: ^6.15.2
