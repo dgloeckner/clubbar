@@ -40,6 +40,19 @@ export class MembersPage extends BasePage {
   private readonly createBtn = () => this.page.getByTestId('members-create-button')
   private readonly sepaTemplateLinkButton = () => this.page.getByTestId('members-sepa-template-link-button')
 
+  // "Offene Mandate drucken" (UC-A18). The keyed variant is the SEPA export's
+  // dialog — the same shared pieces, so the same test ids.
+  private readonly printMandatesButton = () => this.page.getByTestId('members-print-mandates-button')
+  private readonly printDialog = () => this.page.getByTestId('confirm-dialog')
+  private readonly printFullIbanChoice = () => this.page.getByTestId('mandate-print-full-iban')
+  private readonly printConfirmButton = () => this.page.getByTestId('confirm-dialog-ok')
+  private readonly printBlankError = () => this.page.getByTestId('mandate-print-error')
+  private readonly printKeyedError = () => this.page.getByTestId('step-up-error')
+  private readonly printPrivateKeyInput = () => this.page.getByTestId('private-key-paste')
+  private readonly printPasswordInput = () => this.page.getByTestId('step-up-password')
+  private readonly printTotpInput = () => this.page.getByTestId('step-up-totp-code')
+  private readonly printWarning = () => this.page.getByTestId('members-mandate-print-warning')
+
   // Table elements
   private readonly table = () => this.page.getByTestId('members-table')
   private readonly tableRows = () => this.page.locator('[data-testid^="members-table-row-"]')
@@ -516,6 +529,145 @@ export class MembersPage extends BasePage {
     await this.expectMemberVisibleInTable(firstName)
     await this.clickEditButtonForMember(firstName)
     await this.expectFormModalVisible()
+  }
+
+  // ── Offene Mandate drucken (UC-A18) ─────────────────────────────────────
+
+  async openPrintMandatesDialog() {
+    await this.printMandatesButton().click()
+    await expect(this.printDialog()).toBeVisible()
+  }
+
+  /** The blank print is the default and asks for no secret. */
+  async expectPrintDialogAsksForNoCredential() {
+    await expect(this.printFullIbanChoice()).not.toBeChecked()
+    await expect(this.printPrivateKeyInput()).toHaveCount(0)
+    await expect(this.printPasswordInput()).toHaveCount(0)
+  }
+
+  async choosePrintWithFullIban() {
+    await this.printFullIbanChoice().check()
+    await expect(this.printPrivateKeyInput()).toBeVisible()
+    await expect(this.printPasswordInput()).toBeVisible()
+  }
+
+  async expectPrintConfirmDisabled() {
+    await expect(this.printConfirmButton()).toBeDisabled()
+  }
+
+  /**
+   * Fill the keyed print's secrets. The seeded admin has 2FA enrolled, so the
+   * dialog asks for a code as well — filled only when it is actually shown.
+   *
+   * The code goes in before the password, for the reason the SEPA export's
+   * page object gives: completing it is what confirms the dialog, so filling
+   * it last would fire the request before `submitPrintMandates()` is waiting
+   * for the download.
+   */
+  async fillPrintKeyAndPassword(privateKey: string, password: string, totpCode: string) {
+    await this.printPrivateKeyInput().fill(privateKey)
+
+    if (await this.printTotpInput().isVisible()) {
+      // Cleared first: re-typing the code it already holds fires no change,
+      // and a second attempt with the same code needs the field re-armed.
+      await this.printTotpInput().fill('')
+      await this.printTotpInput().fill(totpCode)
+    }
+
+    await this.printPasswordInput().fill(password)
+  }
+
+  async getPrintKeyFieldValue(): Promise<string> {
+    return await this.printPrivateKeyInput().inputValue()
+  }
+
+  /** Confirm and read the PDF the browser was handed. */
+  async submitPrintMandates(): Promise<Buffer> {
+    const [download] = await Promise.all([
+      this.page.waitForEvent('download'),
+      this.printConfirmButton().click(),
+    ])
+
+    const stream = await download.createReadStream()
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk))
+    }
+
+    await expect(this.printDialog()).toBeHidden()
+
+    return Buffer.concat(chunks)
+  }
+
+  /** Confirm a print that is expected to be refused, and wait for the answer. */
+  async submitPrintMandatesExpectingRefusal(): Promise<import('@playwright/test').Response> {
+    const answered = this.page.waitForResponse((response) =>
+      response.url().includes('/api/admin/members/mandate-documents'),
+    )
+    await this.printConfirmButton().click()
+
+    return answered
+  }
+
+  /**
+   * Correct the key in a dialog that just refused one, and read the PDF.
+   *
+   * The password is still in the dialog from the refused attempt — keeping it
+   * is the point of leaving the dialog open — so the dialog is *ready* the
+   * moment a complete code lands, and completing the code submits. Hence the
+   * order: the code is cleared before the key is touched, and the download is
+   * awaited around the keystroke that fires it rather than around a click
+   * that would arrive after the request has already gone.
+   */
+  async retryPrintMandatesWithKey(privateKey: string, totpCode: string): Promise<Buffer> {
+    const asksForCode = await this.printTotpInput().isVisible()
+    if (asksForCode) {
+      await this.printTotpInput().fill('')
+    }
+
+    await this.printPrivateKeyInput().fill(privateKey)
+
+    const [download] = await Promise.all([
+      this.page.waitForEvent('download'),
+      asksForCode ? this.printTotpInput().fill(totpCode) : this.printConfirmButton().click(),
+    ])
+
+    const stream = await download.createReadStream()
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk))
+    }
+
+    await expect(this.printDialog()).toBeHidden()
+
+    return Buffer.concat(chunks)
+  }
+
+  /** A rejected key or credential keeps the dialog open, and says why. */
+  async expectPrintDialogKeptOpenWithError() {
+    await expect(this.printDialog()).toBeVisible()
+    await expect(this.printKeyedError()).toBeVisible()
+    await expect(this.printKeyedError()).not.toBeEmpty()
+  }
+
+  async expectNoPrintWarning() {
+    await expect(this.printWarning()).toHaveCount(0)
+    await expect(this.printBlankError()).toHaveCount(0)
+  }
+
+  // ── Recording the signature (ADR-0052, amended 2026-11-28) ──────────────
+
+  /**
+   * Record the date on the paper in the open edit form.
+   *
+   * Typed the way the panel's locale writes a date; the ISO value the API
+   * receives is read back from the hidden field beside it.
+   */
+  async setMandateSignatureDate(localeDate: string): Promise<string> {
+    await this.mandateDateInput().fill(localeDate)
+    await this.mandateDateInput().blur()
+
+    return await this.mandateDateValue().inputValue()
   }
 
   async openEditModalForMember(memberId: string) {
